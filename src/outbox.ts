@@ -11,7 +11,7 @@ import * as api from './api';
 // the web demo working; swap it when the app runs natively at scale.
 export type OutboxItem =
   | { key: string; deliveryId: string; type: 'start'; createdAt: string }
-  | { key: string; deliveryId: string; type: 'deliver'; receiverName: string; createdAt: string }
+  | { key: string; deliveryId: string; type: 'deliver'; code: string; createdAt: string }
   | { key: string; deliveryId: string; type: 'fail'; reason: string; notes: string; createdAt: string };
 
 const OUTBOX_KEY = 'hovante_delivery_outbox';
@@ -96,7 +96,7 @@ export async function flush(): Promise<number> {
 function send(item: OutboxItem) {
   switch (item.type) {
     case 'start': return api.startDelivery(item.deliveryId, item.key);
-    case 'deliver': return api.deliverDelivery(item.deliveryId, item.receiverName, item.key);
+    case 'deliver': return api.deliverDelivery(item.deliveryId, item.code, item.key);
     case 'fail': return api.failDelivery(item.deliveryId, item.reason, item.notes, item.key);
   }
 }

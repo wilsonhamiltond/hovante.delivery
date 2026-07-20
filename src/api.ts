@@ -39,6 +39,9 @@ export interface Me {
   document: string | null;
   isClient: boolean;
   isDriver: boolean;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 // One stop on a driver's route (GET /delivery/mine).
@@ -53,12 +56,25 @@ export interface Delivery {
   city: string | null;
   latitude: number | null;
   longitude: number | null;
+  clientPhone: string | null;
+  pickupName: string | null;
+  pickupAddress: string | null;
+  pickupPhone: string | null;
   notes: string | null;
   receiverName: string | null;
   failureReason: string | null;
   inTransitAt: string | null;
   deliveredAt: string | null;
   failedAt: string | null;
+}
+
+// A business category (the company business type) from the ERP catalog. Drives the category row
+// on the client home.
+export interface BusinessCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
 }
 
 export interface RegisterPayload {
@@ -101,6 +117,23 @@ export function register(payload: RegisterPayload) {
   return post<string>('/auth/register', payload);
 }
 
+// Sign in with Google: the device obtains a Google ID token, the server verifies it and returns our
+// JWT as `data` -- signing in an existing account or creating one. `type` only matters for a new
+// account (which kind to create); it is ignored for a returning user.
+export function googleLogin(idToken: string, type: 'client' | 'driver' = 'client') {
+  return post<string>('/auth/google', { idToken, type });
+}
+
+// Password reset. forgotPassword always reports success (the server does not reveal whether the
+// email exists); a real account is emailed a reset link. resetPassword consumes the link's token.
+export function forgotPassword(email: string) {
+  return post<null>('/auth/forgot-password', { email });
+}
+
+export function resetPassword(token: string, newPassword: string) {
+  return post<null>('/auth/reset-password', { token, newPassword });
+}
+
 // Authenticated GET: uses the held token (set on login/restore, updated by sliding refresh).
 async function get<T>(path: string): Promise<ApiResponse<T>> {
   if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as T };
@@ -122,8 +155,108 @@ export function me() {
   return get<Me>('/auth/me');
 }
 
+// The ERP business categories (company business types), shown as the home category row.
+export function businessCategories() {
+  return get<BusinessCategory[]>('/businessCategory');
+}
+
+// A marketplace product (an item from any merchant company).
+export interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  imagePath: string | null;
+  companyId: string;
+  companyName: string;
+  categories: string[];
+}
+
+export interface OrderLineInput {
+  itemId: string;
+  quantity: number;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  merchantCompanyId: string;
+  merchantName: string | null;
+  status: string;
+  subtotal: number;
+  total: number;
+  notes: string | null;
+  address: string | null;
+  createdAt: string;
+  items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
+}
+
+// The catalog across every merchant, or a single merchant's when companyId is given.
+export function products(companyId?: string) {
+  const path = companyId ? `/delivery/products?companyId=${encodeURIComponent(companyId)}` : '/delivery/products';
+  return get<Product[]>(path);
+}
+
+export interface CreateOrderInput {
+  items: OrderLineInput[];
+  notes?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+// Place an order. The server rejects lines from more than one merchant; the app blocks it too.
+export function createOrder(input: CreateOrderInput) {
+  return postAuth<Order>('/delivery/orders', input);
+}
+
+export function myOrders() {
+  return get<Order[]>('/delivery/orders/mine');
+}
+
+// An order plus its live delivery status, for the tracking screen.
+export interface OrderTracking {
+  order: Order;
+  deliveryStatus: string | null;
+  driverName: string | null;
+  // The 4-digit code the customer reads to the driver to confirm delivery.
+  deliveryCode: string | null;
+}
+
+export function orderTracking(id: string) {
+  return get<OrderTracking>(`/delivery/orders/${id}`);
+}
+
+// One entry in the customer's address history.
+export interface AddressHistory {
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  timesUsed: number;
+  lastUsedAt: string;
+}
+
+// The customer's address history: addresses they have ordered to, most recently used first.
+export function myAddresses() {
+  return get<AddressHistory[]>('/delivery/my-addresses');
+}
+
 export function myDeliveries() {
   return get<Delivery[]>('/delivery/mine');
+}
+
+// The driver's finished deliveries (delivered/failed/returned/cancelled), newest first.
+export function deliveryHistory() {
+  return get<Delivery[]>('/delivery/history');
+}
+
+// The pickup pool: unassigned deliveries a driver can claim, and claiming one.
+export function availableDeliveries() {
+  return get<Delivery[]>('/delivery/available');
+}
+
+export function pickupDelivery(id: string) {
+  return postAuth<Delivery>(`/delivery/${id}/pickup`, {});
 }
 
 // Authenticated POST for the driver's status actions. An optional idempotency key (8.5.9) lets a
@@ -153,8 +286,10 @@ export function startDelivery(id: string, idempotencyKey?: string) {
   return postAuth<Delivery>(`/delivery/${id}/start`, {}, idempotencyKey);
 }
 
-export function deliverDelivery(id: string, receiverName: string, idempotencyKey?: string) {
-  return postAuth<Delivery>(`/delivery/${id}/deliver`, { receiverName }, idempotencyKey);
+// The customer's 4-digit confirmation code, entered by the driver at the door. The server verifies
+// it before completing the delivery.
+export function deliverDelivery(id: string, code: string, idempotencyKey?: string) {
+  return postAuth<Delivery>(`/delivery/${id}/deliver`, { code }, idempotencyKey);
 }
 
 export function failDelivery(id: string, reason: string, notes: string, idempotencyKey?: string) {

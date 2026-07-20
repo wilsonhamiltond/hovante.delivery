@@ -8,6 +8,7 @@ interface AuthState {
   // While the stored token is being read on startup, routes wait rather than flashing login.
   loading: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
+  signInWithGoogle: (idToken: string, type?: 'client' | 'driver') => Promise<string | null>;
   signUp: (payload: RegisterPayload) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
@@ -50,6 +51,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
+  // Exchange a Google ID token (from the device's Google flow) for our JWT, then adopt it -- the
+  // server signs in or creates the delivery account. Same null-on-success contract as signIn.
+  const signInWithGoogle = async (idToken: string, type: 'client' | 'driver' = 'client') => {
+    const res = await api.googleLogin(idToken, type);
+    if (!res.success) return res.message;
+    await adopt(res.data);
+    return null;
+  };
+
   const signUp = async (payload: RegisterPayload) => {
     const res = await api.register(payload);
     if (!res.success) return res.message;
@@ -65,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ token, loading, signIn, signInWithGoogle, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

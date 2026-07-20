@@ -3,6 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleShee
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth';
+import { GoogleSignInButton } from '../src/GoogleSignInButton';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -52,9 +53,20 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        <Link href="/forgot-password" style={styles.forgot}>¿Olvidó su contraseña?</Link>
+
         <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
           {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
         </Pressable>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>o</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* A Google sign-in creates a customer account by default; drivers register explicitly. */}
+        <GoogleSignInButton type="client" onError={setError} disabled={submitting} />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>¿No tiene cuenta? </Text>
@@ -76,6 +88,10 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#2563eb', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  forgot: { color: '#2563eb', fontWeight: '600', textAlign: 'right', fontSize: 14 },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
+  dividerText: { color: '#94a3b8', fontSize: 13 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
   footerText: { color: '#64748b' },
   link: { color: '#2563eb', fontWeight: '600' },

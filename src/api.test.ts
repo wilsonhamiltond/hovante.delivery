@@ -35,6 +35,57 @@ describe('api client', () => {
     expect(JSON.parse(init.body).type).toBe('driver');
   });
 
+  it('posts the id token and type to /auth/google', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true, message: 'ok', data: 'jwt' }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await api.googleLogin('google-id-token', 'driver');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/auth/google');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ idToken: 'google-id-token', type: 'driver' });
+  });
+
+  it('defaults the google account type to client', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true, message: 'ok', data: 'jwt' }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await api.googleLogin('tok');
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).type).toBe('client');
+  });
+
+  it('posts the email to /auth/forgot-password', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true, message: 'ok', data: null }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await api.forgotPassword('a@b.com');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/auth/forgot-password');
+    expect(JSON.parse(init.body)).toEqual({ email: 'a@b.com' });
+  });
+
+  it('posts the token and new password to /auth/reset-password', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true, message: 'ok', data: null }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await api.resetPassword('the-token', 'NewPass123');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/auth/reset-password');
+    expect(JSON.parse(init.body)).toEqual({ token: 'the-token', newPassword: 'NewPass123' });
+  });
+
   it('returns a friendly failure when the network is down', async () => {
     globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
 
