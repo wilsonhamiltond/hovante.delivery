@@ -4,31 +4,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import type { OrderTracking } from '../../src/api';
+import { GradientBackground, t } from '../../src/theme';
 
-const RED = '#FA0050';
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
-// Tracking timeline stages, keyed by the delivery status. The number is how far along the order is.
-// AWAITING_MERCHANT (the merchant has not yet released it) sits at the first stage, like PENDING.
-const STAGE: Record<string, number> = { AWAITING_MERCHANT: 0, PENDING: 0, ASSIGNED: 1, IN_TRANSIT: 2, DELIVERED: 3 };
+// Tracking timeline, in order. It spans the merchant's order status (confirmar → listo) and then the
+// delivery status (asignada → en camino → entregada), so the customer sees the whole journey.
 const STAGES = [
   { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
+  { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
+  { title: 'Listo para recoger', sub: 'El comercio preparó tu pedido' },
   { title: 'Repartidor asignado', sub: 'Un repartidor tomó tu pedido' },
   { title: 'En camino', sub: 'Tu pedido va hacia ti' },
   { title: 'Entregado', sub: 'Disfruta tu pedido' },
 ];
 
-// Big headline per status.
-const HEADLINE: Record<string, string> = {
-  AWAITING_MERCHANT: 'Esperando confirmación del comercio…',
-  PENDING: 'Buscando repartidor…',
-  ASSIGNED: 'Repartidor asignado',
-  IN_TRANSIT: 'Tu pedido va en camino',
-  DELIVERED: '¡Pedido entregado! 🎉',
-  FAILED: 'Entrega fallida',
-  RETURNED: 'Pedido devuelto',
-  CANCELLED: 'Pedido cancelado',
-};
+// Big headline per phase (same index as STAGES).
+const HEADLINE_BY_PHASE = [
+  'Esperando confirmación del comercio…',
+  'Pedido confirmado',
+  'Listo, buscando repartidor…',
+  'Repartidor asignado',
+  'Tu pedido va en camino',
+  '¡Pedido entregado! 🎉',
+];
+
+// A short "12 jul, 03:45 p. m." style stamp for a status change; null when the step isn't reached.
+const fmtStamp = (iso?: string | null): string | null =>
+  iso ? new Date(iso).toLocaleString('es-DO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+
+// The current phase index. The delivery status wins once a driver is involved; before that (the
+// delivery is still AWAITING_MERCHANT/PENDING) the merchant's order status drives it.
+function currentPhase(orderStatus: string, deliveryStatus: string | null): number {
+  if (deliveryStatus === 'DELIVERED') return 5;
+  if (deliveryStatus === 'IN_TRANSIT') return 4;
+  if (deliveryStatus === 'ASSIGNED') return 3;
+  if (orderStatus === 'READY') return 2;
+  if (orderStatus === 'CONFIRMED') return 1;
+  return 0;
+}
 
 export default function OrderTrackingScreen() {
   const router = useRouter();
@@ -54,35 +68,45 @@ export default function OrderTrackingScreen() {
 
   if (loading) {
     return (
+      <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.center}><ActivityIndicator size="large" color={RED} /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       </SafeAreaView>
+      </GradientBackground>
     );
   }
 
   if (!data) {
     return (
+      <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Header onBack={() => router.replace('/orders')} />
         <View style={styles.center}><Text style={styles.error}>{error ?? 'Pedido no encontrado.'}</Text></View>
       </SafeAreaView>
+      </GradientBackground>
     );
   }
 
   const { order, deliveryStatus, driverName, deliveryCode } = data;
-  const status = deliveryStatus ?? 'PENDING';
-  const current = STAGE[status] ?? 0;
-  const failed = status === 'FAILED' || status === 'CANCELLED' || status === 'RETURNED';
+  const failed = order.status === 'CANCELLED'
+    || deliveryStatus === 'FAILED' || deliveryStatus === 'CANCELLED' || deliveryStatus === 'RETURNED';
+  const current = currentPhase(order.status, deliveryStatus);
+  // A timestamp per timeline step, in STAGES order, so each reached stage shows when it happened.
+  const phaseStamps = [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
+  const headline = failed
+    ? (order.status === 'CANCELLED' ? 'Pedido cancelado' : deliveryStatus === 'FAILED' ? 'Entrega fallida' : 'Pedido devuelto')
+    : HEADLINE_BY_PHASE[current];
   // Show the confirmation code until the order is delivered (or terminal): the customer reads it to
   // the driver at the door to confirm receipt.
-  const showCode = !!deliveryCode && status !== 'DELIVERED' && !failed;
+  const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && !failed;
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header onBack={() => router.replace('/orders')} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-        <Text style={[styles.headline, failed && { color: '#dc2626' }]}>{HEADLINE[status] ?? status}</Text>
+        <Text style={[styles.headline, failed && { color: t.danger }]}>{headline}</Text>
         {driverName ? <Text style={styles.driver}>Repartidor: {driverName}</Text> : null}
 
         {/* Delivery confirmation code: the customer reads it to the driver at the door. */}
@@ -109,7 +133,10 @@ export default function OrderTrackingScreen() {
                     {i < STAGES.length - 1 ? <View style={[styles.rail, i < current && styles.railDone]} /> : null}
                   </View>
                   <View style={styles.stageText}>
-                    <Text style={[styles.stageTitle, done && styles.stageTitleDone]}>{s.title}</Text>
+                    <View style={styles.stageTitleRow}>
+                      <Text style={[styles.stageTitle, done && styles.stageTitleDone]}>{s.title}</Text>
+                      {fmtStamp(phaseStamps[i]) ? <Text style={styles.stageDate}>{fmtStamp(phaseStamps[i])}</Text> : null}
+                    </View>
                     <Text style={styles.stageSub}>{s.sub}</Text>
                   </View>
                 </View>
@@ -145,6 +172,7 @@ export default function OrderTrackingScreen() {
         </Pressable>
       </ScrollView>
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -159,47 +187,49 @@ function Header({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f4f6' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  back: { color: RED, fontWeight: '700', fontSize: 16, width: 90 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#111827' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 90 },
+  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  error: { color: '#dc2626', fontSize: 14, textAlign: 'center' },
+  error: { color: t.danger, fontSize: 14, textAlign: 'center' },
   scroll: { padding: 16 },
-  orderNumber: { fontSize: 14, fontWeight: '700', color: '#6b7280' },
-  headline: { fontSize: 24, fontWeight: '800', color: '#111827', marginTop: 4 },
-  driver: { fontSize: 14, color: '#374151', marginTop: 6, fontWeight: '600' },
+  orderNumber: { fontSize: 14, fontWeight: '700', color: t.textMuted },
+  headline: { fontSize: 24, fontWeight: '800', color: t.text, marginTop: 4 },
+  driver: { fontSize: 14, color: t.textMuted, marginTop: 6, fontWeight: '600' },
 
-  codeCard: { backgroundColor: '#111827', borderRadius: 16, padding: 18, marginTop: 16, alignItems: 'center' },
-  codeLabel: { fontSize: 12, fontWeight: '800', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1 },
-  codeValue: { fontSize: 40, fontWeight: '900', color: '#fff', letterSpacing: 12, marginTop: 6, marginLeft: 12 },
-  codeHint: { fontSize: 13, color: '#d1d5db', marginTop: 6, textAlign: 'center' },
+  codeCard: { backgroundColor: 'rgba(0,0,0,0.22)', borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 18, marginTop: 16, alignItems: 'center' },
+  codeLabel: { fontSize: 12, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
+  codeValue: { fontSize: 40, fontWeight: '900', color: t.text, letterSpacing: 12, marginTop: 6, marginLeft: 12 },
+  codeHint: { fontSize: 13, color: t.textMuted, marginTop: 6, textAlign: 'center' },
 
-  timeline: { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginTop: 16 },
+  timeline: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 18, marginTop: 16 },
   stageRow: { flexDirection: 'row', gap: 12 },
   stageMarker: { alignItems: 'center', width: 24 },
-  dot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' },
-  dotDone: { backgroundColor: RED },
-  dotActive: { backgroundColor: '#fff', borderWidth: 3, borderColor: RED },
-  dotCheck: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  rail: { width: 3, flex: 1, minHeight: 28, backgroundColor: '#e5e7eb', marginVertical: 2 },
-  railDone: { backgroundColor: RED },
+  dot: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  dotDone: { backgroundColor: t.accent },
+  dotActive: { backgroundColor: 'transparent', borderWidth: 3, borderColor: t.accent },
+  dotCheck: { color: t.onAccent, fontSize: 12, fontWeight: '800' },
+  rail: { width: 3, flex: 1, minHeight: 28, backgroundColor: 'rgba(255,255,255,0.25)', marginVertical: 2 },
+  railDone: { backgroundColor: t.accent },
   stageText: { flex: 1, paddingBottom: 18 },
-  stageTitle: { fontSize: 15, fontWeight: '700', color: '#9ca3af' },
-  stageTitleDone: { color: '#111827' },
-  stageSub: { fontSize: 13, color: '#9ca3af', marginTop: 2 },
+  stageTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  stageTitle: { fontSize: 15, fontWeight: '700', color: t.textFaint, flexShrink: 1 },
+  stageTitleDone: { color: t.text },
+  stageDate: { fontSize: 12, color: t.textMuted, fontWeight: '600' },
+  stageSub: { fontSize: 13, color: t.textMuted, marginTop: 2 },
 
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginTop: 14 },
-  label: { fontSize: 12, fontWeight: '700', color: '#9ca3af', marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
-  value: { fontSize: 15, color: '#111827', marginTop: 3, fontWeight: '600' },
+  card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 16, marginTop: 14 },
+  label: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
+  value: { fontSize: 15, color: t.text, marginTop: 3, fontWeight: '600' },
   line: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  lineQty: { fontSize: 14, fontWeight: '800', color: RED, minWidth: 26 },
-  lineName: { flex: 1, fontSize: 15, color: '#111827' },
-  linePrice: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12 },
-  totalLabel: { fontSize: 15, fontWeight: '700', color: '#374151' },
-  totalValue: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  lineQty: { fontSize: 14, fontWeight: '800', color: t.text, minWidth: 26 },
+  lineName: { flex: 1, fontSize: 15, color: t.text },
+  linePrice: { fontSize: 14, fontWeight: '700', color: t.text },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 12 },
+  totalLabel: { fontSize: 15, fontWeight: '700', color: t.textMuted },
+  totalValue: { fontSize: 18, fontWeight: '800', color: t.text },
 
-  secondary: { backgroundColor: '#fff', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: '#ffd6e4' },
-  secondaryText: { color: RED, fontSize: 16, fontWeight: '800' },
+  secondary: { backgroundColor: t.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: t.border },
+  secondaryText: { color: t.text, fontSize: 16, fontWeight: '800' },
 });

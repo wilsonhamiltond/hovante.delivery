@@ -5,10 +5,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
 import * as outbox from './outbox';
 import type { Delivery, Me } from './api';
+import { GradientBackground, t } from './theme';
 
-// The driver's home: a blue header with the day's counters, then "Mi ruta de hoy" -- the assigned
-// stops in order, each opening its detail. Distinct from the client's red marketplace home.
-const BLUE = '#2563eb';
+// The driver's home: the day's counters over the blue gradient, then "Mi ruta de hoy" -- the assigned
+// stops in order, each opening its detail.
 
 const STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Pendiente', color: '#64748b' },
@@ -65,6 +65,7 @@ export function DriverHome({ profile, onSignOut }: { profile: Me | null; onSignO
   }, [deliveries]);
 
   return (
+    <GradientBackground>
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.headerBand}>
@@ -89,7 +90,7 @@ export function DriverHome({ profile, onSignOut }: { profile: Me | null; onSignO
         data={deliveries}
         keyExtractor={(d) => d.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
         ListHeaderComponent={
           <View>
             <Pressable style={styles.pickupBtn} onPress={() => router.push('/pickup')}>
@@ -166,6 +167,7 @@ export function DriverHome({ profile, onSignOut }: { profile: Me | null; onSignO
         </View>
       </Modal>
     </View>
+    </GradientBackground>
   );
 }
 
@@ -179,54 +181,53 @@ function StatTile({ label, value }: { label: string; value: number }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f1f5f9' },
-  headerSafe: { backgroundColor: BLUE },
-  headerBand: { backgroundColor: BLUE, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  root: { flex: 1, backgroundColor: 'transparent' },
+  headerSafe: { backgroundColor: 'transparent' },
+  headerBand: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   topRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  hello: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  role: { fontSize: 13, color: '#bfdbfe', marginTop: 2, fontWeight: '600' },
-  menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  menuIcon: { color: '#fff', fontSize: 20, fontWeight: '700', lineHeight: 22 },
+  hello: { fontSize: 22, fontWeight: '800', color: t.text },
+  role: { fontSize: 13, color: t.textMuted, marginTop: 2, fontWeight: '600' },
+  menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  menuIcon: { color: t.text, fontSize: 20, fontWeight: '700', lineHeight: 22 },
   statsRow: { flexDirection: 'row', gap: 10 },
-  statTile: { flex: 1, backgroundColor: '#fff', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
-  statLabel: { fontSize: 12, color: '#64748b', marginTop: 2, fontWeight: '600' },
+  statTile: { flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  statValue: { fontSize: 22, fontWeight: '800', color: t.text },
+  statLabel: { fontSize: 12, color: t.textMuted, marginTop: 2, fontWeight: '600' },
 
-  pickupBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#eff6ff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, marginTop: 12, borderWidth: 1, borderColor: '#bfdbfe' },
+  pickupBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.cardStrong, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, marginTop: 12, borderWidth: 1, borderColor: t.border },
   pickupIcon: { fontSize: 18 },
-  pickupText: { flex: 1, fontSize: 15, fontWeight: '800', color: BLUE },
-  pickupChevron: { fontSize: 22, fontWeight: '800', color: BLUE },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginTop: 8, marginBottom: 10 },
-  error: { color: '#dc2626', fontSize: 14, marginBottom: 8 },
-  pendingBanner: { backgroundColor: '#fef3c7', borderRadius: 8, padding: 10, marginBottom: 8 },
-  pendingText: { color: '#92400e', fontSize: 13 },
+  pickupText: { flex: 1, fontSize: 15, fontWeight: '800', color: t.text },
+  pickupChevron: { fontSize: 22, fontWeight: '800', color: t.text },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: t.text, marginTop: 8, marginBottom: 10 },
+  error: { color: t.danger, fontSize: 14, marginBottom: 8 },
+  pendingBanner: { backgroundColor: 'rgba(251,191,36,0.2)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)', borderRadius: 8, padding: 10, marginBottom: 8 },
+  pendingText: { color: '#fde68a', fontSize: 13, fontWeight: '600' },
   list: { padding: 16, gap: 10, paddingBottom: 32 },
-  empty: { color: '#64748b', fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 20 },
+  empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 20 },
   card: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, gap: 12,
-    ...(Platform.OS === 'web' ? { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' as any } : { elevation: 1 }),
+    flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, gap: 12,
   },
-  seq: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
-  seqText: { color: BLUE, fontWeight: '800', fontSize: 15 },
-  recipient: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  address: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  seq: { width: 34, height: 34, borderRadius: 17, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
+  seqText: { color: t.text, fontWeight: '800', fontSize: 15 },
+  recipient: { fontSize: 15, fontWeight: '700', color: t.text },
+  address: { fontSize: 13, color: t.textMuted, marginTop: 2 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-  // Account menu drawer
+  // Account menu drawer -- solid deep blue for readable white text.
   overlay: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.45)' },
   backdrop: { flex: 1 },
-  drawer: { width: 300, maxWidth: '85%', backgroundColor: '#fff', paddingHorizontal: 20 },
-  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  drawerName: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
-  drawerEmail: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  drawer: { width: 300, maxWidth: '85%', backgroundColor: '#0b2a6b', paddingHorizontal: 20 },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: t.border },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: t.text, fontSize: 20, fontWeight: '800' },
+  drawerName: { fontSize: 16, fontWeight: '800', color: t.text },
+  drawerEmail: { fontSize: 13, color: t.textMuted, marginTop: 2 },
   menuList: { paddingTop: 8 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 },
   menuItemIcon: { fontSize: 18, width: 22, textAlign: 'center' },
-  menuItemText: { fontSize: 16, color: '#0f172a', fontWeight: '600' },
-  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, marginBottom: 8, borderRadius: 12, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca' },
-  logoutIcon: { fontSize: 16, color: '#dc2626' },
-  logoutText: { fontSize: 16, color: '#dc2626', fontWeight: '800' },
+  menuItemText: { fontSize: 16, color: t.text, fontWeight: '600' },
+  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, marginBottom: 8, borderRadius: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.border },
+  logoutIcon: { fontSize: 16, color: t.text },
+  logoutText: { fontSize: 16, color: t.text, fontWeight: '800' },
 });

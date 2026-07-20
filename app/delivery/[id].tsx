@@ -7,6 +7,7 @@ import * as api from '../../src/api';
 import * as outbox from '../../src/outbox';
 import type { Delivery } from '../../src/api';
 import type { OutboxItem } from '../../src/outbox';
+import { GradientBackground, t } from '../../src/theme';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Pendiente', color: '#64748b' },
@@ -71,10 +72,10 @@ export default function DeliveryDetail() {
   };
 
   if (loading) {
-    return <SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator size="large" color="#2563eb" /></View></SafeAreaView>;
+    return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View></SafeAreaView></GradientBackground>;
   }
   if (!delivery) {
-    return <SafeAreaView style={styles.safe}><View style={styles.center}><Text style={styles.muted}>Entrega no encontrada.</Text></View></SafeAreaView>;
+    return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><Text style={styles.muted}>Entrega no encontrada.</Text></View></SafeAreaView></GradientBackground>;
   }
 
   const s = STATUS[delivery.status] ?? { label: delivery.status, color: '#64748b' };
@@ -83,8 +84,9 @@ export default function DeliveryDetail() {
   const finished = delivery.status === 'DELIVERED' || delivery.status === 'FAILED';
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe}>
-      <Stack.Screen options={{ headerShown: true, title: delivery.deliveryNumber ?? 'Entrega' }} />
+      <Stack.Screen options={{ headerShown: true, title: delivery.deliveryNumber ?? 'Entrega', headerStyle: { backgroundColor: '#0b2a6b' }, headerTintColor: '#fff', headerTitleStyle: { color: '#fff' } }} />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.rowBetween}>
           <Text style={styles.number}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
@@ -148,6 +150,7 @@ export default function DeliveryDetail() {
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholder="••••"
+              placeholderTextColor={t.textFaint}
               value={code}
               onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 4))}
               keyboardType="number-pad"
@@ -169,7 +172,7 @@ export default function DeliveryDetail() {
                 <Text style={[styles.reasonText, reason === r && styles.reasonTextActive]}>{r}</Text>
               </Pressable>
             ))}
-            <TextInput style={styles.input} placeholder="Notas (opcional)" value={notes} onChangeText={setNotes} />
+            <TextInput style={styles.input} placeholder="Notas (opcional)" placeholderTextColor={t.textFaint} value={notes} onChangeText={setNotes} />
             <Pressable style={[styles.action, styles.danger, !reason && styles.disabled]} disabled={busy || !reason} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'fail', reason: reason!, notes, createdAt: new Date().toISOString() }))}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar fallo</Text>}
             </Pressable>
@@ -178,43 +181,44 @@ export default function DeliveryDetail() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   container: { padding: 20, gap: 14, maxWidth: 480, width: '100%', alignSelf: 'center' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  number: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  muted: { color: '#64748b' },
-  stopCard: { backgroundColor: '#f8fafc', borderRadius: 12, borderLeftWidth: 4, padding: 14, gap: 4 },
+  number: { fontSize: 20, fontWeight: '800', color: t.text },
+  muted: { color: t.textMuted },
+  stopCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, borderLeftWidth: 4, padding: 14, gap: 4 },
   stopKind: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  stopName: { fontSize: 17, fontWeight: '800', color: '#0f172a', marginTop: 2 },
-  stopAddress: { fontSize: 14, color: '#475569' },
+  stopName: { fontSize: 17, fontWeight: '800', color: t.text, marginTop: 2 },
+  stopAddress: { fontSize: 14, color: t.textMuted },
   stopActions: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  smallBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  smallBtnText: { color: '#0f172a', fontWeight: '700', fontSize: 13 },
-  routeBtn: { backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  routeBtnText: { color: '#2563eb', fontWeight: '800', fontSize: 15 },
-  notes: { fontSize: 14, color: '#64748b' },
-  error: { color: '#dc2626', fontSize: 14 },
+  smallBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  smallBtnText: { color: t.text, fontWeight: '700', fontSize: 13 },
+  routeBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  routeBtnText: { color: t.text, fontWeight: '800', fontSize: 15 },
+  notes: { fontSize: 14, color: t.textMuted },
+  error: { color: t.danger, fontSize: 14 },
   action: { borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  primary: { backgroundColor: '#2563eb' },
+  primary: { backgroundColor: '#0b2a6b', borderWidth: 1, borderColor: t.border },
   success: { backgroundColor: '#16a34a' },
   danger: { backgroundColor: '#dc2626' },
   disabled: { opacity: 0.5 },
-  actionText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  panel: { gap: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 14, marginTop: 6 },
-  panelTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
-  panelHint: { fontSize: 13, color: '#64748b' },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  codeInput: { fontSize: 28, fontWeight: '800', letterSpacing: 12, color: '#0f172a' },
-  reason: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14 },
-  reasonActive: { borderColor: '#dc2626', backgroundColor: '#fef2f2' },
-  reasonText: { color: '#475569', fontSize: 15 },
-  reasonTextActive: { color: '#dc2626', fontWeight: '600' },
-  cancel: { color: '#64748b', textAlign: 'center', paddingVertical: 8 },
+  actionText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  panel: { gap: 10, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 14, marginTop: 6 },
+  panelTitle: { fontSize: 15, fontWeight: '700', color: t.text },
+  panelHint: { fontSize: 13, color: t.textMuted },
+  input: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: t.card, color: t.text },
+  codeInput: { fontSize: 28, fontWeight: '800', letterSpacing: 12, color: t.text },
+  reason: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14 },
+  reasonActive: { borderColor: '#fca5a5', backgroundColor: 'rgba(220,38,38,0.2)' },
+  reasonText: { color: t.textMuted, fontSize: 15 },
+  reasonTextActive: { color: t.text, fontWeight: '700' },
+  cancel: { color: t.textMuted, textAlign: 'center', paddingVertical: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });

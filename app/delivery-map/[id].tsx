@@ -6,6 +6,7 @@ import { useAuth } from '../../src/auth';
 import * as api from '../../src/api';
 import type { Delivery } from '../../src/api';
 import { RouteMap } from '../../src/RouteMap';
+import { GradientBackground, t } from '../../src/theme';
 
 // A map of one delivery's two stops: where to pick up (merchant) and where to deliver (client).
 export default function DeliveryMapScreen() {
@@ -26,15 +27,16 @@ export default function DeliveryMapScreen() {
   }, [token, id]);
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
         <Text style={styles.title}>{delivery?.deliveryNumber ?? 'Ruta'}</Text>
         <View style={{ width: 56 }} />
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#2563eb" /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : !delivery ? (
         <View style={styles.center}><Text style={styles.muted}>Entrega no encontrada.</Text></View>
       ) : (
@@ -64,21 +66,22 @@ export default function DeliveryMapScreen() {
         </>
       )}
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  back: { color: '#2563eb', fontWeight: '700', fontSize: 16, width: 56 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#111827' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
+  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  muted: { color: '#64748b' },
-  legend: { padding: 14, gap: 12, borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: '#fff' },
+  muted: { color: t.textMuted },
+  legend: { padding: 14, gap: 12, borderTopWidth: 1, borderTopColor: t.border },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   dotText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  legendKind: { fontSize: 11, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.4, textTransform: 'uppercase' },
-  legendName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  legendAddr: { fontSize: 13, color: '#64748b' },
+  legendKind: { fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
+  legendName: { fontSize: 15, fontWeight: '700', color: t.text },
+  legendAddr: { fontSize: 13, color: t.textMuted },
 });

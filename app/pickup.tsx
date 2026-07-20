@@ -4,8 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Delivery } from '../src/api';
-
-const BLUE = '#2563eb';
+import { GradientBackground, t } from '../src/theme';
 
 // The pickup pool: unassigned deliveries a driver can claim. Taking one assigns it to the driver
 // (server-side, atomic) and it disappears from the pool.
@@ -53,6 +52,7 @@ export default function PickupScreen() {
   };
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={goBack} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
@@ -61,13 +61,13 @@ export default function PickupScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={BLUE} /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : (
         <FlatList
           data={items}
           keyExtractor={(d) => d.id}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
           ListEmptyComponent={<Text style={styles.empty}>No hay entregas disponibles por ahora.</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -83,28 +83,29 @@ export default function PickupScreen() {
                 onPress={() => pickup(item)}
                 disabled={claimingId === item.id}
               >
-                {claimingId === item.id ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.takeText}>Tomar</Text>}
+                {claimingId === item.id ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.takeText}>Tomar</Text>}
               </Pressable>
             </View>
           )}
         />
       )}
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  back: { color: BLUE, fontWeight: '700', fontSize: 16, width: 56 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
+  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 10 },
-  empty: { color: '#64748b', fontSize: 14, textAlign: 'center', marginTop: 40 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14 },
-  recipient: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  address: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  num: { fontSize: 12, color: '#94a3b8', marginTop: 4, fontWeight: '600' },
-  takeBtn: { backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, minWidth: 74, alignItems: 'center' },
-  takeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14 },
+  recipient: { fontSize: 15, fontWeight: '700', color: t.text },
+  address: { fontSize: 13, color: t.textMuted, marginTop: 2 },
+  num: { fontSize: 12, color: t.textFaint, marginTop: 4, fontWeight: '600' },
+  takeBtn: { backgroundColor: t.accent, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, minWidth: 74, alignItems: 'center' },
+  takeText: { color: t.onAccent, fontWeight: '800', fontSize: 14 },
 });

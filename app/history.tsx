@@ -4,8 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Delivery } from '../src/api';
-
-const BLUE = '#2563eb';
+import { GradientBackground, t } from '../src/theme';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   DELIVERED: { label: 'Entregada', color: '#16a34a' },
@@ -35,15 +34,16 @@ export default function HistoryScreen() {
   }, []));
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
         <Text style={styles.title}>Historial de entregas</Text>
         <View style={{ width: 56 }} />
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={BLUE} /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : (
         <FlatList
           data={items}
@@ -76,24 +76,25 @@ export default function HistoryScreen() {
         />
       )}
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  back: { color: BLUE, fontWeight: '700', fontSize: 16, width: 56 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
+  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 10 },
-  empty: { color: '#64748b', fontSize: 14, textAlign: 'center', marginTop: 40 },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14 },
+  empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 },
+  card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  number: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
+  number: { fontSize: 15, fontWeight: '800', color: t.text },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  recipient: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 8 },
-  address: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  meta: { fontSize: 13, color: '#334155', marginTop: 6 },
-  when: { fontSize: 12, color: '#94a3b8', marginTop: 6, fontWeight: '600' },
+  recipient: { fontSize: 15, fontWeight: '700', color: t.text, marginTop: 8 },
+  address: { fontSize: 13, color: t.textMuted, marginTop: 2 },
+  meta: { fontSize: 13, color: t.textMuted, marginTop: 6 },
+  when: { fontSize: 12, color: t.textFaint, marginTop: 6, fontWeight: '600' },
 });

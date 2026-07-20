@@ -8,8 +8,8 @@ import { useCart } from '../src/cart';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/leafletMap';
+import { GradientBackground, t } from '../src/theme';
 
-const RED = '#FA0050';
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 const STEPS = ['Carrito', 'Ubicación', 'Nota', 'Resumen'];
 
@@ -82,8 +82,9 @@ export default function CartScreen() {
 
   if (cart.lines.length === 0) {
     return (
+      <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Header title="Tu pedido" onBack={() => router.back()} />
+        <Header title="Tu pedido" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
         <View style={styles.center}>
           <Text style={styles.emptyEmoji}>🛒</Text>
           <Text style={styles.emptyText}>Tu carrito está vacío</Text>
@@ -92,12 +93,14 @@ export default function CartScreen() {
           </Pressable>
         </View>
       </SafeAreaView>
+      </GradientBackground>
     );
   }
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <Header title={STEPS[step - 1]} onBack={() => (step === 1 ? router.back() : setStep(step - 1))} />
+      <Header title={STEPS[step - 1]} onBack={() => (step === 1 ? (router.canGoBack() ? router.back() : router.replace('/home')) : setStep(step - 1))} />
       <Stepper step={step} />
 
       {step === 1 && (
@@ -129,7 +132,7 @@ export default function CartScreen() {
           <View style={styles.locRow}>
             <Text style={styles.hint}>Toca el mapa para elegir dónde entregar</Text>
             <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-              {locating ? <ActivityIndicator color={RED} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
+              {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
             </Pressable>
           </View>
           <LocationPicker
@@ -139,7 +142,7 @@ export default function CartScreen() {
             onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
           />
           <Text style={styles.label}>Dirección de entrega</Text>
-          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder="Dirección de entrega" placeholderTextColor="#9ca3af" multiline />
+          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder="Dirección de entrega" placeholderTextColor={t.textFaint} multiline />
           <Pressable style={[styles.primary, !address.trim() && styles.disabled]} disabled={!address.trim()} onPress={() => setStep(3)}>
             <Text style={styles.primaryText}>Continuar</Text>
           </Pressable>
@@ -150,7 +153,7 @@ export default function CartScreen() {
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Notas para el comercio</Text>
-            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor="#9ca3af" multiline />
+            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor={t.textFaint} multiline />
           </ScrollView>
           <Footer total={cart.total}>
             <Pressable style={styles.primary} onPress={() => setStep(4)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
@@ -191,12 +194,13 @@ export default function CartScreen() {
           </ScrollView>
           <Footer total={cart.total}>
             <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={placeOrder} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Realizar pedido</Text>}
+              {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>Realizar pedido</Text>}
             </Pressable>
           </Footer>
         </>
       )}
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -220,7 +224,7 @@ function Stepper({ step }: { step: number }) {
         return (
           <View key={label} style={styles.stepItem}>
             <View style={[styles.stepDot, (active || done) && styles.stepDotActive]}>
-              <Text style={[styles.stepDotText, (active || done) && { color: '#fff' }]}>{done ? '✓' : n}</Text>
+              <Text style={[styles.stepDotText, (active || done) && { color: t.onAccent }]}>{done ? '✓' : n}</Text>
             </View>
             <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text>
           </View>
@@ -240,60 +244,60 @@ function Footer({ total, children }: { total: number; children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f4f6' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  back: { color: RED, fontWeight: '700', fontSize: 16, width: 56 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#111827' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
+  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
-  stepperRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  stepperRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   stepItem: { alignItems: 'center', gap: 4, flex: 1 },
-  stepDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' },
-  stepDotActive: { backgroundColor: RED },
-  stepDotText: { fontSize: 13, fontWeight: '800', color: '#6b7280' },
-  stepLabel: { fontSize: 12, color: '#9ca3af', fontWeight: '600' },
-  stepLabelActive: { color: RED, fontWeight: '800' },
+  stepDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  stepDotActive: { backgroundColor: t.accent },
+  stepDotText: { fontSize: 13, fontWeight: '800', color: t.text },
+  stepLabel: { fontSize: 12, color: t.textFaint, fontWeight: '600' },
+  stepLabelActive: { color: t.text, fontWeight: '800' },
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
   emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: 16, color: '#6b7280' },
+  emptyText: { fontSize: 16, color: t.textMuted },
 
   scroll: { padding: 16 },
-  merchant: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 },
-  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
-  lineName: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  linePrice: { fontSize: 14, fontWeight: '800', color: RED, marginTop: 4 },
+  merchant: { fontSize: 18, fontWeight: '800', color: t.text, marginBottom: 12 },
+  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, marginBottom: 10 },
+  lineName: { fontSize: 15, fontWeight: '700', color: t.text },
+  linePrice: { fontSize: 14, fontWeight: '800', color: t.text, marginTop: 4 },
   qtyCtrl: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stepBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#ffe4ee', justifyContent: 'center', alignItems: 'center' },
-  stepText: { color: RED, fontSize: 20, fontWeight: '800', lineHeight: 22 },
-  qty: { fontSize: 16, fontWeight: '800', color: '#111827', minWidth: 20, textAlign: 'center' },
+  stepBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
+  stepText: { color: t.text, fontSize: 20, fontWeight: '800', lineHeight: 22 },
+  qty: { fontSize: 16, fontWeight: '800', color: t.text, minWidth: 20, textAlign: 'center' },
 
   mapStep: { flex: 1, padding: 16 },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  hint: { flex: 1, fontSize: 14, color: '#374151', fontWeight: '600' },
-  locBtn: { backgroundColor: '#ffe4ee', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
-  locBtnText: { color: RED, fontWeight: '800', fontSize: 13 },
-  label: { fontSize: 14, fontWeight: '700', color: '#374151', marginTop: 12, marginBottom: 6 },
-  addressInput: { backgroundColor: '#fff', borderRadius: 12, padding: 14, minHeight: 56, fontSize: 15, color: '#111827', textAlignVertical: 'top', borderWidth: 1, borderColor: '#e5e7eb' },
+  hint: { flex: 1, fontSize: 14, color: t.textMuted, fontWeight: '600' },
+  locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
+  locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
+  label: { fontSize: 14, fontWeight: '700', color: t.textMuted, marginTop: 12, marginBottom: 6 },
+  addressInput: { backgroundColor: t.card, borderRadius: 12, padding: 14, minHeight: 56, fontSize: 15, color: t.text, textAlignVertical: 'top', borderWidth: 1, borderColor: t.border },
 
-  addrCard: { flexDirection: 'row', gap: 8, backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'flex-start' },
+  addrCard: { flexDirection: 'row', gap: 8, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, alignItems: 'flex-start' },
   pin: { fontSize: 16 },
-  addrText: { flex: 1, fontSize: 15, color: '#111827', fontWeight: '600' },
-  notes: { backgroundColor: '#fff', borderRadius: 12, padding: 14, minHeight: 70, fontSize: 15, color: '#111827', textAlignVertical: 'top' },
+  addrText: { flex: 1, fontSize: 15, color: t.text, fontWeight: '600' },
+  notes: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, minHeight: 70, fontSize: 15, color: t.text, textAlignVertical: 'top' },
 
   // Step 4 (review)
   reviewMap: { height: 200, marginHorizontal: 16, marginTop: 14, borderRadius: 12, overflow: 'hidden' },
-  reviewLine: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 8 },
-  reviewQty: { fontSize: 14, fontWeight: '800', color: RED, minWidth: 28 },
-  reviewName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111827' },
-  reviewPrice: { fontSize: 14, fontWeight: '800', color: '#111827' },
-  noteCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14 },
-  noteText: { fontSize: 15, color: '#111827' },
+  reviewLine: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 8 },
+  reviewQty: { fontSize: 14, fontWeight: '800', color: t.text, minWidth: 28 },
+  reviewName: { flex: 1, fontSize: 15, fontWeight: '600', color: t.text },
+  reviewPrice: { fontSize: 14, fontWeight: '800', color: t.text },
+  noteCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14 },
+  noteText: { fontSize: 15, color: t.text },
 
-  footer: { padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  footer: { padding: 16, borderTopWidth: 1, borderTopColor: t.border },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#374151' },
-  totalValue: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  primary: { backgroundColor: RED, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: t.textMuted },
+  totalValue: { fontSize: 22, fontWeight: '800', color: t.text },
+  primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
+  primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
   disabled: { opacity: 0.5 },
 });

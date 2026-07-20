@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "expo": "~57.0.6",
     "expo-auth-session": "~57.0.4",
     "expo-constants": "~57.0.6",
     "expo-crypto": "~57.0.1",
+    "expo-linear-gradient": "~57.0.1",
     "expo-linking": "~57.0.3",
     "expo-location": "~57.0.5",
     "expo-router": "~57.0.7",

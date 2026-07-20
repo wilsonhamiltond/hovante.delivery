@@ -4,6 +4,7 @@ import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth';
 import { GoogleSignInButton } from '../src/GoogleSignInButton';
+import { GradientBackground, t } from '../src/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -26,16 +27,18 @@ export default function LoginScreen() {
   };
 
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Text style={styles.title}>Hovante Delivery</Text>
+          <Text style={styles.title}>Volao</Text>
           <Text style={styles.subtitle}>Inicie sesión para continuar</Text>
         </View>
 
         <TextInput
           style={styles.input}
           placeholder="Correo electrónico"
+          placeholderTextColor={t.textFaint}
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -45,6 +48,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Contraseña"
+          placeholderTextColor={t.textFaint}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -56,7 +60,7 @@ export default function LoginScreen() {
         <Link href="/forgot-password" style={styles.forgot}>¿Olvidó su contraseña?</Link>
 
         <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
+          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
         </Pressable>
 
         <View style={styles.divider}>
@@ -74,25 +78,26 @@ export default function LoginScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, justifyContent: 'center', padding: 24, gap: 14, maxWidth: 440, width: '100%', alignSelf: 'center' },
   header: { marginBottom: 12 },
-  title: { fontSize: 28, fontWeight: '700', color: '#0f172a' },
-  subtitle: { fontSize: 15, color: '#64748b', marginTop: 4 },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: '#fff' },
-  error: { color: '#dc2626', fontSize: 14 },
-  button: { backgroundColor: '#2563eb', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  title: { fontSize: 34, fontWeight: '900', color: t.text, letterSpacing: 0.5 },
+  subtitle: { fontSize: 15, color: t.textMuted, marginTop: 4 },
+  input: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: t.card, color: t.text },
+  error: { color: t.danger, fontSize: 14 },
+  button: { backgroundColor: t.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  forgot: { color: '#2563eb', fontWeight: '600', textAlign: 'right', fontSize: 14 },
+  buttonText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
+  forgot: { color: t.text, fontWeight: '700', textAlign: 'right', fontSize: 14 },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText: { color: '#94a3b8', fontSize: 13 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: t.border },
+  dividerText: { color: t.textMuted, fontSize: 13 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
-  footerText: { color: '#64748b' },
-  link: { color: '#2563eb', fontWeight: '600' },
+  footerText: { color: t.textMuted },
+  link: { color: t.text, fontWeight: '800' },
 });

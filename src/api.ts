@@ -189,6 +189,8 @@ export interface Order {
   address: string | null;
   createdAt: string;
   items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
+  // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
+  deliveryStatus?: string | null;
 }
 
 // The catalog across every merchant, or a single merchant's when companyId is given.
@@ -221,6 +223,14 @@ export interface OrderTracking {
   driverName: string | null;
   // The 4-digit code the customer reads to the driver to confirm delivery.
   deliveryCode: string | null;
+  // When each status change happened (null until reached), aligned to the timeline steps.
+  placedAt: string;
+  confirmedAt: string | null;
+  readyAt: string | null;
+  assignedAt: string | null;
+  inTransitAt: string | null;
+  deliveredAt: string | null;
+  failedAt: string | null;
 }
 
 export function orderTracking(id: string) {

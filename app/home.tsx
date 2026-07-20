@@ -7,6 +7,7 @@ import * as api from '../src/api';
 import type { Me } from '../src/api';
 import { ClientHome } from '../src/ClientHome';
 import { DriverHome } from '../src/DriverHome';
+import { GradientBackground, t } from '../src/theme';
 
 // Routes the home by role: a driver gets DriverHome (their route), a customer gets ClientHome (the
 // marketplace). Each screen loads its own data; this only resolves who is signed in.
@@ -31,9 +32,11 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}><ActivityIndicator size="large" color="#2563eb" /></View>
-      </SafeAreaView>
+      <GradientBackground>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
+        </SafeAreaView>
+      </GradientBackground>
     );
   }
 
@@ -42,6 +45,7 @@ export default function HomeScreen() {
 
   // Profile failed to load (e.g. session expired): let the user sign out and back in.
   return (
+    <GradientBackground>
     <SafeAreaView style={styles.safe}>
       <View style={styles.center}>
         <Text style={styles.title}>No se pudo cargar tu perfil</Text>
@@ -49,13 +53,14 @@ export default function HomeScreen() {
         <Pressable onPress={signOut}><Text style={styles.link}>Cerrar sesión</Text></Pressable>
       </View>
     </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f8fafc' },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10 },
-  title: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  error: { color: '#dc2626', fontSize: 14, textAlign: 'center' },
-  link: { color: '#2563eb', fontWeight: '700', fontSize: 15, marginTop: 8 },
+  title: { fontSize: 18, fontWeight: '700', color: t.text },
+  error: { color: t.danger, fontSize: 14, textAlign: 'center' },
+  link: { color: t.text, fontWeight: '700', fontSize: 15, marginTop: 8 },
 });
