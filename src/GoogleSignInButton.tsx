@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { GOOGLE_CLIENT_IDS, GOOGLE_ENABLED } from './config';
 import { useAuth } from './auth';
 
@@ -77,9 +78,7 @@ export function GoogleSignInButton({ type = 'client', onError, disabled }: Props
           <ActivityIndicator color="#0f172a" />
         ) : (
           <>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>G</Text>
-            </View>
+            <FontAwesome5 name="google" brand size={18} color="#4285F4" style={styles.logoIcon} />
             <Text style={styles.buttonText}>Continuar con Google</Text>
           </>
         )}
@@ -105,16 +104,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#0f172a', fontSize: 16, fontWeight: '600' },
-  logo: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: { color: '#4285F4', fontSize: 15, fontWeight: '800' },
+  logoIcon: { width: 22, textAlign: 'center' },
   hint: { color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 6 },
 });

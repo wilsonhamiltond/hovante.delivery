@@ -36,10 +36,16 @@ function captureRotatedToken(res: Response) {
 export interface Me {
   email: string;
   name: string | null;
+  // Surname from the sign-up wizard; combined with name for the full display name.
+  lastName: string | null;
+  // Contact phone from the sign-up wizard; null when none was given.
+  phone: string | null;
   document: string | null;
   isClient: boolean;
   isDriver: boolean;
   address: string | null;
+  // What the customer calls their default address ("Casa", "Trabajo"). Null with no saved address.
+  addressLabel: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -81,12 +87,20 @@ export interface RegisterPayload {
   email: string;
   password: string;
   name: string;
+  // Collected on the onboarding "person info" step.
+  lastName?: string;
+  // ISO date (yyyy-MM-dd) from the onboarding "person info" step.
+  birthDate?: string | null;
   phone: string;
-  document: string;
+  // Optional: onboarding no longer asks for a document.
+  document?: string;
   type: 'client' | 'driver';
   address?: string;
   latitude?: number | null;
   longitude?: number | null;
+  // What the customer calls this address ("Casa", "Trabajo"). Optional: the saved address falls
+  // back to "Principal".
+  addressLabel?: string;
 }
 
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
@@ -122,6 +136,16 @@ export function register(payload: RegisterPayload) {
 // account (which kind to create); it is ignored for a returning user.
 export function googleLogin(idToken: string, type: 'client' | 'driver' = 'client') {
   return post<string>('/auth/google', { idToken, type });
+}
+
+// Sign-up email verification. Step 1 mails a 6-digit code to the address; step 2 checks it. The
+// server refuses to register an address that has not been verified this way.
+export function sendEmailCode(email: string) {
+  return post<null>('/auth/send-email-code', { email });
+}
+
+export function verifyEmailCode(email: string, code: string) {
+  return post<null>('/auth/verify-email-code', { email, code });
 }
 
 // Password reset. forgotPassword always reports success (the server does not reveal whether the
@@ -237,18 +261,46 @@ export function orderTracking(id: string) {
   return get<OrderTracking>(`/delivery/orders/${id}`);
 }
 
-// One entry in the customer's address history.
+// One entry in the customer's address list: a saved address, or one seen only on past orders.
 export interface AddressHistory {
+  // The saved address's id, for setting it as default. Null for an order-derived entry.
+  id: string | null;
   address: string;
   latitude: number | null;
   longitude: number | null;
   timesUsed: number;
-  lastUsedAt: string;
+  // Null for a saved address that has never been ordered to.
+  lastUsedAt: string | null;
+  // What the customer calls it. Null for an order-derived entry.
+  label: string | null;
+  // The one preselected at checkout.
+  isDefault: boolean;
+  // False for an entry that exists only in order history, not the address book.
+  isSaved: boolean;
 }
 
-// The customer's address history: addresses they have ordered to, most recently used first.
+// The customer's addresses: the saved ones first (default first), then any address seen only on
+// past orders.
 export function myAddresses() {
   return get<AddressHistory[]>('/delivery/my-addresses');
+}
+
+export interface SaveAddressPayload {
+  label: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  makeDefault?: boolean;
+}
+
+// Saves a new address to the signed-in customer's address book.
+export function createMyAddress(payload: SaveAddressPayload) {
+  return postAuth<AddressHistory>('/delivery/my-addresses', payload);
+}
+
+// Makes one of the customer's saved addresses the default.
+export function setDefaultAddress(id: string) {
+  return postAuth<AddressHistory>(`/delivery/my-addresses/${id}/default`, {});
 }
 
 export function myDeliveries() {

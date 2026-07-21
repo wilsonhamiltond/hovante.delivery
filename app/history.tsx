@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   DELIVERED: { label: 'Entregada', color: '#16a34a' },
@@ -35,11 +36,9 @@ export default function HistoryScreen() {
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
         <Text style={styles.title}>Historial de entregas</Text>
-        <View style={{ width: 56 }} />
       </View>
 
       {loading ? (
@@ -75,6 +74,7 @@ export default function HistoryScreen() {
           }}
         />
       )}
+      <BottomNav active="history" variant="driver" />
     </SafeAreaView>
     </GradientBackground>
   );
@@ -82,11 +82,10 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
+  header: { paddingHorizontal: 16, paddingVertical: 14 },
+  title: { fontSize: 22, fontWeight: '900', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, gap: 10 },
+  list: { padding: 16, gap: 10, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 },
   card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -46,14 +46,30 @@ export default function DeliveryDetail() {
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
-  const openMapCoords = () => {
-    if (delivery?.latitude == null || delivery?.longitude == null) return;
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${delivery.latitude},${delivery.longitude}`);
+  // Both open the in-app map screen rather than handing off to Google Maps, so the driver never
+  // leaves the app mid-route. The map geocodes an address-only stop itself.
+  const openMap = (params: { lat?: number | null; lng?: number | null; address?: string | null; title: string }) => {
+    if (params.lat == null && !params.address) return;
+    router.push({
+      pathname: '/map',
+      params: {
+        ...(params.lat != null ? { lat: String(params.lat) } : {}),
+        ...(params.lng != null ? { lng: String(params.lng) } : {}),
+        ...(params.address ? { address: params.address } : {}),
+        title: params.title,
+      },
+    });
   };
-  const openMapAddress = (address?: string | null) => {
-    if (!address) return;
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
-  };
+  const openMapCoords = () => openMap({
+    lat: delivery?.latitude,
+    lng: delivery?.longitude,
+    address: delivery?.addressLine,
+    title: delivery?.recipientName ?? 'Entregar',
+  });
+  const openMapAddress = (address?: string | null) => openMap({
+    address,
+    title: delivery?.pickupName ?? 'Recoger',
+  });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
 
   // Every action goes through the outbox: online it applies immediately, offline it queues and the

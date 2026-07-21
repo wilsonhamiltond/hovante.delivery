@@ -4,23 +4,23 @@
     "slug": "hovante-delivery",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/volao_app_assets/ios/AppIcon.appiconset/AppIcon-1024.png",
+    "icon": "./assets/ios/AppIcon.appiconset/AppIcon-1024.png",
     "scheme": "hovantedelivery",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/volao_app_assets/ios/AppIcon.appiconset/AppIcon-1024.png"
+      "icon": "./assets/ios/AppIcon.appiconset/AppIcon-1024.png"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#1E8FE1",
-        "foregroundImage": "./assets/volao_app_assets/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
-        "backgroundImage": "./assets/volao_app_assets/android/mipmap-xxxhdpi/ic_launcher_background.png"
+        "foregroundImage": "./assets/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "backgroundImage": "./assets/android/mipmap-xxxhdpi/ic_launcher_background.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/volao_app_assets/web/favicon-512x512.png",
+      "favicon": "./assets/web/favicon-512x512.png",
       "bundler": "metro",
       "output": "single"
     },

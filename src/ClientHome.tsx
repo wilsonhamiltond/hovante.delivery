@@ -5,8 +5,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
 import type { Me, Order, Product } from './api';
 import { useCart } from './cart';
-import { GradientBackground, t } from './theme';
+import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { BottomNav, BOTTOM_NAV_HEIGHT } from './BottomNav';
 
 // A PedidosYa-styled marketplace home: a red header band with the delivery location and search, the
 // ERP business-category row, and products from every merchant (GET /delivery/products) grouped by
@@ -56,17 +57,22 @@ interface StoreGroup {
   products: Product[];
 }
 
-export function ClientHome({ profile, onSignOut }: { profile: Me | null; onSignOut: () => void }) {
+export function ClientHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
   const cart = useCart();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [menuOpen, setMenuOpen] = useState(false);
   const [categories, setCategories] = useState<api.BusinessCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  // The delivery-address dropdown: the saved list, and a local echo of the chosen default so the
+  // header updates the instant it is switched, before the parent refetches the profile.
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [addresses, setAddresses] = useState<api.AddressHistory[]>([]);
+  const [addrBusy, setAddrBusy] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<{ label: string | null; address: string | null } | null>(null);
 
   // The customer's in-progress orders, for the row under the categories. Refetched whenever the home
   // regains focus (after placing an order or coming back from tracking), so their state stays live.
@@ -97,6 +103,10 @@ export function ClientHome({ profile, onSignOut }: { profile: Me | null; onSignO
     loadProducts();
   }, []);
 
+  // Once the parent refetches the profile (on focus, e.g. back from adding an address), that is the
+  // truth again -- drop the local echo so a newer default cannot be masked by a stale pick.
+  useEffect(() => { setChosen(null); }, [profile?.address, profile?.addressLabel]);
+
   const selectCompany = (id: string, name: string) => { setSelectedCompany({ id, name }); loadProducts(id); };
   const clearCompany = () => { setSelectedCompany(null); loadProducts(); };
 
@@ -107,8 +117,26 @@ export function ClientHome({ profile, onSignOut }: { profile: Me | null; onSignO
 
   const fullName = profile?.name?.trim() || '';
   const greeting = fullName.split(' ')[0] || profile?.email || '';
-  const address = profile?.address?.trim();
-  const initial = (fullName || profile?.email || '?').charAt(0).toUpperCase();
+  // The local echo wins while it is set (right after switching); otherwise the profile is truth.
+  const address = (chosen ? chosen.address : profile?.address)?.trim();
+  const addressLabel = (chosen ? chosen.label : profile?.addressLabel)?.trim();
+
+  const openAddresses = () => {
+    setAddrOpen(true);
+    api.myAddresses().then((res) => { if (res.success) setAddresses(res.data ?? []); });
+  };
+
+  const chooseDefault = async (item: api.AddressHistory) => {
+    if (!item.id || item.isDefault) { setAddrOpen(false); return; }
+    setAddrBusy(item.id);
+    const res = await api.setDefaultAddress(item.id);
+    setAddrBusy(null);
+    if (!res.success) { Alert.alert('Dirección', res.message); return; }
+    setChosen({ label: item.label, address: item.address });
+    setAddrOpen(false);
+  };
+
+  const addAddress = () => { setAddrOpen(false); router.push('/address-new'); };
 
   // Filter products by the selected category (merchant's categories) + search, then group by store.
   const stores: StoreGroup[] = useMemo(() => {
@@ -149,18 +177,17 @@ export function ClientHome({ profile, onSignOut }: { profile: Me | null; onSignO
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.headerBand}>
           <View style={styles.locationRow}>
-            <View style={{ flex: 1 }}>
+            <Pressable style={{ flex: 1 }} onPress={openAddresses} accessibilityRole="button">
               <Text style={styles.deliverLabel}>Enviar a</Text>
               <View style={styles.addressRow}>
                 <Text style={styles.pin}>📍</Text>
                 <Text style={styles.address} numberOfLines={1}>
-                  {address || 'Agrega tu dirección de entrega'}
+                  {/* The name the customer gave it ("Casa"); the raw address only stands in when
+                      there is no saved label to show. */}
+                  {addressLabel || address || 'Agrega tu dirección de entrega'}
                 </Text>
                 <Text style={styles.chevron}>⌄</Text>
               </View>
-            </View>
-            <Pressable onPress={() => setMenuOpen(true)} hitSlop={8} style={styles.menuBtn} accessibilityLabel="Abrir menú">
-              <Text style={styles.menuIcon}>☰</Text>
             </Pressable>
           </View>
 
@@ -265,43 +292,43 @@ export function ClientHome({ profile, onSignOut }: { profile: Me | null; onSignO
         </Pressable>
       ) : null}
 
-      {/* Account menu: slides over from the right; the exit (Cerrar sesión) action lives here. */}
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
-        <View style={styles.overlay}>
-          <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} accessibilityLabel="Cerrar menú" />
-          <SafeAreaView edges={['top', 'bottom']} style={styles.drawer}>
-            <View style={styles.drawerHeader}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.drawerName} numberOfLines={1}>{fullName || 'Cliente'}</Text>
-                {profile?.email ? <Text style={styles.drawerEmail} numberOfLines={1}>{profile.email}</Text> : null}
-              </View>
-            </View>
-
-            <View style={styles.menuList}>
-              <Pressable style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/orders'); }}>
-                <Text style={styles.menuItemIcon}>🧾</Text>
-                <Text style={styles.menuItemText}>Mis pedidos</Text>
-              </Pressable>
-              <Pressable style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/addresses'); }}>
-                <Text style={styles.menuItemIcon}>📍</Text>
-                <Text style={styles.menuItemText}>Direcciones</Text>
-              </Pressable>
-              <Pressable style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/help'); }}>
-                <Text style={styles.menuItemIcon}>❓</Text>
-                <Text style={styles.menuItemText}>Ayuda</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ flex: 1 }} />
-
-            <Pressable style={styles.logout} onPress={() => { setMenuOpen(false); onSignOut(); }}>
-              <Text style={styles.logoutIcon}>⎋</Text>
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
+      {/* Delivery-address picker: pick which saved address to deliver to, or add a new one. */}
+      <Modal visible={addrOpen} transparent animationType="slide" onRequestClose={() => setAddrOpen(false)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setAddrOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Enviar a</Text>
+            {addresses.map((item) => {
+              const active = chosen ? item.label === chosen.label && item.address === chosen.address : item.isDefault;
+              return (
+                <Pressable
+                  key={item.id ?? item.address}
+                  style={styles.sheetRow}
+                  onPress={() => chooseDefault(item)}
+                  disabled={!!addrBusy}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={styles.sheetPin}>📍</Text>
+                  <View style={{ flex: 1 }}>
+                    {item.label ? <Text style={styles.sheetLabel}>{item.label}</Text> : null}
+                    <Text style={styles.sheetAddress} numberOfLines={1}>{item.address}</Text>
+                  </View>
+                  {addrBusy === item.id
+                    ? <ActivityIndicator color={t.text} size="small" />
+                    : active ? <Text style={styles.sheetCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+            <Pressable style={styles.sheetAdd} onPress={addAddress} accessibilityRole="button">
+              <Text style={styles.sheetAddIcon}>＋</Text>
+              <Text style={styles.sheetAddText}>Agregar nueva dirección</Text>
             </Pressable>
-          </SafeAreaView>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
+
+      <BottomNav active="home" />
     </View>
     </GradientBackground>
   );
@@ -312,13 +339,24 @@ const styles = StyleSheet.create({
   headerSafe: { backgroundColor: 'transparent' },
   headerBand: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: GRADIENT[0], borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, gap: 4 },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: t.border, marginBottom: 12 },
+  sheetTitle: { fontSize: 18, fontWeight: '900', color: t.text, marginBottom: 8 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  sheetPin: { fontSize: 16 },
+  sheetLabel: { fontSize: 15, fontWeight: '800', color: t.text },
+  sheetAddress: { fontSize: 13, color: t.textMuted, marginTop: 1 },
+  sheetCheck: { fontSize: 18, fontWeight: '900', color: t.accent },
+  sheetAdd: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16 },
+  sheetAddIcon: { fontSize: 20, fontWeight: '900', color: t.accent, width: 20, textAlign: 'center' },
+  sheetAddText: { fontSize: 15, fontWeight: '800', color: t.accent },
   deliverLabel: { fontSize: 12, color: t.textMuted, fontWeight: '600' },
   addressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   pin: { fontSize: 13, marginRight: 4 },
   address: { fontSize: 16, fontWeight: '800', color: t.text, flexShrink: 1 },
   chevron: { fontSize: 16, color: t.text, marginLeft: 4, marginTop: -4 },
-  menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  menuIcon: { color: t.text, fontSize: 20, fontWeight: '700', lineHeight: 22 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 12 : 9,
@@ -377,7 +415,8 @@ const styles = StyleSheet.create({
   addBtnText: { color: t.onAccent, fontSize: 22, fontWeight: '800', lineHeight: 24 },
 
   cartBar: {
-    position: 'absolute', left: 16, right: 16, bottom: 20, backgroundColor: t.accent, borderRadius: 14,
+    // Floats just above the bottom tab bar.
+    position: 'absolute', left: 16, right: 16, bottom: BOTTOM_NAV_HEIGHT + 14, backgroundColor: t.accent, borderRadius: 14,
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14,
     ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(0,0,0,0.35)' as any } : { elevation: 6 }),
   },
@@ -386,20 +425,4 @@ const styles = StyleSheet.create({
   cartBarText: { flex: 1, color: t.onAccent, fontWeight: '800', fontSize: 16 },
   cartBarTotal: { color: t.onAccent, fontWeight: '800', fontSize: 16 },
 
-  // Account menu drawer -- a solid deep-blue panel so white text stays readable.
-  overlay: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.45)' },
-  backdrop: { flex: 1 },
-  drawer: { width: 300, maxWidth: '85%', backgroundColor: '#0b2a6b', paddingHorizontal: 20 },
-  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: t.border },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: t.text, fontSize: 20, fontWeight: '800' },
-  drawerName: { fontSize: 16, fontWeight: '800', color: t.text },
-  drawerEmail: { fontSize: 13, color: t.textMuted, marginTop: 2 },
-  menuList: { paddingTop: 8 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 },
-  menuItemIcon: { fontSize: 18, width: 22, textAlign: 'center' },
-  menuItemText: { fontSize: 16, color: t.text, fontWeight: '600' },
-  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, marginBottom: 8, borderRadius: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.border },
-  logoutIcon: { fontSize: 16, color: t.text },
-  logoutText: { fontSize: 16, color: t.text, fontWeight: '800' },
 });

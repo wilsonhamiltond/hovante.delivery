@@ -40,8 +40,9 @@ export default function HomeScreen() {
     );
   }
 
-  if (profile?.isDriver) return <DriverHome profile={profile} onSignOut={signOut} />;
-  if (profile && !profile.isDriver) return <ClientHome profile={profile} onSignOut={signOut} />;
+  // Both roles sign out from their "Cuenta" tab, so neither home needs the handler.
+  if (profile?.isDriver) return <DriverHome profile={profile} />;
+  if (profile && !profile.isDriver) return <ClientHome profile={profile} />;
 
   // Profile failed to load (e.g. session expired): let the user sign out and back in.
   return (

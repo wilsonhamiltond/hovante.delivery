@@ -100,6 +100,18 @@ export default function OrderTrackingScreen() {
   // the driver at the door to confirm receipt.
   const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && !failed;
 
+  // Shows where this order is going, in the app. The map geocodes the address when the order has
+  // no pin (older orders placed before the location step captured one).
+  const openMap = () => router.push({
+    pathname: '/map',
+    params: {
+      ...(order.latitude != null ? { lat: String(order.latitude) } : {}),
+      ...(order.longitude != null ? { lng: String(order.longitude) } : {}),
+      ...(order.address ? { address: order.address } : {}),
+      title: 'Entregar en',
+    },
+  });
+
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -150,7 +162,14 @@ export default function OrderTrackingScreen() {
           <Text style={styles.label}>Comercio</Text>
           <Text style={styles.value}>{order.merchantName}</Text>
           <Text style={styles.label}>Entregar en</Text>
-          <Text style={styles.value}>{order.address ?? 'Sin dirección'}</Text>
+          <View style={styles.addressRow}>
+            <Text style={[styles.value, { flex: 1 }]}>{order.address ?? 'Sin dirección'}</Text>
+            {order.address || order.latitude != null ? (
+              <Pressable style={styles.mapBtn} onPress={openMap} accessibilityRole="button">
+                <Text style={styles.mapBtnText}>🗺️ Mapa</Text>
+              </Pressable>
+            ) : null}
+          </View>
           {deliveryCode ? (<><Text style={styles.label}>Código de entrega</Text><Text style={styles.value}>{deliveryCode}</Text></>) : null}
           {order.notes ? (<><Text style={styles.label}>Nota</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
         </View>
@@ -222,6 +241,10 @@ const styles = StyleSheet.create({
   card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 16, marginTop: 14 },
   label: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
   value: { fontSize: 15, color: t.text, marginTop: 3, fontWeight: '600' },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  // Matches the driver screen's pill buttons.
+  mapBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 3 },
+  mapBtnText: { color: t.text, fontWeight: '700', fontSize: 13 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   lineQty: { fontSize: 14, fontWeight: '800', color: t.text, minWidth: 26 },
   lineName: { flex: 1, fontSize: 15, color: t.text },

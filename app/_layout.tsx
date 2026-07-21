@@ -6,7 +6,7 @@ import { CartProvider } from '../src/cart';
 
 // Redirects between the auth screens (login/register) and the app depending on whether a token is
 // held. Runs after the stored token has loaded, so a returning user is not flashed the login form.
-const AUTH_ROUTES = ['login', 'register', 'forgot-password', 'reset-password'];
+const AUTH_ROUTES = ['login', 'email-login', 'register', 'forgot-password', 'reset-password'];
 
 function RootNavigator() {
   const { token, loading } = useAuth();

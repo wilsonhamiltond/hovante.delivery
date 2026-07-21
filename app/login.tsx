@@ -1,103 +1,95 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../src/auth';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { GoogleSignInButton } from '../src/GoogleSignInButton';
 import { GradientBackground, t } from '../src/theme';
 
-export default function LoginScreen() {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+// Welcome / step 1 of onboarding: the Volao logo over the gradient, the three social sign-in
+// options, and a way in with an email + phone instead (which starts the register wizard).
+//
+// Google is wired to the real flow (GoogleSignInButton). Facebook and Apple are presented but the
+// API has no endpoint for them yet -- /auth/google is the only social exchange -- so they explain
+// that rather than failing silently. Wiring them up means a provider app id plus an /auth/facebook
+// and /auth/apple on the API.
+export default function WelcomeScreen() {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = async () => {
-    setError(null);
-    if (!email.trim() || !password) {
-      setError('Ingrese correo y contraseña.');
-      return;
-    }
-    setSubmitting(true);
-    const err = await signIn(email.trim(), password);
-    setSubmitting(false);
-    // On success the gate in _layout redirects; only a failure surfaces here.
-    if (err) setError(err);
-  };
+  const notWired = (provider: string) =>
+    setError(`Iniciar con ${provider} aún no está disponible. Usa Google o tu correo.`);
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Volao</Text>
-          <Text style={styles.subtitle}>Inicie sesión para continuar</Text>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.hero}>
+          <Image
+            source={require('../assets/volao-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Volao"
+          />
+          <Text style={styles.tagline}>Pide lo que quieras, te lo llevamos</Text>
         </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Correo electrónico"
-          placeholderTextColor={t.textFaint}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          editable={!submitting}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Contraseña"
-          placeholderTextColor={t.textFaint}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          editable={!submitting}
-        />
+        <View style={styles.actions}>
+          <Pressable style={styles.social} onPress={() => notWired('Facebook')} accessibilityRole="button">
+            <FontAwesome5 name="facebook-f" brand size={18} color="#1877F2" style={styles.socialIcon} />
+            <Text style={styles.socialText}>Continuar con Facebook</Text>
+          </Pressable>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+          <GoogleSignInButton type="client" onError={setError} />
 
-        <Link href="/forgot-password" style={styles.forgot}>¿Olvidó su contraseña?</Link>
+          <Pressable style={styles.social} onPress={() => notWired('Apple')} accessibilityRole="button">
+            <FontAwesome5 name="apple" brand size={20} color="#0f172a" style={styles.socialIcon} />
+            <Text style={styles.socialText}>Continuar con Apple</Text>
+          </Pressable>
 
-        <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
-        </Pressable>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>o</Text>
-          <View style={styles.dividerLine} />
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* "Start with something else": the email + phone route, i.e. the register wizard. */}
+          <Pressable style={styles.other} onPress={() => router.push('/register')} accessibilityRole="button">
+            <Text style={styles.otherText}>Continuar con correo o teléfono</Text>
+          </Pressable>
+
+          <Pressable style={styles.signIn} onPress={() => router.push('/email-login')} accessibilityRole="button">
+            <Text style={styles.signInText}>¿Ya tienes cuenta? <Text style={styles.signInStrong}>Inicia sesión</Text></Text>
+          </Pressable>
         </View>
-
-        {/* A Google sign-in creates a customer account by default; drivers register explicitly. */}
-        <GoogleSignInButton type="client" onError={setError} disabled={submitting} />
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>¿No tiene cuenta? </Text>
-          <Link href="/register" style={styles.link}>Regístrese</Link>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
     </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 14, maxWidth: 440, width: '100%', alignSelf: 'center' },
-  header: { marginBottom: 12 },
-  title: { fontSize: 34, fontWeight: '900', color: t.text, letterSpacing: 0.5 },
-  subtitle: { fontSize: 15, color: t.textMuted, marginTop: 4 },
-  input: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: t.card, color: t.text },
-  error: { color: t.danger, fontSize: 14 },
-  button: { backgroundColor: t.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
-  forgot: { color: t.text, fontWeight: '700', textAlign: 'right', fontSize: 14 },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
+  hero: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  logo: { width: 260, height: 200 },
+  tagline: { color: t.textMuted, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: -10 },
+
+  actions: { padding: 24, gap: 12, maxWidth: 440, width: '100%', alignSelf: 'center' },
+  social: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingVertical: 13,
+  },
+  socialIcon: { width: 22, textAlign: 'center' },
+  socialText: { color: '#0f172a', fontSize: 16, fontWeight: '600' },
+  error: { color: t.danger, fontSize: 14, textAlign: 'center' },
+
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 2 },
   dividerLine: { flex: 1, height: 1, backgroundColor: t.border },
   dividerText: { color: t.textMuted, fontSize: 13 },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
-  footerText: { color: t.textMuted },
-  link: { color: t.text, fontWeight: '800' },
+
+  other: { borderWidth: 1, borderColor: t.border, backgroundColor: t.card, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  otherText: { color: t.text, fontSize: 16, fontWeight: '800' },
+  signIn: { alignItems: 'center', paddingVertical: 6 },
+  signInText: { color: t.textMuted, fontSize: 14 },
+  signInStrong: { color: t.text, fontWeight: '800' },
 });
