@@ -7,8 +7,14 @@ interface AuthState {
   token: string | null;
   // While the stored token is being read on startup, routes wait rather than flashing login.
   loading: boolean;
+  // Whether the account still owes us the sign-up details. null while unknown (no token yet, or
+  // the check is in flight), which the gate waits on rather than guessing.
+  profileComplete: boolean | null;
+  // Re-checks it after the completion form is submitted, which releases the gate.
+  refreshProfile: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signInWithGoogle: (idToken: string, type?: 'client' | 'driver') => Promise<string | null>;
+  signInWithGoogle: (token: string) => Promise<string | null>;
+  signInWithFacebook: (token: string) => Promise<string | null>;
   signUp: (payload: RegisterPayload) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
@@ -18,12 +24,24 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+
+  // Asks the API who this token belongs to and whether the sign-up details are still owed. A failed
+  // check counts as complete on purpose: a flaky network must not trap someone in the completion
+  // form, and the next launch re-checks anyway.
+  const checkProfile = async () => {
+    const res = await api.me();
+    setProfileComplete(res.success ? api.isProfileComplete(res.data) : true);
+  };
 
   useEffect(() => {
     getToken()
-      .then((stored) => {
+      .then(async (stored) => {
         api.setAuthToken(stored);
         setToken(stored);
+        // A restored session is checked too: someone who closed the app part-way through the
+        // completion form is sent back to it rather than let into a half-set-up account.
+        if (stored) await checkProfile();
       })
       .finally(() => setLoading(false));
   }, []);
@@ -41,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.setAuthToken(token);
     await saveToken(token);
     setToken(token);
+    await checkProfile();
   };
 
   // Returns null on success, or the API's error message to show on the form.
@@ -51,12 +70,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  // Exchange a Google ID token (from the device's Google flow) for our JWT, then adopt it -- the
-  // server signs in or creates the delivery account. Same null-on-success contract as signIn.
-  const signInWithGoogle = async (idToken: string, type: 'client' | 'driver' = 'client') => {
-    const res = await api.googleLogin(idToken, type);
-    if (!res.success) return res.message;
-    await adopt(res.data);
+  // Google and Facebook both run as browser flows the API owns end to end: it verifies the
+  // provider's answer and issues our JWT itself, so there is no token to exchange here, only one to
+  // adopt. Same null-on-success contract as signIn.
+  const signInWithGoogle = async (token: string) => {
+    if (!token) return 'No se pudo iniciar sesión con Google.';
+    await adopt(token);
+    return null;
+  };
+
+  const signInWithFacebook = async (token: string) => {
+    if (!token) return 'No se pudo iniciar sesión con Facebook.';
+    await adopt(token);
     return null;
   };
 
@@ -72,10 +97,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.setAuthToken(null);
     await clearToken();
     setToken(null);
+    setProfileComplete(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, loading, signIn, signInWithGoogle, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{
+        token, loading, profileComplete, refreshProfile: checkProfile,
+        signIn, signInWithGoogle, signInWithFacebook, signUp, signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

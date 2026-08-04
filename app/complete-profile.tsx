@@ -1,44 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/leafletMap';
 import {
-  detectCurrentLocation, LABEL_CHOICES, maskDate, toIsoDate, type LabelChoice,
+  detectCurrentLocation, LABEL_CHOICES, maskDate, splitDisplayName, toIsoDate, type LabelChoice,
 } from '../src/profileForm';
 import { GradientBackground, t } from '../src/theme';
 
-const STEPS = ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'];
+const STEPS = ['Datos', 'Ubicación'];
 
-// Sign-up wizard, reached from the welcome screen's "Continuar con correo o teléfono":
-// 1) the email, which we mail a code to, 2) that code, 3) contact details and who you are,
-// 4) the password, typed twice, 5) where to deliver. The address is proven before anything else
-// is collected.
+// Finishes an account created by a social sign-in. Facebook (or Google) proved the email and stays
+// the credential, so the sign-up wizard's first four steps have nothing to ask: no code to mail,
+// no address to verify, no password to choose. What is left is who you are and where to deliver --
+// the same two steps, posted to /auth/complete-profile.
 //
-// Customers only. Driver accounts are created from the ERP (hovante.web), not self-service -- the
-// API rejects a driver self-registration too, so removing the option here is not the only guard.
-export default function RegisterScreen() {
-  const { signUp } = useAuth();
-  const router = useRouter();
+// Nobody navigates here: the gate in _layout sends every signed-in account that still owes these
+// details, so closing the app part-way through lands back here rather than in a half-set-up home.
+export default function CompleteProfileScreen() {
+  const { refreshProfile, signOut } = useAuth();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Step 1-2: the address and the code we mail to it.
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  // Step 3
-  const [phone, setPhone] = useState('');
+  // Step 1: who you are. Pre-filled from the provider's display name where it can be.
   const [name, setName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [birth, setBirth] = useState('');
-  // Step 4
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  // Step 5
+  // Step 2: where to deliver.
   const [address, setAddress] = useState('');
   const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(null);
   const [customLabel, setCustomLabel] = useState('');
@@ -46,65 +38,25 @@ export default function RegisterScreen() {
   const [mapKey, setMapKey] = useState(0);
   const [locating, setLocating] = useState(false);
 
+  // The provider's name arrives as one string; opening the form pre-filled means most people only
+  // confirm it. Anything they have already typed wins, so a slow response cannot overwrite them.
+  useEffect(() => {
+    let active = true;
+    api.me().then((res) => {
+      if (!active || !res.success || !res.data) return;
+      const split = splitDisplayName(res.data.name);
+      setName((current) => current || split.name);
+      setLastName((current) => current || res.data.lastName || split.lastName);
+      setPhone((current) => current || res.data.phone || '');
+    });
+    return () => { active = false; };
+  }, []);
+
   const back = () => {
     setError(null);
     if (step > 1) setStep(step - 1);
-    else if (router.canGoBack()) router.back();
-    else router.replace('/login');
   };
 
-  // Step 1: ask the API to mail a code. It refuses an address that already has an account, so the
-  // person finds out here rather than after filling in everything else.
-  const sendCode = async () => {
-    if (!email.trim()) return setError('Ingresa tu correo.');
-    setSubmitting(true);
-    const res = await api.sendEmailCode(email.trim());
-    setSubmitting(false);
-    if (!res.success) return setError(res.message);
-    setCode('');
-    setStep(2);
-  };
-
-  // Step 2: prove the address. The API records the verification; register later requires it.
-  const verifyCode = async () => {
-    if (code.length !== 6) return setError('Ingresa el código de 6 dígitos.');
-    setSubmitting(true);
-    const res = await api.verifyEmailCode(email.trim(), code);
-    setSubmitting(false);
-    if (!res.success) return setError(res.message);
-    setStep(3);
-  };
-
-  const resend = async () => {
-    setError(null);
-    setSubmitting(true);
-    const res = await api.sendEmailCode(email.trim());
-    setSubmitting(false);
-    setError(res.success ? 'Te enviamos un código nuevo.' : res.message);
-  };
-
-  const next = () => {
-    setError(null);
-    if (step === 1) return sendCode();
-    if (step === 2) return verifyCode();
-    if (step === 3) {
-      if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (!name.trim()) return setError('Ingresa tu nombre.');
-      if (!lastName.trim()) return setError('Ingresa tu apellido.');
-      if (birth.trim() && !toIsoDate(birth)) return setError('La fecha de nacimiento no es válida.');
-      return setStep(4);
-    }
-    if (step === 4) {
-      if (!password) return setError('Elige una contraseña.');
-      if (password.length < 7) return setError('La contraseña debe tener al menos 7 caracteres.');
-      if (!confirmPassword) return setError('Confirma tu contraseña.');
-      if (password !== confirmPassword) return setError('Las contraseñas no coinciden.');
-      return setStep(5);
-    }
-    return submit();
-  };
-
-  // Uses the device GPS to drop the pin and fill the address (same approach as checkout).
   const useMyLocation = async () => {
     setLocating(true);
     const result = await detectCurrentLocation();
@@ -125,16 +77,26 @@ export default function RegisterScreen() {
   // "Casa"/"Trabajo" are the label as-is; "Otro" defers to what they typed.
   const addressLabel = labelChoice === 'Otro' ? customLabel.trim() : (labelChoice ?? '');
 
+  const next = () => {
+    setError(null);
+    if (step === 1) {
+      if (!name.trim()) return setError('Ingresa tu nombre.');
+      if (!lastName.trim()) return setError('Ingresa tu apellido.');
+      if (!phone.trim()) return setError('Ingresa tu teléfono.');
+      if (birth.trim() && !toIsoDate(birth)) return setError('La fecha de nacimiento no es válida.');
+      return setStep(2);
+    }
+    return submit();
+  };
+
   const submit = async () => {
     // Checked in the order the fields appear on the step.
     if (!labelChoice) return setError('Elige un nombre para tu dirección.');
     if (!addressLabel) return setError('Escribe el nombre de tu dirección.');
     if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
+
     setSubmitting(true);
-    const err = await signUp({
-      type: 'client',
-      email: email.trim(),
-      password,
+    const res = await api.completeProfile({
       name: name.trim(),
       lastName: lastName.trim(),
       birthDate: toIsoDate(birth),
@@ -144,16 +106,26 @@ export default function RegisterScreen() {
       longitude: coords.lng,
       addressLabel,
     });
+    if (!res.success) {
+      setSubmitting(false);
+      setError(res.message);
+      setStep(1);
+      return;
+    }
+    // Re-checking the profile is what releases the gate, which then redirects to the home screen.
+    await refreshProfile();
     setSubmitting(false);
-    // On success the gate in _layout redirects to the home; only a failure surfaces here.
-    if (err) { setError(err); setStep(1); }
   };
 
   return (
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={back} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+          {step > 1 ? (
+            <Pressable onPress={back} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+          ) : (
+            <View style={{ width: 56 }} />
+          )}
           <Text style={styles.title}>{STEPS[step - 1]}</Text>
           <View style={{ width: 56 }} />
         </View>
@@ -176,35 +148,7 @@ export default function RegisterScreen() {
 
         {step === 1 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Empecemos por tu correo. Te enviaremos un código para verificarlo.</Text>
-            <Text style={styles.label}>Correo electrónico</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="tucorreo@ejemplo.com"
-              autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail} />
-          </ScrollView>
-        )}
-
-        {step === 2 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Escribe el código de 6 dígitos que enviamos a {email.trim()}.</Text>
-            <TextInput
-              style={[styles.input, styles.codeInput]}
-              placeholderTextColor={t.textFaint}
-              placeholder="••••••"
-              keyboardType="number-pad"
-              maxLength={6}
-              textAlign="center"
-              value={code}
-              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-            />
-            <Pressable onPress={resend} disabled={submitting} style={styles.resend}>
-              <Text style={styles.resendText}>¿No te llegó? Reenviar código</Text>
-            </Pressable>
-          </ScrollView>
-        )}
-
-        {step === 3 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Cuéntanos quién eres y cómo contactarte.</Text>
+            <Text style={styles.lead}>Ya verificamos tu correo. Solo falta saber quién eres y cómo contactarte.</Text>
             <Text style={styles.label}>Nombre</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Nombre" value={name} onChangeText={setName} />
             <Text style={styles.label}>Apellido</Text>
@@ -215,22 +159,14 @@ export default function RegisterScreen() {
             <Text style={styles.label}>Fecha de nacimiento</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="DD/MM/AAAA"
               keyboardType="number-pad" value={birth} onChangeText={(v) => setBirth(maskDate(v))} maxLength={10} />
+
+            <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
+              <Text style={styles.signOutText}>Usar otra cuenta</Text>
+            </Pressable>
           </ScrollView>
         )}
 
-        {step === 4 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Protege tu cuenta. Escribe la misma contraseña dos veces.</Text>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Mínimo 7 caracteres"
-              secureTextEntry value={password} onChangeText={setPassword} />
-            <Text style={styles.label}>Confirmar contraseña</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Repite tu contraseña"
-              secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-          </ScrollView>
-        )}
-
-        {step === 5 && (
+        {step === 2 && (
           <View style={styles.mapStep}>
             <Text style={[styles.label, styles.labelFirst]}>Nombre de la dirección</Text>
             <View style={styles.choiceRow}>
@@ -275,9 +211,7 @@ export default function RegisterScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={next} disabled={submitting}>
             {submitting ? <ActivityIndicator color={t.onAccent} /> : (
-              <Text style={styles.primaryText}>
-                {step === 1 ? 'Enviar código' : step === 2 ? 'Verificar' : step === 5 ? 'Crear cuenta' : 'Continuar'}
-              </Text>
+              <Text style={styles.primaryText}>{step === 2 ? 'Terminar' : 'Continuar'}</Text>
             )}
           </Pressable>
         </View>
@@ -305,6 +239,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 12 },
   input: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: t.card, color: t.text, marginTop: 4 },
 
+  signOut: { alignItems: 'center', paddingVertical: 18 },
+  signOutText: { color: t.textMuted, fontSize: 14, fontWeight: '700' },
+
   mapStep: { flex: 1, padding: 20 },
   labelFirst: { marginTop: 0 },
   choiceRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
@@ -320,9 +257,6 @@ const styles = StyleSheet.create({
   locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
   addressArea: { minHeight: 68, textAlignVertical: 'top' },
-  codeInput: { fontSize: 28, fontWeight: '800', letterSpacing: 10, marginTop: 10 },
-  resend: { alignItems: 'center', paddingVertical: 14 },
-  resendText: { color: t.text, fontWeight: '700', fontSize: 14 },
 
   footer: { padding: 20, paddingTop: 8, gap: 10, maxWidth: 480, width: '100%', alignSelf: 'center' },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },

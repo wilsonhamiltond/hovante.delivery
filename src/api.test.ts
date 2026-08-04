@@ -35,29 +35,13 @@ describe('api client', () => {
     expect(JSON.parse(init.body).type).toBe('driver');
   });
 
-  it('posts the id token and type to /auth/google', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      json: async () => ({ success: true, message: 'ok', data: 'jwt' }),
-    });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  it('reports a network failure as a friendly envelope rather than throwing', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
 
-    await api.googleLogin('google-id-token', 'driver');
+    const res = await api.login('a@b.com', 'secret');
 
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain('/auth/google');
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ idToken: 'google-id-token', type: 'driver' });
-  });
-
-  it('defaults the google account type to client', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      json: async () => ({ success: true, message: 'ok', data: 'jwt' }),
-    });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await api.googleLogin('tok');
-
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).type).toBe('client');
+    expect(res.success).toBe(false);
+    expect(res.message).toBe('No se pudo conectar con el servidor.');
   });
 
   it('posts the email to /auth/forgot-password', async () => {

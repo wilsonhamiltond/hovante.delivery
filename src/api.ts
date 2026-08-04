@@ -131,12 +131,10 @@ export function register(payload: RegisterPayload) {
   return post<string>('/auth/register', payload);
 }
 
-// Sign in with Google: the device obtains a Google ID token, the server verifies it and returns our
-// JWT as `data` -- signing in an existing account or creating one. `type` only matters for a new
-// account (which kind to create); it is ignored for a returning user.
-export function googleLogin(idToken: string, type: 'client' | 'driver' = 'client') {
-  return post<string>('/auth/google', { idToken, type });
-}
+// Google and Facebook sign-in have no client function here: both are browser flows, so the app
+// opens the API's /auth/<provider>/start and the JWT comes back on the return link rather than in
+// a response body (see googleAuth.ts / facebookAuth.ts). The API keeps its POST /auth/google for a
+// native build that can obtain an ID token on-device; nothing in this app calls it today.
 
 // Sign-up email verification. Step 1 mails a 6-digit code to the address; step 2 checks it. The
 // server refuses to register an address that has not been verified this way.
@@ -177,6 +175,35 @@ async function get<T>(path: string): Promise<ApiResponse<T>> {
 
 export function me() {
   return get<Me>('/auth/me');
+}
+
+// What a social sign-in (Facebook/Google) could not supply. The provider proves the email and is
+// the credential, so there is no code to verify and no password to choose -- only the wizard's
+// person-info and location steps are left.
+export interface CompleteProfilePayload {
+  name: string;
+  lastName: string;
+  // ISO date (yyyy-MM-dd), or null when not given: the server treats it as optional.
+  birthDate?: string | null;
+  phone: string;
+  address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  addressLabel?: string;
+}
+
+export function completeProfile(payload: CompleteProfilePayload) {
+  return postAuth<string>('/auth/complete-profile', payload);
+}
+
+// Whether an account still owes us the sign-up details. A social account is minted with just the
+// provider's email and display name, so it lands here missing everything else. Mirrors exactly what
+// CompleteProfileAsync refuses to save without, so the app never routes someone to a form the
+// server would reject, nor holds back one it would accept.
+export function isProfileComplete(profile: Me | null): boolean {
+  if (!profile) return false;
+  const filled = (value: string | null) => typeof value === 'string' && value.trim().length > 0;
+  return filled(profile.name) && filled(profile.lastName) && filled(profile.phone) && filled(profile.address);
 }
 
 // The ERP business categories (company business types), shown as the home category row.

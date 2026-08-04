@@ -33,7 +33,8 @@
         {
           "locationWhenInUsePermission": "Hovante Delivery usa tu ubicación para seleccionar dónde entregar tu pedido."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

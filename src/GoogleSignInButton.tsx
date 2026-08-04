@@ -1,92 +1,71 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { GOOGLE_CLIENT_IDS, GOOGLE_ENABLED } from './config';
+import { GOOGLE_REDIRECT_URI, GOOGLE_START_URL, parseGoogleReturnUrl } from './googleAuth';
 import { useAuth } from './auth';
 
-// Finishes the auth session if the app was reopened by the OAuth redirect (web / native).
-WebBrowser.maybeCompleteAuthSession();
-
 interface Props {
-  // Which kind of account to create if this Google user is new. A returning user keeps their type.
-  type?: 'client' | 'driver';
   onError?: (message: string) => void;
   disabled?: boolean;
 }
 
-// "Continuar con Google": runs the device Google flow to get an ID token, then hands it to the auth
-// context, which exchanges it for our JWT. Hidden in a production build until the client ids are
-// configured (so a shipped app never offers a dead button); in development it stays visible but
-// disabled, with a hint, so the wiring is testable.
-export function GoogleSignInButton({ type = 'client', onError, disabled }: Props) {
+// "Continuar con Google": opens the API's OAuth start endpoint and waits for it to bounce back
+// with a JWT, exactly like the Facebook button. openAuthSessionAsync keeps the session tied to the
+// app -- a browser tab on native, a popup on web -- and resolves with the redirect URL.
+//
+// There is nothing to configure in the app: the client id and secret live only on the API, which
+// is why this button is always shown. If the API has no Google credentials set, its start endpoint
+// answers with a plain 400 in the browser rather than a broken consent screen.
+export function GoogleSignInButton({ onError, disabled }: Props) {
   const { signInWithGoogle } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_CLIENT_IDS.webClientId,
-    iosClientId: GOOGLE_CLIENT_IDS.iosClientId,
-    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
-  });
+  const onPress = async () => {
+    setBusy(true);
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(GOOGLE_START_URL, GOOGLE_REDIRECT_URI);
 
-  useEffect(() => {
-    if (!response) return;
-    if (response.type === 'success') {
-      const idToken = response.params?.id_token ?? response.authentication?.idToken ?? null;
-      if (!idToken) {
-        setBusy(false);
-        onError?.('Google no devolvió un token de identidad.');
+      // 'cancel' (closed the browser) and 'dismiss' are not failures: say nothing, let them retry.
+      if (result.type !== 'success') return;
+
+      const { token, error } = parseGoogleReturnUrl(result.url);
+      if (!token) {
+        // Every API-side failure -- declined consent, bad state, unverified email -- arrives as a
+        // ready-to-show message on the link.
+        onError?.(error ?? 'No se pudo iniciar sesión con Google.');
         return;
       }
-      signInWithGoogle(idToken, type).then((err) => {
-        setBusy(false);
-        if (err) onError?.(err);
-        // On success the auth gate in _layout redirects away from the login screen.
-      });
-    } else {
-      // 'error', 'cancel' or 'dismiss': stop the spinner, surface only real errors.
+
+      const err = await signInWithGoogle(token);
+      if (err) onError?.(err);
+      // On success the auth gate in _layout redirects away from the login screen.
+    } catch {
+      onError?.('No se pudo iniciar sesión con Google.');
+    } finally {
       setBusy(false);
-      if (response.type === 'error') onError?.('No se pudo iniciar sesión con Google.');
     }
-  }, [response]);
-
-  // Not configured and shipping: don't render a button that can't work.
-  if (!GOOGLE_ENABLED && !__DEV__) return null;
-
-  const onPress = () => {
-    if (!GOOGLE_ENABLED) {
-      onError?.('Configure GOOGLE_CLIENT_IDS en src/config.ts para habilitar Google.');
-      return;
-    }
-    setBusy(true);
-    promptAsync();
   };
 
-  const isDisabled = disabled || busy || (GOOGLE_ENABLED && !request);
+  const isDisabled = disabled || busy;
 
   return (
-    <View>
-      <Pressable
-        style={[styles.button, isDisabled && styles.buttonDisabled]}
-        onPress={onPress}
-        disabled={isDisabled}
-        accessibilityRole="button"
-        accessibilityLabel="Continuar con Google"
-      >
-        {busy ? (
-          <ActivityIndicator color="#0f172a" />
-        ) : (
-          <>
-            <FontAwesome5 name="google" brand size={18} color="#4285F4" style={styles.logoIcon} />
-            <Text style={styles.buttonText}>Continuar con Google</Text>
-          </>
-        )}
-      </Pressable>
-      {!GOOGLE_ENABLED && __DEV__ ? (
-        <Text style={styles.hint}>Configure GOOGLE_CLIENT_IDS en src/config.ts</Text>
-      ) : null}
-    </View>
+    <Pressable
+      style={[styles.button, isDisabled && styles.buttonDisabled]}
+      onPress={onPress}
+      disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel="Continuar con Google"
+    >
+      {busy ? (
+        <ActivityIndicator color="#0f172a" />
+      ) : (
+        <>
+          <FontAwesome5 name="google" brand size={18} color="#4285F4" style={styles.logoIcon} />
+          <Text style={styles.buttonText}>Continuar con Google</Text>
+        </>
+      )}
+    </Pressable>
   );
 }
 
@@ -105,5 +84,4 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#0f172a', fontSize: 16, fontWeight: '600' },
   logoIcon: { width: 22, textAlign: 'center' },
-  hint: { color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 6 },
 });
