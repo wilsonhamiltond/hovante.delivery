@@ -66,8 +66,12 @@ export default function DeliveryDetail() {
     address: delivery?.addressLine,
     title: delivery?.recipientName ?? 'Entregar',
   });
-  const openMapAddress = (address?: string | null) => openMap({
-    address,
+  // The pickup now opens on the merchant's own pin when its office has one, exactly like the
+  // drop-off above. The address still goes along so the map can geocode it when it does not.
+  const openMapPickup = () => openMap({
+    lat: delivery?.pickupLatitude,
+    lng: delivery?.pickupLongitude,
+    address: delivery?.pickupAddress,
     title: delivery?.pickupName ?? 'Recoger',
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
@@ -116,7 +120,11 @@ export default function DeliveryDetail() {
             <Text style={styles.stopName}>{delivery.pickupName ?? 'Comercio'}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
-              {delivery.pickupAddress ? <Pressable style={styles.smallBtn} onPress={() => openMapAddress(delivery.pickupAddress)}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable> : null}
+              {/* A pin is enough on its own: an office that has been geocoded but never had its
+                  address typed in is still somewhere the courier can be sent. */}
+              {delivery.pickupAddress || delivery.pickupLatitude != null ? (
+                <Pressable style={styles.smallBtn} onPress={openMapPickup}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable>
+              ) : null}
               {delivery.pickupPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.pickupPhone)}><Text style={styles.smallBtnText}>📞 {delivery.pickupPhone}</Text></Pressable> : null}
             </View>
           </View>
@@ -128,9 +136,12 @@ export default function DeliveryDetail() {
           <Text style={styles.stopName}>{delivery.recipientName ?? 'Cliente'}</Text>
           <Text style={styles.stopAddress}>{delivery.addressLine ?? 'Sin dirección'}{delivery.city ? `, ${delivery.city}` : ''}</Text>
           <View style={styles.stopActions}>
-            {delivery.latitude != null && delivery.longitude != null ? (
+            {/* One handler for both cases: openMapCoords already sends the address alongside the
+                pin, so a stop with no coordinates still opens -- and under the customer's name,
+                which the old address-only branch got wrong by titling it with the merchant's. */}
+            {delivery.latitude != null || delivery.addressLine ? (
               <Pressable style={styles.smallBtn} onPress={openMapCoords}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable>
-            ) : (delivery.addressLine ? <Pressable style={styles.smallBtn} onPress={() => openMapAddress(delivery.addressLine)}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable> : null)}
+            ) : null}
             {delivery.clientPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.clientPhone)}><Text style={styles.smallBtnText}>📞 {delivery.clientPhone}</Text></Pressable> : null}
           </View>
         </View>

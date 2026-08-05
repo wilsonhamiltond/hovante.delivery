@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { leafletHtml, type LocationPickerProps, type PickedLocation } from './leafletMap';
+import { locationPickerHtml, type LocationPickerProps, type PickedLocation } from './mapHtml';
 
-// Web build: renders the Leaflet map in a real <iframe> (this file only loads on web, where the tree
+// Web build: renders the Google map in a real <iframe> (this file only loads on web, where the tree
 // is React DOM under react-native-web) and listens for the map's postMessage. Keeps
 // react-native-webview off the web bundle entirely.
 export function LocationPicker({ latitude, longitude, onPick }: LocationPickerProps) {
-  const html = useRef(leafletHtml(latitude, longitude)).current;
+  const html = useRef(locationPickerHtml(latitude, longitude)).current;
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
 

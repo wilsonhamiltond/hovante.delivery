@@ -13,3 +13,13 @@
 // is the phone itself, so EXPO_PUBLIC_API_URL has to name the dev machine's LAN IP or a tunnel.
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5179/api/v1';
+
+// Browser key for the Google Maps JavaScript API and Geocoding, used by every map in the app. A
+// maps key is public by nature -- it ships inside the page that loads the map -- so it is fine here,
+// but it must be locked down in Google Cloud Console (restrict it to the Maps JavaScript and
+// Geocoding APIs, and to your app's referrers/bundle ids) or anyone can spend your quota.
+export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+
+// Without a key Google renders a dark "for development purposes only" watermark over a dead map, so
+// the map components say so plainly instead.
+export const MAPS_ENABLED = GOOGLE_MAPS_API_KEY.trim().length > 0;

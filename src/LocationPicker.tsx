@@ -1,12 +1,12 @@
 import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { leafletHtml, type LocationPickerProps, type PickedLocation } from './leafletMap';
+import { locationPickerHtml, type LocationPickerProps, type PickedLocation } from './mapHtml';
 
-// Native build: the Leaflet map inside a react-native-webview. (On web, LocationPicker.web.tsx is
+// Native build: the Google map inside a react-native-webview. (On web, LocationPicker.web.tsx is
 // used instead, so react-native-webview never reaches the web bundle.)
 export function LocationPicker({ latitude, longitude, onPick }: LocationPickerProps) {
-  const html = useRef(leafletHtml(latitude, longitude)).current;
+  const html = useRef(locationPickerHtml(latitude, longitude)).current;
   return (
     <View style={styles.wrap}>
       <WebView

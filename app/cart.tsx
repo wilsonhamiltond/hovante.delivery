@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 import { useCart } from '../src/cart';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
-import { DEFAULT_CENTER } from '../src/leafletMap';
+import { DEFAULT_CENTER } from '../src/mapHtml';
+import { detectCurrentLocation } from '../src/profileForm';
 import { GradientBackground, t } from '../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
@@ -21,46 +21,48 @@ export default function CartScreen() {
   const [step, setStep] = useState(1);
   const [notes, setNotes] = useState('');
   const [address, setAddress] = useState('');
+  // What the customer calls the pre-filled address ("Casa"), so the step says which one it used.
+  const [addressLabel, setAddressLabel] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [submitting, setSubmitting] = useState(false);
   const [mapKey, setMapKey] = useState(0); // bump to recenter the map on a new location
   const [locating, setLocating] = useState(false);
 
-  // Pre-fill the location from the customer's saved address so the map opens where they usually are.
+  // Pre-fill the location from the customer's default address, so the location step opens on where
+  // they usually deliver instead of an empty map.
+  //
+  // The map is built once when LocationPicker mounts and ignores later prop changes -- remounting it
+  // (bumping mapKey) is the only way to re-centre. Without that bump, a profile that arrives after
+  // the step is already on screen fills the address box but leaves the map on the default centre,
+  // which is the one case where "the default address" would not actually be applied.
   useEffect(() => {
     api.me().then((res) => {
-      if (res.success && res.data) {
-        setAddress(res.data.address ?? '');
-        setCoords({ lat: res.data.latitude ?? null, lng: res.data.longitude ?? null });
-      }
+      if (!res.success || !res.data) return;
+      setAddress(res.data.address ?? '');
+      setAddressLabel(res.data.addressLabel ?? null);
+      setCoords({ lat: res.data.latitude ?? null, lng: res.data.longitude ?? null });
+      if (res.data.latitude != null && res.data.longitude != null) setMapKey((k) => k + 1);
     });
   }, []);
 
-  // Uses the device GPS (expo-location; browser geolocation on web) to set the delivery location,
-  // recenter the map, and reverse-geocode a readable address.
+  // Device GPS, then a readable address for it -- the same shared helper the sign-up and
+  // profile-completion location steps use, so all three geocode identically.
   const useMyLocation = async () => {
     setLocating(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+    const result = await detectCurrentLocation();
+    setLocating(false);
+    if (!result.ok) {
+      if (result.reason === 'permission') {
         Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
-        return;
+      } else {
+        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
       }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      setCoords({ lat, lng });
-      setMapKey((k) => k + 1);
-      try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
-        const j = await r.json();
-        if (j && j.display_name) setAddress(j.display_name);
-      } catch { /* keep the existing address if reverse geocoding fails */ }
-    } catch {
-      Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
-    } finally {
-      setLocating(false);
+      return;
     }
+    setCoords({ lat: result.location.lat, lng: result.location.lng });
+    setAddressLabel(null);
+    setMapKey((k) => k + 1);
+    if (result.location.address) setAddress(result.location.address);
   };
 
   const placeOrder = async () => {
@@ -139,9 +141,17 @@ export default function CartScreen() {
             key={mapKey}
             latitude={coords.lat ?? DEFAULT_CENTER.lat}
             longitude={coords.lng ?? DEFAULT_CENTER.lng}
-            onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
+            // Picking a point makes this somewhere else, so it is no longer the saved address.
+            onPick={(loc) => {
+              setCoords({ lat: loc.lat, lng: loc.lng });
+              setAddressLabel(null);
+              if (loc.address) setAddress(loc.address);
+            }}
           />
-          <Text style={styles.label}>Dirección de entrega</Text>
+          <View style={styles.labelRow}>
+            <Text style={styles.labelText}>Dirección de entrega</Text>
+            {addressLabel ? <Text style={styles.labelBadge}>{addressLabel}</Text> : null}
+          </View>
           <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder="Dirección de entrega" placeholderTextColor={t.textFaint} multiline />
           <Pressable style={[styles.primary, !address.trim() && styles.disabled]} disabled={!address.trim()} onPress={() => setStep(3)}>
             <Text style={styles.primaryText}>Continuar</Text>
@@ -277,6 +287,14 @@ const styles = StyleSheet.create({
   locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
   label: { fontSize: 14, fontWeight: '700', color: t.textMuted, marginTop: 12, marginBottom: 6 },
+  // Same row rhythm as `label`, for the one place the label sits beside a badge.
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 6 },
+  labelText: { fontSize: 14, fontWeight: '700', color: t.textMuted },
+  // Names the saved address the step opened with; disappears once a different point is chosen.
+  labelBadge: {
+    fontSize: 12, fontWeight: '800', color: t.text, backgroundColor: t.cardStrong,
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, overflow: 'hidden',
+  },
   addressInput: { backgroundColor: t.card, borderRadius: 12, padding: 14, minHeight: 56, fontSize: 15, color: t.text, textAlignVertical: 'top', borderWidth: 1, borderColor: t.border },
 
   addrCard: { flexDirection: 'row', gap: 8, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, alignItems: 'flex-start' },

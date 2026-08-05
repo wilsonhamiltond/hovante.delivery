@@ -65,7 +65,12 @@ export interface Delivery {
   clientPhone: string | null;
   pickupName: string | null;
   pickupAddress: string | null;
+  // The merchant's office phone -- who the courier calls on arrival.
   pickupPhone: string | null;
+  // The merchant's pin, when its office has been geocoded. Null falls back to geocoding the
+  // address, which is what every pickup did before offices carried coordinates.
+  pickupLatitude: number | null;
+  pickupLongitude: number | null;
   notes: string | null;
   receiverName: string | null;
   failureReason: string | null;
@@ -206,9 +211,11 @@ export function isProfileComplete(profile: Me | null): boolean {
   return filled(profile.name) && filled(profile.lastName) && filled(profile.phone) && filled(profile.address);
 }
 
-// The ERP business categories (company business types), shown as the home category row.
+// The business categories shown as the home category row. The marketplace discovery endpoint, not
+// the ERP's /businessCategory catalogue: it returns only categories that an active company with
+// delivery enabled belongs to, so the row never offers one that opens on an empty merchant list.
 export function businessCategories() {
-  return get<BusinessCategory[]>('/businessCategory');
+  return get<BusinessCategory[]>('/public/company-categories');
 }
 
 // A marketplace product (an item from any merchant company).
@@ -244,11 +251,30 @@ export interface Order {
   deliveryStatus?: string | null;
 }
 
-// The catalog across every merchant, or a single merchant's when companyId is given.
-export function products(companyId?: string) {
-  const path = companyId ? `/delivery/products?companyId=${encodeURIComponent(companyId)}` : '/delivery/products';
-  return get<Product[]>(path);
+// One page of the catalog. The home grid pulls these as it scrolls rather than loading every
+// product, so category and search are sent along too -- filtering client-side would only ever
+// search the pages already fetched. A short page means fewer than `take` came back, i.e. the end.
+export interface ProductPageQuery {
+  companyId?: string;
+  businessCategoryId?: string;
+  search?: string;
+  skip?: number;
+  take?: number;
 }
+
+export function products(query: ProductPageQuery = {}) {
+  const params = new URLSearchParams();
+  if (query.companyId) params.set('companyId', query.companyId);
+  if (query.businessCategoryId) params.set('businessCategoryId', query.businessCategoryId);
+  if (query.search?.trim()) params.set('search', query.search.trim());
+  params.set('skip', String(query.skip ?? 0));
+  params.set('take', String(query.take ?? PRODUCT_PAGE_SIZE));
+  return get<Product[]>(`/delivery/products?${params.toString()}`);
+}
+
+// How many products a page holds. Exported so the caller can tell a full page (there may be more)
+// from a short one (that was the last).
+export const PRODUCT_PAGE_SIZE = 10;
 
 export interface CreateOrderInput {
   items: OrderLineInput[];

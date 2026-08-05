@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { AppleSignInButton } from '../src/AppleSignInButton';
 import { FacebookSignInButton } from '../src/FacebookSignInButton';
 import { GoogleSignInButton } from '../src/GoogleSignInButton';
 import { GradientBackground, t } from '../src/theme';
@@ -10,16 +10,12 @@ import { GradientBackground, t } from '../src/theme';
 // Welcome / step 1 of onboarding: the Volao logo over the gradient, the three social sign-in
 // options, and a way in with an email + phone instead (which starts the register wizard).
 //
-// Google and Facebook are wired to the real flows, and to the same one: each hands its whole OAuth
-// dialog to the API (/auth/google/start, /auth/facebook/start) and comes back on a return link
-// carrying the JWT. Apple is presented but the API has no /auth/apple yet, so it explains that
-// rather than failing silently.
+// All three social sign-ins are wired to the same flow: each hands its whole OAuth dialog to the
+// API (/auth/facebook/start, /auth/google/start, /auth/apple/start) and comes back on a return link
+// carrying the JWT. None of them needs a provider credential in the app.
 export default function WelcomeScreen() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-
-  const notWired = (provider: string) =>
-    setError(`Iniciar con ${provider} aún no está disponible. Usa Facebook, Google o tu correo.`);
 
   return (
     <GradientBackground>
@@ -39,10 +35,7 @@ export default function WelcomeScreen() {
 
           <GoogleSignInButton onError={setError} />
 
-          <Pressable style={styles.social} onPress={() => notWired('Apple')} accessibilityRole="button">
-            <FontAwesome5 name="apple" brand size={20} color="#0f172a" style={styles.socialIcon} />
-            <Text style={styles.socialText}>Continuar con Apple</Text>
-          </Pressable>
+          <AppleSignInButton onError={setError} />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -73,12 +66,6 @@ const styles = StyleSheet.create({
   tagline: { color: t.textMuted, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: -10 },
 
   actions: { padding: 24, gap: 12, maxWidth: 440, width: '100%', alignSelf: 'center' },
-  social: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingVertical: 13,
-  },
-  socialIcon: { width: 22, textAlign: 'center' },
-  socialText: { color: '#0f172a', fontSize: 16, fontWeight: '600' },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 2 },

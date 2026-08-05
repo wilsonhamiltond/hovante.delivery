@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
-import { DEFAULT_CENTER } from '../src/leafletMap';
+import { DEFAULT_CENTER } from '../src/mapHtml';
 import {
   detectCurrentLocation, LABEL_CHOICES, maskDate, toIsoDate, type LabelChoice,
 } from '../src/profileForm';

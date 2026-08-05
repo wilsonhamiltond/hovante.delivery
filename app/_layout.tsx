@@ -10,7 +10,7 @@ import { CartProvider } from '../src/cart';
 // each must be allowed to adopt the one on the link rather than be bounced straight to /login.
 const AUTH_ROUTES = [
   'login', 'email-login', 'register', 'forgot-password', 'reset-password',
-  'facebook-auth', 'google-auth',
+  'facebook-auth', 'google-auth', 'apple-auth',
 ];
 
 function RootNavigator() {

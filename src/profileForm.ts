@@ -1,4 +1,29 @@
 import * as Location from 'expo-location';
+import { GOOGLE_MAPS_API_KEY, MAPS_ENABLED } from './config';
+
+/**
+ * Turns a pin into a readable address with the Google Geocoding API -- the same service the maps
+ * themselves use, so an address typed here matches one picked off the map instead of coming from a
+ * different gazetteer with different street names.
+ *
+ * Null on any failure (no key, no network, no result): the caller keeps whatever address is already
+ * in the box, which is better than blanking it because a lookup did not answer.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  if (!MAPS_ENABLED) return null;
+  try {
+    const url = 'https://maps.googleapis.com/maps/api/geocode/json'
+      + `?latlng=${lat},${lng}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json?.status === 'OK' && json.results?.[0]?.formatted_address) {
+      return json.results[0].formatted_address as string;
+    }
+  } catch {
+    // Fall through: a failed lookup must not cost the caller the pin it already has.
+  }
+  return null;
+}
 
 // The pieces the sign-up wizard and the social profile-completion form both need. They ask for the
 // same person info and the same location; only how the account is created differs (a password and
@@ -51,16 +76,7 @@ export async function detectCurrentLocation(): Promise<DetectResult> {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    let address: string | null = null;
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
-      const j = await r.json();
-      if (j && j.display_name) address = j.display_name;
-    } catch {
-      // Keep the pin: the caller leaves whatever address is already typed in place.
-    }
-
-    return { ok: true, location: { lat, lng, address } };
+    return { ok: true, location: { lat, lng, address: await reverseGeocode(lat, lng) } };
   } catch {
     return { ok: false, reason: 'failed' };
   }

@@ -15,6 +15,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<string | null>;
   signInWithGoogle: (token: string) => Promise<string | null>;
   signInWithFacebook: (token: string) => Promise<string | null>;
+  signInWithApple: (token: string) => Promise<string | null>;
   signUp: (payload: RegisterPayload) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
@@ -85,6 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
+  const signInWithApple = async (token: string) => {
+    if (!token) return 'No se pudo iniciar sesión con Apple.';
+    await adopt(token);
+    return null;
+  };
+
   const signUp = async (payload: RegisterPayload) => {
     const res = await api.register(payload);
     if (!res.success) return res.message;
@@ -104,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         token, loading, profileComplete, refreshProfile: checkProfile,
-        signIn, signInWithGoogle, signInWithFacebook, signUp, signOut,
+        signIn, signInWithGoogle, signInWithFacebook, signInWithApple, signUp, signOut,
       }}
     >
       {children}

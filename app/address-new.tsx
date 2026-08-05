@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
-import { DEFAULT_CENTER } from '../src/leafletMap';
+import { DEFAULT_CENTER } from '../src/mapHtml';
+import { detectCurrentLocation } from '../src/profileForm';
 import { GradientBackground, t } from '../src/theme';
 
 // Same label choices as the sign-up wizard's location step: two one-tap options plus a free-text
@@ -31,30 +31,22 @@ export default function AddressNewScreen() {
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/home'));
 
-  // Device GPS drops the pin and fills the address, same approach as register/checkout.
+  // Device GPS drops the pin and fills the address -- the shared helper, same as register/checkout.
   const useMyLocation = async () => {
     setLocating(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+    const result = await detectCurrentLocation();
+    setLocating(false);
+    if (!result.ok) {
+      if (result.reason === 'permission') {
         Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
-        return;
+      } else {
+        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
       }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      setCoords({ lat, lng });
-      setMapKey((k) => k + 1);
-      try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
-        const j = await r.json();
-        if (j && j.display_name) setAddress(j.display_name);
-      } catch { /* keep whatever address is there if reverse geocoding fails */ }
-    } catch {
-      Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
-    } finally {
-      setLocating(false);
+      return;
     }
+    setCoords({ lat: result.location.lat, lng: result.location.lng });
+    setMapKey((k) => k + 1);
+    if (result.location.address) setAddress(result.location.address);
   };
 
   const save = async () => {
