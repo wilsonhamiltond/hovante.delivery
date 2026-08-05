@@ -28,6 +28,7 @@
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.0",
+    "dotenv-cli": "^11.0.0",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.17",
     "typescript": "~5.9.2"
@@ -37,6 +38,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "start:prod": "dotenv -e .env.prod -- expo start --clear",
+    "android:prod": "dotenv -e .env.prod -- expo start --clear --android",
+    "ios:prod": "dotenv -e .env.prod -- expo start --clear --ios",
+    "web:prod": "dotenv -e .env.prod -- expo start --clear --web",
     "test": "jest",
     "test:watch": "jest --watchAll"
   },
