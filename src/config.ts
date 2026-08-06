@@ -14,6 +14,10 @@
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5179/api/v1';
 
+// Printed once at startup (visible in the Metro terminal) so "which API is this build actually
+// calling" is never a guess -- env values are inlined at bundle time and easy to get wrong.
+console.log(`[config] API_BASE_URL = ${API_BASE_URL}`);
+
 // Browser key for the Google Maps JavaScript API and Geocoding, used by every map in the app. A
 // maps key is public by nature -- it ships inside the page that loads the map -- so it is fine here,
 // but it must be locked down in Google Cloud Console (restrict it to the Maps JavaScript and
