@@ -7,6 +7,7 @@ import * as api from '../../src/api';
 import * as outbox from '../../src/outbox';
 import type { Delivery } from '../../src/api';
 import type { OutboxItem } from '../../src/outbox';
+import { formatEta, useRouteEta } from '../../src/eta';
 import { GradientBackground, t } from '../../src/theme';
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -75,6 +76,13 @@ export default function DeliveryDetail() {
     title: delivery?.pickupName ?? 'Recoger',
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
+
+  // Driving estimate office -> order, shown with the route button. Null (hidden) until both
+  // stops have a pin and the router has answered.
+  const eta = useRouteEta(
+    delivery?.pickupLatitude, delivery?.pickupLongitude,
+    delivery?.latitude, delivery?.longitude,
+  );
 
   // Every action goes through the outbox: online it applies immediately, offline it queues and the
   // driver still moves on. Either way we return to the route, which flushes and refetches on focus.
@@ -148,6 +156,7 @@ export default function DeliveryDetail() {
 
         <Pressable style={styles.routeBtn} onPress={() => router.push(`/delivery-map/${delivery.id}`)}>
           <Text style={styles.routeBtnText}>🗺️  Ver ruta en el mapa</Text>
+          {eta ? <Text style={styles.routeEta}>⏱️ Tiempo estimado: {formatEta(eta)}</Text> : null}
         </Pressable>
 
         {delivery.notes ? <Text style={styles.notes}>Nota: {delivery.notes}</Text> : null}
@@ -226,8 +235,9 @@ const styles = StyleSheet.create({
   stopActions: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   smallBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   smallBtnText: { color: t.text, fontWeight: '700', fontSize: 13 },
-  routeBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  routeBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center', gap: 4 },
   routeBtnText: { color: t.text, fontWeight: '800', fontSize: 15 },
+  routeEta: { color: t.textMuted, fontWeight: '700', fontSize: 13 },
   notes: { fontSize: 14, color: t.textMuted },
   error: { color: t.danger, fontSize: 14 },
   action: { borderRadius: 10, paddingVertical: 14, alignItems: 'center' },

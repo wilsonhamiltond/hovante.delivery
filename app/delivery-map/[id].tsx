@@ -6,6 +6,7 @@ import { useAuth } from '../../src/auth';
 import * as api from '../../src/api';
 import type { Delivery } from '../../src/api';
 import { RouteMap } from '../../src/RouteMap';
+import { formatEta, useRouteEta } from '../../src/eta';
 import { GradientBackground, t } from '../../src/theme';
 
 // A map of one delivery's two stops: where to pick up (merchant) and where to deliver (client).
@@ -15,6 +16,12 @@ export default function DeliveryMapScreen() {
   const router = useRouter();
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Driving estimate for the drawn route, shown under the legend once the router answers.
+  const eta = useRouteEta(
+    delivery?.pickupLatitude, delivery?.pickupLongitude,
+    delivery?.latitude, delivery?.longitude,
+  );
 
   useEffect(() => {
     let active = true;
@@ -42,10 +49,13 @@ export default function DeliveryMapScreen() {
       ) : (
         <>
           <RouteMap
-            pickup={{ lat: null, lng: null, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? 'Recoger', color: '#f59e0b' }}
+            // The route's origin is the company office itself (its stored coordinates); the
+            // address is only the geocoding fallback for offices that predate coordinates.
+            pickup={{ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? 'Recoger', color: '#f59e0b' }}
             client={{ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, label: '2', title: delivery.recipientName ?? 'Entregar', color: '#16a34a' }}
           />
           <View style={styles.legend}>
+            {eta ? <Text style={styles.eta}>⏱️ Tiempo estimado: {formatEta(eta)}</Text> : null}
             <View style={styles.legendItem}>
               <View style={[styles.dot, { backgroundColor: '#f59e0b' }]}><Text style={styles.dotText}>1</Text></View>
               <View style={{ flex: 1 }}>
@@ -78,6 +88,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   muted: { color: t.textMuted },
   legend: { padding: 14, gap: 12, borderTopWidth: 1, borderTopColor: t.border },
+  eta: { color: t.text, fontWeight: '800', fontSize: 14 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   dotText: { color: '#fff', fontWeight: '800', fontSize: 13 },

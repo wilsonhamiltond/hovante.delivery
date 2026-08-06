@@ -245,6 +245,9 @@ export interface Order {
   total: number;
   notes: string | null;
   address: string | null;
+  // The delivery pin snapshotted at checkout; null on orders placed before the location step.
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
   items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
   // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
