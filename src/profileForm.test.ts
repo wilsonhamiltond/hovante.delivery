@@ -1,5 +1,5 @@
 import { isProfileComplete, type Me } from './api';
-import { splitDisplayName, toIsoDate } from './profileForm';
+import { isCompletePhone, maskPhone, splitDisplayName } from './profileForm';
 
 const account = (over: Partial<Me>): Me => ({
   email: 'a@b.com',
@@ -57,14 +57,42 @@ describe('splitDisplayName', () => {
   });
 });
 
-describe('toIsoDate', () => {
-  it('converts a real past date', () => {
-    expect(toIsoDate('05/03/1990')).toBe('1990-03-05');
+// The phone field accepts exactly one shape, so the mask is what enforces it -- typing, pasting a
+// number that already carries punctuation, and deleting all have to land in the same format.
+describe('maskPhone', () => {
+  it('formats progressively as digits are typed', () => {
+    expect(maskPhone('')).toBe('');
+    expect(maskPhone('8')).toBe('(8');
+    expect(maskPhone('809')).toBe('(809');
+    expect(maskPhone('8095')).toBe('(809) 5');
+    expect(maskPhone('809555')).toBe('(809) 555');
+    expect(maskPhone('8095550')).toBe('(809) 555-0');
+    expect(maskPhone('8095550100')).toBe('(809) 555-0100');
   });
 
-  it('rejects an impossible or future date', () => {
-    expect(toIsoDate('31/02/1990')).toBeNull();
-    expect(toIsoDate('01/01/2999')).toBeNull();
-    expect(toIsoDate('5/3/90')).toBeNull();
+  it('keeps only digits, so a pasted number reformats', () => {
+    expect(maskPhone('(809) 555-0100')).toBe('(809) 555-0100');
+    // A real stored number, punctuated the old way, lands in the mask unchanged digit-for-digit.
+    expect(maskPhone('809-555-0100')).toBe('(809) 555-0100');
+    expect(maskPhone('abc809def555')).toBe('(809) 555');
+  });
+
+  it('stops at ten digits however many are given', () => {
+    expect(maskPhone('809555010099999')).toBe('(809) 555-0100');
+    // A pasted country code is just more digits: "+1" shifts everything and the tail is cut.
+    expect(maskPhone('+1 809-555-0100')).toBe('(180) 955-5010');
+  });
+
+  it('re-formats after a digit is deleted', () => {
+    expect(maskPhone('(809) 555-010')).toBe('(809) 555-010');
+    expect(maskPhone('(809) 5')).toBe('(809) 5');
+  });
+});
+
+describe('isCompletePhone', () => {
+  it('accepts only a full ten-digit number', () => {
+    expect(isCompletePhone('(809) 555-0100')).toBe(true);
+    expect(isCompletePhone('(809) 555-010')).toBe(false);
+    expect(isCompletePhone('')).toBe(false);
   });
 });

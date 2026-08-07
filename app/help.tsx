@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 // Support channels. 809-555 numbers follow the app's demo convention (fictitious placeholders);
@@ -53,11 +54,9 @@ export default function HelpScreen() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} hitSlop={8}>
-          <Text style={styles.back}>‹ Atrás</Text>
-        </Pressable>
+        <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/home"))} />
         <Text style={styles.title}>Ayuda</Text>
-        <View style={{ width: 56 }} />
+        <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -123,7 +122,6 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   scroll: { padding: 16, paddingBottom: 32 },
 

@@ -3,6 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleShee
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 // Sign in with an existing account. Reached from the welcome screen's "Ya tengo cuenta"; new users
@@ -32,9 +33,7 @@ export default function EmailLoginScreen() {
     <GradientBackground>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))} hitSlop={8}>
-            <Text style={styles.back}>‹ Atrás</Text>
-          </Pressable>
+          <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/login"))} />
         </View>
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Text style={styles.title}>Iniciar sesión</Text>
@@ -81,7 +80,6 @@ export default function EmailLoginScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { paddingHorizontal: 16, paddingVertical: 12 },
-  back: { color: t.text, fontWeight: '800', fontSize: 16 },
   container: { flex: 1, justifyContent: 'center', padding: 24, gap: 14, maxWidth: 440, width: '100%', alignSelf: 'center' },
   title: { fontSize: 28, fontWeight: '900', color: t.text },
   subtitle: { fontSize: 15, color: t.textMuted, marginTop: -6, marginBottom: 4 },

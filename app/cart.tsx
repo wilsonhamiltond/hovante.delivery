@@ -8,6 +8,8 @@ import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import { detectCurrentLocation } from '../src/profileForm';
+import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
@@ -18,6 +20,7 @@ const STEPS = ['Carrito', 'Ubicación', 'Nota', 'Resumen'];
 export default function CartScreen() {
   const router = useRouter();
   const cart = useCart();
+  const session = useSessionLocation();
   const [step, setStep] = useState(1);
   const [notes, setNotes] = useState('');
   const [address, setAddress] = useState('');
@@ -36,6 +39,16 @@ export default function CartScreen() {
   // the step is already on screen fills the address box but leaves the map on the default centre,
   // which is the one case where "the default address" would not actually be applied.
   useEffect(() => {
+    // A session location was chosen deliberately, minutes ago, from the home header -- it outranks
+    // the saved default here for the same reason it does in the header. Without this the header
+    // would promise one destination and the order would carry another.
+    if (session.location) {
+      setAddress(session.location.address);
+      setAddressLabel(SESSION_LOCATION_LABEL);
+      setCoords({ lat: session.location.latitude, lng: session.location.longitude });
+      if (session.location.latitude != null) setMapKey((k) => k + 1);
+      return;
+    }
     api.me().then((res) => {
       if (!res.success || !res.data) return;
       setAddress(res.data.address ?? '');
@@ -217,9 +230,9 @@ export default function CartScreen() {
 function Header({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+      <BackButton onPress={onBack} />
       <Text style={styles.title}>{title}</Text>
-      <View style={{ width: 56 }} />
+      <View style={{ width: BACK_BUTTON_WIDTH }} />
     </View>
   );
 }
@@ -256,7 +269,6 @@ function Footer({ total, children }: { total: number; children: ReactNode }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
   stepperRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },

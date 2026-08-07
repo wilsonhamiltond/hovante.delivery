@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/auth';
 import { CartProvider } from '../src/cart';
+import { SessionLocationProvider } from '../src/sessionLocation';
 
 // Redirects between the auth screens (login/register) and the app depending on whether a token is
 // held. Runs after the stored token has loaded, so a returning user is not flashed the login form.
@@ -49,9 +50,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
+        <SessionLocationProvider>
         <CartProvider>
           <RootNavigator />
         </CartProvider>
+        </SessionLocationProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

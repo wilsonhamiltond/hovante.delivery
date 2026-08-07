@@ -6,9 +6,12 @@ import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
+import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import {
-  detectCurrentLocation, LABEL_CHOICES, maskDate, toIsoDate, type LabelChoice,
+  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, maskPhone, PHONE_MASK, splitDisplayName,
+  type LabelChoice,
 } from '../src/profileForm';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 const STEPS = ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'];
@@ -24,17 +27,23 @@ export default function RegisterScreen() {
   const { signUp } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [error, setError] = useState<string | null>(null);
+  // Every message the wizard produces -- field validations and whatever the API answers -- goes
+  // through one popup. `setError` reads the same as before at each call site; only the presentation
+  // changed. `showInfo` is for the one message that is not a problem (the resent code), which would
+  // otherwise be announced in red as though something had gone wrong.
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const setError = (message: string | null) =>
+    setNotice(message ? { tone: 'error', message } : null);
+  const showInfo = (message: string) => setNotice({ tone: 'success', message });
   const [submitting, setSubmitting] = useState(false);
 
   // Step 1-2: the address and the code we mail to it.
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  // Step 3
+  // Step 3. One field for the whole name: the account still stores a name and a surname separately
+  // (the API asks for both), so this is split on submit rather than asked for twice.
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [birth, setBirth] = useState('');
+  const [fullName, setFullName] = useState('');
   // Step 4
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -80,7 +89,8 @@ export default function RegisterScreen() {
     setSubmitting(true);
     const res = await api.sendEmailCode(email.trim());
     setSubmitting(false);
-    setError(res.success ? 'Te enviamos un código nuevo.' : res.message);
+    if (res.success) showInfo('Te enviamos un código nuevo.');
+    else setError(res.message);
   };
 
   const next = () => {
@@ -88,10 +98,11 @@ export default function RegisterScreen() {
     if (step === 1) return sendCode();
     if (step === 2) return verifyCode();
     if (step === 3) {
+      if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
+      // The account keeps a surname of its own, so one word is not enough to fill it.
+      if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (!name.trim()) return setError('Ingresa tu nombre.');
-      if (!lastName.trim()) return setError('Ingresa tu apellido.');
-      if (birth.trim() && !toIsoDate(birth)) return setError('La fecha de nacimiento no es válida.');
+      if (!isCompletePhone(phone)) return setError(`El teléfono debe tener el formato ${PHONE_MASK}.`);
       return setStep(4);
     }
     if (step === 4) {
@@ -131,13 +142,15 @@ export default function RegisterScreen() {
     if (!addressLabel) return setError('Escribe el nombre de tu dirección.');
     if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
     setSubmitting(true);
+    // First word is the name, everything after it the surname -- the same split used to pre-fill a
+    // social sign-up from the provider's display name.
+    const person = splitDisplayName(fullName);
     const err = await signUp({
       type: 'client',
       email: email.trim(),
       password,
-      name: name.trim(),
-      lastName: lastName.trim(),
-      birthDate: toIsoDate(birth),
+      name: person.name,
+      lastName: person.lastName,
       phone: phone.trim(),
       address: address.trim(),
       latitude: coords.lat,
@@ -153,9 +166,9 @@ export default function RegisterScreen() {
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={back} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+          <BackButton onPress={back} />
           <Text style={styles.title}>{STEPS[step - 1]}</Text>
-          <View style={{ width: 56 }} />
+          <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.stepperRow}>
@@ -205,16 +218,13 @@ export default function RegisterScreen() {
         {step === 3 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <Text style={styles.lead}>Cuéntanos quién eres y cómo contactarte.</Text>
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Nombre" value={name} onChangeText={setName} />
-            <Text style={styles.label}>Apellido</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Apellido" value={lastName} onChangeText={setLastName} />
+            <Text style={styles.label}>Nombre y apellido</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
+              autoCapitalize="words" value={fullName} onChangeText={setFullName} />
             <Text style={styles.label}>Teléfono</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="809-000-0000"
-              keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-            <Text style={styles.label}>Fecha de nacimiento</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="DD/MM/AAAA"
-              keyboardType="number-pad" value={birth} onChangeText={(v) => setBirth(maskDate(v))} maxLength={10} />
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={PHONE_MASK}
+              keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(maskPhone(v))}
+              maxLength={PHONE_MASK.length} />
           </ScrollView>
         )}
 
@@ -272,7 +282,6 @@ export default function RegisterScreen() {
         )}
 
         <View style={styles.footer}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={next} disabled={submitting}>
             {submitting ? <ActivityIndicator color={t.onAccent} /> : (
               <Text style={styles.primaryText}>
@@ -281,6 +290,7 @@ export default function RegisterScreen() {
             )}
           </Pressable>
         </View>
+        <NoticeDialog notice={notice} onClose={() => setNotice(null)} />
       </SafeAreaView>
     </GradientBackground>
   );
@@ -289,7 +299,6 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
   stepperRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },
@@ -325,7 +334,6 @@ const styles = StyleSheet.create({
   resendText: { color: t.text, fontWeight: '700', fontSize: 14 },
 
   footer: { padding: 20, paddingTop: 8, gap: 10, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  error: { color: t.danger, fontSize: 14, textAlign: 'center' },
   primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
   disabled: { opacity: 0.6 },

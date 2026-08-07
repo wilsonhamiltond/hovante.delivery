@@ -5,6 +5,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
 import type { Me, Order, Product } from './api';
 import { useCart } from './cart';
+import { detectCurrentLocation } from './profileForm';
+import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from './BottomNav';
@@ -58,6 +60,9 @@ type GridCell = Product | null;
 export function ClientHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
   const cart = useCart();
+  const session = useSessionLocation();
+  // Whether the GPS lookup behind the header button is in flight.
+  const [locating, setLocating] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [categories, setCategories] = useState<api.BusinessCategory[]>([]);
@@ -117,12 +122,20 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   const lockedCompanyId = cart.merchantId ?? undefined;
   const activeCompanyId = lockedCompanyId ?? selectedCompany?.id;
 
+  // Where this order would go, which decides which merchants can take it: the session pin if one is
+  // held, otherwise the account's saved coordinates. Sent with every page so a merchant that does
+  // not cover the customer never appears in the catalog at all.
+  const deliverLat = session.location ? session.location.latitude : profile?.latitude ?? null;
+  const deliverLng = session.location ? session.location.longitude : profile?.longitude ?? null;
+
   const fetchPage = useCallback(async (skip: number) => {
     const mine = ++requestId.current;
     const res = await api.products({
       companyId: activeCompanyId,
       businessCategoryId,
       search: debouncedSearch,
+      latitude: deliverLat,
+      longitude: deliverLng,
       skip,
       take: api.PRODUCT_PAGE_SIZE,
     });
@@ -132,7 +145,8 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     setProducts((prev) => (skip === 0 ? page : [...prev, ...page]));
     // A short page is the end of the catalog; a full one means there may be more.
     setHasMore(page.length === api.PRODUCT_PAGE_SIZE);
-  }, [activeCompanyId, businessCategoryId, debouncedSearch]);
+    // Moving the delivery point changes who can serve it, so the catalog reloads from page 1.
+  }, [activeCompanyId, businessCategoryId, debouncedSearch, deliverLat, deliverLng]);
 
   // First page, and again whenever the merchant, category or search changes.
   useEffect(() => {
@@ -163,8 +177,37 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   const fullName = profile?.name?.trim() || '';
   const greeting = fullName.split(' ')[0] || profile?.email || '';
   // The local echo wins while it is set (right after switching); otherwise the profile is truth.
-  const address = (chosen ? chosen.address : profile?.address)?.trim();
-  const addressLabel = (chosen ? chosen.label : profile?.addressLabel)?.trim();
+  // Precedence: where they are now beats a saved address they picked this session, which beats the
+  // account's default. The session location is the most deliberate of the three -- they pressed a
+  // button for it just now -- so it wins until they choose a saved address again.
+  const address = (session.location?.address ?? (chosen ? chosen.address : profile?.address))?.trim();
+  const addressLabel = session.location
+    ? SESSION_LOCATION_LABEL
+    : (chosen ? chosen.label : profile?.addressLabel)?.trim();
+
+  // Drops the pin on the phone's position and keeps it for the session. Picking a saved address
+  // from the dropdown clears it, so the two cannot both claim to be the delivery point.
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    const result = await detectCurrentLocation();
+    setLocating(false);
+    if (!result.ok) {
+      Alert.alert(
+        result.reason === 'permission' ? 'Permiso de ubicación' : 'Ubicación',
+        result.reason === 'permission'
+          ? 'Activa el permiso de ubicación para usar tu ubicación actual.'
+          : 'No se pudo obtener tu ubicación actual.',
+      );
+      return;
+    }
+    session.setLocation({
+      // Without a readable address the coordinates still deliver; the label says where it came from.
+      address: result.location.address ?? 'Tu ubicación actual',
+      latitude: result.location.lat,
+      longitude: result.location.lng,
+    });
+    setChosen(null);
+  };
 
   const openAddresses = () => {
     setAddrOpen(true);
@@ -172,6 +215,10 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   };
 
   const chooseDefault = async (item: api.AddressHistory) => {
+    // Picking any saved address is an explicit answer to "where to?", so it retires the session pin
+    // -- including the one already marked default, which is the likeliest way back from "here" to
+    // "home" and returns below without touching the server.
+    session.clear();
     if (!item.id || item.isDefault) { setAddrOpen(false); return; }
     setAddrBusy(item.id);
     const res = await api.setDefaultAddress(item.id);
@@ -227,6 +274,21 @@ export function ClientHome({ profile }: { profile: Me | null }) {
               <View style={styles.chevronWrap}>
                 <FontAwesome5 name="chevron-down" size={9} color={t.text} />
               </View>
+            </Pressable>
+
+            {/* Deliver to wherever the phone is right now. Sits opposite the address pill because it
+                is the other answer to the same question, and it is a one-off: it holds only for this
+                session and never rewrites a saved address. */}
+            <Pressable
+              style={[styles.hereBtn, session.location && styles.hereBtnActive]}
+              onPress={useCurrentLocation}
+              disabled={locating}
+              accessibilityRole="button"
+              accessibilityLabel="Usar mi ubicación actual"
+            >
+              {locating
+                ? <ActivityIndicator color={t.text} size="small" />
+                : <FontAwesome5 name="location-arrow" size={13} color={session.location ? t.onAccent : t.text} />}
             </Pressable>
           </View>
 
@@ -519,6 +581,14 @@ const styles = StyleSheet.create({
   deliverLabel: { fontSize: 11, color: t.textMuted, fontWeight: '700' },
   address: { fontSize: 15, fontWeight: '800', color: t.text, flexShrink: 1 },
   // A small disc balancing the pin badge on the other end of the pill.
+  // Opposite the address pill, same height as it. Filled once a session location is held, so the
+  // header shows at a glance that "now" is in effect rather than a saved address.
+  hereBtn: {
+    marginLeft: 'auto', width: 38, height: 38, borderRadius: 19,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  hereBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
   chevronWrap: {
     width: 20, height: 20, borderRadius: 10, backgroundColor: t.cardStrong,
     alignItems: 'center', justifyContent: 'center',

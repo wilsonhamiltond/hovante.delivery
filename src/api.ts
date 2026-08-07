@@ -92,10 +92,9 @@ export interface RegisterPayload {
   email: string;
   password: string;
   name: string;
-  // Collected on the onboarding "person info" step.
+  // Split out of the wizard's single "Nombre y apellido" field. The API stores the two separately,
+  // and only the app decides how many boxes to ask for them in.
   lastName?: string;
-  // ISO date (yyyy-MM-dd) from the onboarding "person info" step.
-  birthDate?: string | null;
   phone: string;
   // Optional: onboarding no longer asks for a document.
   document?: string;
@@ -188,8 +187,6 @@ export function me() {
 export interface CompleteProfilePayload {
   name: string;
   lastName: string;
-  // ISO date (yyyy-MM-dd), or null when not given: the server treats it as optional.
-  birthDate?: string | null;
   phone: string;
   address: string;
   latitude?: number | null;
@@ -260,6 +257,10 @@ export interface ProductPageQuery {
   search?: string;
   skip?: number;
   take?: number;
+  // Where the order would be delivered. Merchants whose offices define a delivery quadrant only
+  // appear when this point falls inside one; without it nothing is filtered by location.
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export function products(query: ProductPageQuery = {}) {
@@ -267,6 +268,10 @@ export function products(query: ProductPageQuery = {}) {
   if (query.companyId) params.set('companyId', query.companyId);
   if (query.businessCategoryId) params.set('businessCategoryId', query.businessCategoryId);
   if (query.search?.trim()) params.set('search', query.search.trim());
+  if (query.latitude != null && query.longitude != null) {
+    params.set('latitude', String(query.latitude));
+    params.set('longitude', String(query.longitude));
+  }
   params.set('skip', String(query.skip ?? 0));
   params.set('take', String(query.take ?? PRODUCT_PAGE_SIZE));
   return get<Product[]>(`/delivery/products?${params.toString()}`);

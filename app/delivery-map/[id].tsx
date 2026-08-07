@@ -6,6 +6,7 @@ import { useAuth } from '../../src/auth';
 import * as api from '../../src/api';
 import type { Delivery } from '../../src/api';
 import { RouteMap } from '../../src/RouteMap';
+import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
 
 // A map of one delivery's two stops: where to pick up (merchant) and where to deliver (client).
@@ -30,9 +31,9 @@ export default function DeliveryMapScreen() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+        <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
         <Text style={styles.title}>{delivery?.deliveryNumber ?? 'Ruta'}</Text>
-        <View style={{ width: 56 }} />
+        <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       {loading ? (
@@ -73,7 +74,6 @@ export default function DeliveryMapScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   muted: { color: t.textMuted },

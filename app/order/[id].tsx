@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import type { OrderTracking } from '../../src/api';
+import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
@@ -198,9 +199,9 @@ export default function OrderTrackingScreen() {
 function Header({ onBack }: { onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back} numberOfLines={1}>‹ Pedidos</Text></Pressable>
+      <BackButton onPress={onBack} label="Pedidos" />
       <Text style={styles.title}>Seguimiento</Text>
-      <View style={{ width: 90 }} />
+      <View style={{ width: BACK_BUTTON_WIDTH }} />
     </View>
   );
 }
@@ -208,7 +209,6 @@ function Header({ onBack }: { onBack: () => void }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 90 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },

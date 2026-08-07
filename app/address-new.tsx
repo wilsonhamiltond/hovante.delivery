@@ -6,6 +6,7 @@ import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import { detectCurrentLocation } from '../src/profileForm';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 // Same label choices as the sign-up wizard's location step: two one-tap options plus a free-text
@@ -74,9 +75,9 @@ export default function AddressNewScreen() {
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={back} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+          <BackButton onPress={back} />
           <Text style={styles.title}>Nueva dirección</Text>
-          <View style={{ width: 56 }} />
+          <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.body}>
@@ -133,7 +134,6 @@ export default function AddressNewScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
   body: { flex: 1, padding: 20 },

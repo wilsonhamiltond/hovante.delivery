@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { GOOGLE_MAPS_API_KEY, MAPS_ENABLED } from './config';
 
@@ -34,25 +35,30 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
 export const LABEL_CHOICES = ['Casa', 'Trabajo', 'Otro'] as const;
 export type LabelChoice = (typeof LABEL_CHOICES)[number];
 
-// Turns typed digits into DD/MM/AAAA as you go, so no date-picker dependency is needed.
-export const maskDate = (raw: string): string => {
-  const d = raw.replace(/\D/g, '').slice(0, 8);
-  if (d.length > 4) return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-  if (d.length > 2) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return d;
+// The only shape the phone field accepts. Shown as the placeholder and quoted back in the error, so
+// the rule is stated in one place rather than three.
+export const PHONE_MASK = '(000) 000-0000';
+// Ten: a Dominican number is a three-digit area code (809/829/849) plus seven.
+const PHONE_DIGITS = 10;
+
+/**
+ * Formats whatever was typed into (000) 000-0000, keeping only digits and stopping at ten.
+ *
+ * Rebuilt from the digits on every keystroke rather than by inserting separators at fixed offsets,
+ * so typing, pasting a number that already has punctuation, and deleting all land in the same
+ * shape. Anything that is not a digit -- spaces, dashes, a leading +1 -- is simply dropped.
+ */
+export const maskPhone = (raw: string): string => {
+  const digits = (raw ?? '').replace(/\D/g, '').slice(0, PHONE_DIGITS);
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
 
-// DD/MM/AAAA -> yyyy-MM-dd, or null when it is not a real past date.
-export const toIsoDate = (masked: string): string | null => {
-  const m = masked.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  const day = +dd, month = +mm, year = +yyyy;
-  const d = new Date(year, month - 1, day);
-  const real = d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
-  if (!real || d >= new Date()) return null;
-  return `${yyyy}-${mm}-${dd}`;
-};
+/** Whether the field holds a whole number, not a half-typed one. */
+export const isCompletePhone = (masked: string): boolean =>
+  (masked ?? '').replace(/\D/g, '').length === PHONE_DIGITS;
 
 export interface DetectedLocation {
   lat: number;
@@ -69,17 +75,34 @@ export type DetectResult =
 // why it could not rather than alerting, so each screen words it in its own voice.
 export async function detectCurrentLocation(): Promise<DetectResult> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return { ok: false, reason: 'permission' };
+    // Asking first is right on native, where this is what shows the system dialog. On WEB it only
+    // reads the Permissions API -- the browser prompts when the position is actually requested --
+    // so a first-time visitor sits at "prompt", which is not "granted". Bailing here would refuse
+    // before the browser ever had the chance to ask, and the button could never succeed.
+    if (Platform.OS !== 'web') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return { ok: false, reason: 'permission' };
+    }
 
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
     return { ok: true, location: { lat, lng, address: await reverseGeocode(lat, lng) } };
-  } catch {
-    return { ok: false, reason: 'failed' };
+  } catch (error) {
+    // On web the refusal surfaces here instead, as a rejected position request. Worth separating:
+    // "turn the permission on" is a different instruction from "we could not get a fix".
+    return { ok: false, reason: isPermissionDenied(error) ? 'permission' : 'failed' };
   }
+}
+
+// GeolocationPositionError.PERMISSION_DENIED is 1; expo-location wraps native denials in a message
+// rather than that code, so both are checked.
+function isPermissionDenied(error: unknown): boolean {
+  const code = (error as { code?: unknown })?.code;
+  if (code === 1 || code === 'E_NO_PERMISSIONS') return true;
+  const message = (error as { message?: string })?.message ?? '';
+  return /denied|permission/i.test(message);
 }
 
 // Facebook and Google hand back one display name ("Ana María Pérez"), but the account stores a name

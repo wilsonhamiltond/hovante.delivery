@@ -6,8 +6,10 @@ import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import {
-  detectCurrentLocation, LABEL_CHOICES, maskDate, splitDisplayName, toIsoDate, type LabelChoice,
+  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, maskPhone, PHONE_MASK, splitDisplayName,
+  type LabelChoice,
 } from '../src/profileForm';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 const STEPS = ['Datos', 'Ubicación'];
@@ -25,11 +27,10 @@ export default function CompleteProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Step 1: who you are. Pre-filled from the provider's display name where it can be.
-  const [name, setName] = useState('');
-  const [lastName, setLastName] = useState('');
+  // Step 1: who you are. One field for the whole name, split on submit -- the account stores a name
+  // and a surname separately. Pre-filled from the provider's display name where it can be.
+  const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [birth, setBirth] = useState('');
   // Step 2: where to deliver.
   const [address, setAddress] = useState('');
   const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(null);
@@ -44,10 +45,13 @@ export default function CompleteProfileScreen() {
     let active = true;
     api.me().then((res) => {
       if (!active || !res.success || !res.data) return;
-      const split = splitDisplayName(res.data.name);
-      setName((current) => current || split.name);
-      setLastName((current) => current || res.data.lastName || split.lastName);
-      setPhone((current) => current || res.data.phone || '');
+      // Whatever the provider gave us, re-joined: the profile may already hold a surname of its own
+      // (from an earlier attempt), otherwise the display name carries both parts.
+      const joined = [res.data.name, res.data.lastName].filter(Boolean).join(' ').trim();
+      setFullName((current) => current || joined);
+      // Masked on the way in too: a number stored before this format existed would otherwise show
+      // raw and then be rejected by the very validation that is about to run on it.
+      setPhone((current) => current || maskPhone(res.data.phone ?? ''));
     });
     return () => { active = false; };
   }, []);
@@ -80,10 +84,11 @@ export default function CompleteProfileScreen() {
   const next = () => {
     setError(null);
     if (step === 1) {
-      if (!name.trim()) return setError('Ingresa tu nombre.');
-      if (!lastName.trim()) return setError('Ingresa tu apellido.');
+      if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
+      // completeProfile refuses a blank surname, so one word cannot be enough here.
+      if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (birth.trim() && !toIsoDate(birth)) return setError('La fecha de nacimiento no es válida.');
+      if (!isCompletePhone(phone)) return setError(`El teléfono debe tener el formato ${PHONE_MASK}.`);
       return setStep(2);
     }
     return submit();
@@ -96,10 +101,10 @@ export default function CompleteProfileScreen() {
     if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
 
     setSubmitting(true);
+    const person = splitDisplayName(fullName);
     const res = await api.completeProfile({
-      name: name.trim(),
-      lastName: lastName.trim(),
-      birthDate: toIsoDate(birth),
+      name: person.name,
+      lastName: person.lastName,
       phone: phone.trim(),
       address: address.trim(),
       latitude: coords.lat,
@@ -122,12 +127,12 @@ export default function CompleteProfileScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           {step > 1 ? (
-            <Pressable onPress={back} hitSlop={8}><Text style={styles.back}>‹ Atrás</Text></Pressable>
+            <BackButton onPress={back} />
           ) : (
-            <View style={{ width: 56 }} />
+            <View style={{ width: BACK_BUTTON_WIDTH }} />
           )}
           <Text style={styles.title}>{STEPS[step - 1]}</Text>
-          <View style={{ width: 56 }} />
+          <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.stepperRow}>
@@ -149,16 +154,13 @@ export default function CompleteProfileScreen() {
         {step === 1 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <Text style={styles.lead}>Ya verificamos tu correo. Solo falta saber quién eres y cómo contactarte.</Text>
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Nombre" value={name} onChangeText={setName} />
-            <Text style={styles.label}>Apellido</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Apellido" value={lastName} onChangeText={setLastName} />
+            <Text style={styles.label}>Nombre y apellido</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
+              autoCapitalize="words" value={fullName} onChangeText={setFullName} />
             <Text style={styles.label}>Teléfono</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="809-000-0000"
-              keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-            <Text style={styles.label}>Fecha de nacimiento</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="DD/MM/AAAA"
-              keyboardType="number-pad" value={birth} onChangeText={(v) => setBirth(maskDate(v))} maxLength={10} />
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={PHONE_MASK}
+              keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(maskPhone(v))}
+              maxLength={PHONE_MASK.length} />
 
             <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
               <Text style={styles.signOutText}>Usar otra cuenta</Text>
@@ -223,7 +225,6 @@ export default function CompleteProfileScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
-  back: { color: t.text, fontWeight: '800', fontSize: 16, width: 56 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
   stepperRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border },
