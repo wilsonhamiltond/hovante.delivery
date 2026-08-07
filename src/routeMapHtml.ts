@@ -4,6 +4,11 @@ import { loaderTag, missingKeyHtml } from './mapHtml';
 // A read-only two-marker map (pickup + delivery) on Google Maps. No React/RN imports so both the web
 // (iframe) and native (WebView) renderers can share it. A point with no coordinates is
 // forward-geocoded from its address, so a stop that was only ever typed still shows up.
+//
+// When both stops resolve, the map draws a driving route between them (office -> order for a
+// driver) along the streets: Google Directions first, and when that cannot answer (key without
+// the Directions API, quota) the public OSRM router. The dashed straight hop remains only as the
+// last resort when neither source can produce a route.
 
 export interface MapPoint {
   lat: number | null;
@@ -92,6 +97,37 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
       return marker;
     }
 
+    // The last-resort line when no router can answer: a dashed straight hop between the stops.
+    function straightLine(pp, cp) {
+      new google.maps.Polyline({
+        path: [pp, cp], map: map, strokeOpacity: 0, geodesic: true,
+        icons: [{
+          icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#2563eb', strokeWeight: 3, scale: 3 },
+          offset: '0', repeat: '14px',
+        }],
+      });
+    }
+
+    // Street route from the public OSRM demo router (no key). Good enough for the driver's
+    // overview; replaced by Google's routing the moment the key gains the Directions API.
+    function osrmRoute(pp, cp) {
+      var url = 'https://router.project-osrm.org/route/v1/driving/'
+        + pp.lng + ',' + pp.lat + ';' + cp.lng + ',' + cp.lat
+        + '?overview=full&geometries=geojson';
+      fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var coords = d && d.routes && d.routes[0] && d.routes[0].geometry
+            && d.routes[0].geometry.coordinates;
+          if (!coords || !coords.length) { straightLine(pp, cp); return; }
+          new google.maps.Polyline({
+            path: coords.map(function (c) { return { lat: c[1], lng: c[0] }; }),
+            map: map, strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9,
+          });
+        })
+        .catch(function () { straightLine(pp, cp); });
+    }
+
     Promise.all([resolve(geocoder, pickup), resolve(geocoder, client)]).then(function (pts) {
       var pp = pts[0], cp = pts[1];
       var bounds = new google.maps.LatLngBounds();
@@ -100,19 +136,29 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
       if (pp) { place(pickup, pp); bounds.extend(pp); count++; }
       if (cp) { place(client, cp); bounds.extend(cp); count++; }
 
-      if (pp && cp) {
-        // Dashed, like the old route line: a straight hop between the two stops, not a driving route.
-        new google.maps.Polyline({
-          path: [pp, cp], map: map, strokeOpacity: 0, geodesic: true,
-          icons: [{
-            icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#2563eb', strokeWeight: 3, scale: 3 },
-            offset: '0', repeat: '14px',
-          }],
-        });
-      }
-
       if (count === 2) { map.fitBounds(bounds, 50); }
       else if (count === 1) { map.setCenter(bounds.getCenter()); map.setZoom(16); }
+
+      if (pp && cp) {
+        // The driving route from the office to the order. Markers stay ours (suppressMarkers), the
+        // renderer only contributes the road polyline, and its own fitBounds is disabled so the
+        // route appearing does not fight the framing set above.
+        var directions = new google.maps.DirectionsService();
+        directions.route({
+          origin: pp, destination: cp,
+          travelMode: google.maps.TravelMode.DRIVING,
+        }, function (result, status) {
+          if (status === 'OK' && result && result.routes && result.routes[0]) {
+            new google.maps.DirectionsRenderer({
+              map: map, directions: result,
+              suppressMarkers: true, preserveViewport: false,
+              polylineOptions: { strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9 },
+            });
+          } else {
+            osrmRoute(pp, cp);
+          }
+        });
+      }
     });
   }
 </script>

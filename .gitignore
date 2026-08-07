@@ -42,3 +42,4 @@ yarn-error.*
 
 .env
 .env.prod
+.env.local

@@ -34,14 +34,14 @@
     "typescript": "~5.9.2"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "start:prod": "dotenv -e .env.prod -- expo start --clear",
-    "android:prod": "dotenv -e .env.prod -- expo start --clear --android",
-    "ios:prod": "dotenv -e .env.prod -- expo start --clear --ios",
-    "web:prod": "dotenv -e .env.prod -- expo start --clear --web",
+    "start": "rm -f .env.local && expo start",
+    "android": "rm -f .env.local && expo start --android",
+    "ios": "rm -f .env.local && expo start --ios",
+    "web": "rm -f .env.local && expo start --web",
+    "start:prod": "cp .env.prod .env.local && expo start --clear",
+    "android:prod": "cp .env.prod .env.local && expo start --clear --android",
+    "ios:prod": "cp .env.prod .env.local && expo start --clear --ios",
+    "web:prod": "cp .env.prod .env.local && expo start --clear --web",
     "test": "jest",
     "test:watch": "jest --watchAll"
   },
