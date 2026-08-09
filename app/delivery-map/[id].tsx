@@ -7,6 +7,7 @@ import * as api from '../../src/api';
 import type { Delivery } from '../../src/api';
 import { RouteMap } from '../../src/RouteMap';
 import { formatEta, useRouteEta } from '../../src/eta';
+import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
 
 // A map of one delivery's two stops: where to pick up (merchant) and where to deliver (client).

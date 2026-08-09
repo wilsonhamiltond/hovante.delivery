@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
@@ -14,11 +14,17 @@ import { GradientBackground, t } from '../src/theme';
 const LABEL_CHOICES = ['Casa', 'Trabajo', 'Otro'] as const;
 type LabelChoice = (typeof LABEL_CHOICES)[number];
 
-// Add a new delivery address, reached from the home header's address dropdown. Mirrors register
-// step 5: name it, drop a pin, save. The new address becomes the default (the API forces the first
-// one to be default regardless).
+// Add or edit a delivery address, reached from the home header's address dropdown and from the
+// addresses list. Mirrors register step 5: name it, drop a pin, save.
+//
+// One screen for both: an `id` param switches it to editing that address, which is the same three
+// fields over the same map -- a second screen would be this one with the verb changed.
 export default function AddressNewScreen() {
   const router = useRouter();
+  // Present when editing; the rest of the row is passed along so the form opens filled without
+  // waiting on a round trip (the list already holds every field this screen edits).
+  const params = useLocalSearchParams<{ id?: string; label?: string; address?: string; latitude?: string; longitude?: string }>();
+  const editingId = typeof params.id === 'string' && params.id ? params.id : null;
   const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(null);
   const [customLabel, setCustomLabel] = useState('');
   const [address, setAddress] = useState('');
@@ -29,6 +35,23 @@ export default function AddressNewScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const label = labelChoice === 'Otro' ? customLabel.trim() : (labelChoice ?? '');
+
+  // Fill the form from the row being edited, once. A label the user typed themselves is not one of
+  // the two presets, so it lands in "Otro" with the text restored.
+  useEffect(() => {
+    if (!editingId) return;
+    const existing = typeof params.label === 'string' ? params.label : '';
+    const preset = LABEL_CHOICES.find((c) => c !== 'Otro' && c === existing);
+    setLabelChoice(preset ?? 'Otro');
+    if (!preset) setCustomLabel(existing);
+    setAddress(typeof params.address === 'string' ? params.address : '');
+    const lat = Number(params.latitude);
+    const lng = Number(params.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setCoords({ lat, lng });
+      setMapKey((k) => k + 1);
+    }
+  }, [editingId]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/home'));
 
@@ -58,16 +81,21 @@ export default function AddressNewScreen() {
     if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
 
     setSubmitting(true);
-    const res = await api.createMyAddress({
+    const payload = {
       label,
       address: address.trim(),
       latitude: coords.lat,
       longitude: coords.lng,
-      makeDefault: true,
-    });
+      // Editing keeps whatever the address already was: promoting it is the list's own button, and
+      // doing it silently here would move the default every time someone fixed a typo.
+      makeDefault: !editingId,
+    };
+    const res = editingId
+      ? await api.updateMyAddress(editingId, payload)
+      : await api.createMyAddress(payload);
     setSubmitting(false);
     if (!res.success) return setError(res.message);
-    // Home refetches its profile on focus, so the new default shows when we go back.
+    // Home and the list both refetch on focus, so the change shows when we go back.
     back();
   };
 
@@ -76,7 +104,7 @@ export default function AddressNewScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Nueva dirección</Text>
+          <Text style={styles.title}>{editingId ? 'Editar dirección' : 'Nueva dirección'}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -123,7 +151,7 @@ export default function AddressNewScreen() {
         <View style={styles.footer}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={save} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>Guardar dirección</Text>}
+            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{editingId ? 'Guardar cambios' : 'Guardar dirección'}</Text>}
           </Pressable>
         </View>
       </SafeAreaView>

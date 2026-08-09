@@ -14,10 +14,31 @@ export interface PickedLocation {
   address?: string | null;
 }
 
+// A merchant's delivery quadrant, as drawn on the office. The picker outlines these and refuses a
+// pin outside them.
+export interface DeliveryArea {
+  minLatitude: number;
+  maxLatitude: number;
+  minLongitude: number;
+  maxLongitude: number;
+  /** The branch the rectangle belongs to, marked on the map. */
+  officeName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
 export interface LocationPickerProps {
   latitude: number;
   longitude: number;
   onPick: (loc: PickedLocation) => void;
+  /**
+   * Rectangles the order may be delivered inside. Drawn on the map, and a tap outside all of them is
+   * refused rather than moving the pin. An empty or omitted list means no restriction, matching how
+   * the catalogue filter treats a merchant with no quadrant drawn.
+   */
+  areas?: DeliveryArea[];
+  /** Called when a tap was refused, so the screen can say why. */
+  onOutside?: () => void;
 }
 
 // Santo Domingo, used when the customer has no saved coordinates yet.
@@ -49,7 +70,7 @@ function loaderTag(callback: string): string {
 // A Google map with one draggable pin. Tapping the map or dragging the pin posts the coordinates
 // back, then reverse-geocodes them (Google Geocoding, same key) and posts again with a readable
 // address -- so the caller gets the point immediately and the address a moment later.
-export function locationPickerHtml(lat: number, lng: number): string {
+export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea[] = []): string {
   if (!MAPS_ENABLED) {
     return missingKeyHtml('Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.');
   }
@@ -63,7 +84,21 @@ export function locationPickerHtml(lat: number, lng: number): string {
 <div id="map"></div>
 <script>
   var lat = ${lat}, lng = ${lng};
+  var areas = ${JSON.stringify(areas)};
   var marker, geocoder;
+
+  // Inclusive on every edge: a pin dropped exactly on the boundary is inside the area the merchant
+  // drew, and the server's catalogue filter uses >= / <= too -- disagreeing would let someone place
+  // a pin the merchant is then told it cannot serve.
+  function inside(la, ln) {
+    if (!areas.length) return true;
+    for (var i = 0; i < areas.length; i++) {
+      var a = areas[i];
+      if (la >= a.minLatitude && la <= a.maxLatitude &&
+          ln >= a.minLongitude && ln <= a.maxLongitude) return true;
+    }
+    return false;
+  }
 
   function post(obj) {
     var s = JSON.stringify(obj);
@@ -91,15 +126,68 @@ export function locationPickerHtml(lat: number, lng: number): string {
       clickableIcons: false,
     });
     geocoder = new google.maps.Geocoder();
-    marker = new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map, draggable: true });
+    marker = new google.maps.Marker({
+      position: { lat: lat, lng: lng }, map: map, draggable: true,
+      // Above the office dot: the one you can move must never end up hidden under one you cannot.
+      zIndex: 2,
+      title: 'Entregar aquí',
+    });
+
+    // The served area, outlined so the limit is visible before it is hit rather than only when a
+    // tap is refused. Not editable and not clickable -- clicks must reach the map underneath, or
+    // tapping inside the very area you are allowed to pick would do nothing.
+    if (areas.length) {
+      var bounds = new google.maps.LatLngBounds();
+      for (var i = 0; i < areas.length; i++) {
+        var a = areas[i];
+        new google.maps.Rectangle({
+          map: map, clickable: false,
+          bounds: { south: a.minLatitude, north: a.maxLatitude, west: a.minLongitude, east: a.maxLongitude },
+          strokeColor: '#2563eb', strokeOpacity: 0.9, strokeWeight: 2,
+          fillColor: '#2563eb', fillOpacity: 0.10,
+        });
+        bounds.extend({ lat: a.minLatitude, lng: a.minLongitude });
+        bounds.extend({ lat: a.maxLatitude, lng: a.maxLongitude });
+
+        // The shop itself. A filled dot rather than a teardrop, so it never reads as a second
+        // draggable pin, and clickable:false so it cannot swallow a tap meant for the map beneath.
+        if (a.latitude != null && a.longitude != null) {
+          new google.maps.Marker({
+            map: map, clickable: false, zIndex: 1,
+            position: { lat: a.latitude, lng: a.longitude },
+            title: a.officeName || 'Comercio',
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: '#0b2a6b', fillOpacity: 1,
+              strokeColor: '#ffffff', strokeWeight: 3,
+            },
+          });
+          bounds.extend({ lat: a.latitude, lng: a.longitude });
+        }
+      }
+      // Frame the area unless the pin already sits in it -- someone with a saved address inside the
+      // zone should keep their own view rather than be zoomed out to the whole rectangle.
+      if (!inside(lat, lng)) map.fitBounds(bounds, 32);
+    }
 
     map.addListener('click', function (e) {
+      var la = e.latLng.lat(), ln = e.latLng.lng();
+      if (!inside(la, ln)) { post({ outside: true }); return; }
       marker.setPosition(e.latLng);
-      pick(e.latLng.lat(), e.latLng.lng());
+      pick(la, ln);
     });
     marker.addListener('dragend', function () {
       var p = marker.getPosition();
-      pick(p.lat(), p.lng());
+      var la = p.lat(), ln = p.lng();
+      if (!inside(la, ln)) {
+        // Snap back rather than leave the pin somewhere that cannot be ordered to.
+        marker.setPosition({ lat: lat, lng: lng });
+        post({ outside: true });
+        return;
+      }
+      lat = la; lng = ln;
+      pick(la, ln);
     });
   }
 </script>

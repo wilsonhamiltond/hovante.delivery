@@ -13,6 +13,9 @@ const account = (over: Partial<Me>): Me => ({
   addressLabel: 'Casa',
   latitude: null,
   longitude: null,
+  // The default account is an email sign-up, so it has a password of its own; the social-only case
+  // overrides this.
+  hasPassword: true,
   ...over,
 });
 

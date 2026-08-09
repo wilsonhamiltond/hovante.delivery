@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useCart } from '../src/cart';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
-import { DEFAULT_CENTER } from '../src/mapHtml';
+import { DEFAULT_CENTER, type DeliveryArea } from '../src/mapHtml';
 import { detectCurrentLocation } from '../src/profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
@@ -23,6 +24,11 @@ export default function CartScreen() {
   const session = useSessionLocation();
   const [step, setStep] = useState(1);
   const [notes, setNotes] = useState('');
+  // The merchant's branches. A branch with no quadrant serves anywhere, which is how the catalogue
+  // filter treats it too.
+  const [offices, setOffices] = useState<api.MerchantOffice[]>([]);
+  // Which branch fulfils this order. Chosen by the customer only when more than one could.
+  const [officeId, setOfficeId] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   // What the customer calls the pre-filled address ("Casa"), so the step says which one it used.
   const [addressLabel, setAddressLabel] = useState<string | null>(null);
@@ -58,6 +64,63 @@ export default function CartScreen() {
     });
   }, []);
 
+  // Fetched once per merchant. Their quadrants are drawn on the picker, which refuses a pin outside
+  // them, so the customer cannot choose somewhere the merchant would then have to reject.
+  useEffect(() => {
+    if (!cart.merchantId) { setOffices([]); setOfficeId(null); return; }
+    let active = true;
+    api.merchantOffices(cart.merchantId).then((res) => {
+      if (active && res.success) setOffices(res.data ?? []);
+    });
+    return () => { active = false; };
+  }, [cart.merchantId]);
+
+  // Branches that could take an order to where the customer currently is. The pre-filled point is
+  // their saved address or session pin -- the same one the catalogue was filtered by.
+  const eligible = offices.filter((o) => api.officeCovers(o, coords.lat, coords.lng));
+
+  // Nothing to ask when only one branch can serve the point: choosing for them is not a decision,
+  // it is a formality. Only set while none is chosen, so moving the pin later cannot silently
+  // reassign the branch out from under a choice already made.
+  useEffect(() => {
+    if (officeId || eligible.length !== 1) return;
+    setOfficeId(eligible[0].id);
+  }, [officeId, eligible.length]);
+
+  const selectedOffice = offices.find((o) => o.id === officeId) ?? null;
+
+  // The step exists only when there is a real choice to make.
+  const needsOfficeChoice = !officeId && eligible.length > 1;
+
+  // Once a branch is chosen the map shows only its area: the union of every branch's would let the
+  // customer place a pin the chosen one cannot reach.
+  const areas: DeliveryArea[] = (selectedOffice ? [selectedOffice] : offices)
+    .filter((o) => o.minLatitude != null && o.maxLatitude != null
+      && o.minLongitude != null && o.maxLongitude != null)
+    .map((o) => ({
+      minLatitude: o.minLatitude as number,
+      maxLatitude: o.maxLatitude as number,
+      minLongitude: o.minLongitude as number,
+      maxLongitude: o.maxLongitude as number,
+      officeName: o.name,
+      latitude: o.latitude,
+      longitude: o.longitude,
+    }));
+
+  // Whether a point may be ordered to. Mirrors the map's own check so "Mi ubicación" and a
+  // pre-filled saved address are held to the same rule as a tap.
+  const insideArea = (lat: number | null, lng: number | null): boolean => {
+    if (!areas.length) return true;
+    if (lat == null || lng == null) return false;
+    return areas.some((a) => lat >= a.minLatitude && lat <= a.maxLatitude
+      && lng >= a.minLongitude && lng <= a.maxLongitude);
+  };
+
+  const outsideNotice = () => Alert.alert(
+    'Fuera del área de entrega',
+    'Este comercio solo entrega dentro del área marcada en el mapa. Elige un punto dentro del recuadro.',
+  );
+
   // Device GPS, then a readable address for it -- the same shared helper the sign-up and
   // profile-completion location steps use, so all three geocode identically.
   const useMyLocation = async () => {
@@ -86,6 +149,7 @@ export default function CartScreen() {
       address: address.trim() || undefined,
       latitude: coords.lat,
       longitude: coords.lng,
+      officeId: officeId ?? undefined,
     });
     setSubmitting(false);
     if (!res.success) { Alert.alert('No se pudo crear el pedido', res.message); return; }
@@ -101,10 +165,24 @@ export default function CartScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Header title="Tu pedido" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
         <View style={styles.center}>
-          <Text style={styles.emptyEmoji}>🛒</Text>
-          <Text style={styles.emptyText}>Tu carrito está vacío</Text>
-          <Pressable style={styles.primary} onPress={() => router.replace('/home')}>
-            <Text style={styles.primaryText}>Explorar comercios</Text>
+          {/* The emoji sat loose on the gradient at 48px, which read as a stray character. Inside a
+              glass disc it becomes an illustration, matching the surfaces used everywhere else. */}
+          <View style={styles.emptyBadge}>
+            <Text style={styles.emptyEmoji}>🛒</Text>
+          </View>
+          <Text style={styles.emptyTitle}>Tu carrito está vacío</Text>
+          <Text style={styles.emptySubtitle}>
+            Agrega productos de tus comercios favoritos y los verás aquí.
+          </Text>
+          {/* Sized to its own text rather than stretched edge to edge: the footer's full-width
+              button means "finish this", and nothing is being finished on an empty cart. */}
+          <Pressable
+            style={({ pressed }) => [styles.emptyCta, pressed && styles.emptyCtaPressed]}
+            onPress={() => router.replace('/home')}
+            accessibilityRole="button"
+          >
+            <FontAwesome5 name="store" size={14} solid color={t.onAccent} />
+            <Text style={styles.emptyCtaText}>Explorar comercios</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -115,10 +193,41 @@ export default function CartScreen() {
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <Header title={STEPS[step - 1]} onBack={() => (step === 1 ? (router.canGoBack() ? router.back() : router.replace('/home')) : setStep(step - 1))} />
-      <Stepper step={step} />
+      <Header
+        title={needsOfficeChoice ? 'Sucursal' : STEPS[step - 1]}
+        onBack={() => (needsOfficeChoice || step === 1
+          ? (router.canGoBack() ? router.back() : router.replace('/home'))
+          : setStep(step - 1))}
+      />
+      {!needsOfficeChoice ? <Stepper step={step} /> : null}
 
-      {step === 1 && (
+      {/* Branch selection: shown only when more than one of the merchant's branches covers where the
+          order is going. With one there is nothing to decide, and it is chosen automatically. */}
+      {needsOfficeChoice && (
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <Text style={styles.merchant}>{cart.merchantName}</Text>
+          <Text style={styles.officeLead}>
+            Varias sucursales entregan en tu ubicación. Elige desde cuál quieres tu pedido.
+          </Text>
+          {eligible.map((o) => (
+            <Pressable
+              key={o.id}
+              style={styles.officeCard}
+              onPress={() => setOfficeId(o.id)}
+              accessibilityRole="button"
+            >
+              <View style={styles.officeIcon}><FontAwesome5 name="store" size={14} solid color={t.text} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.officeName}>{o.name}</Text>
+                {o.address ? <Text style={styles.officeAddress} numberOfLines={2}>{o.address}</Text> : null}
+              </View>
+              <Text style={styles.officeChevron}>›</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {!needsOfficeChoice && step === 1 && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.merchant}>{cart.merchantName}</Text>
@@ -142,10 +251,14 @@ export default function CartScreen() {
         </>
       )}
 
-      {step === 2 && (
+      {!needsOfficeChoice && step === 2 && (
         <View style={styles.mapStep}>
           <View style={styles.locRow}>
-            <Text style={styles.hint}>Toca el mapa para elegir dónde entregar</Text>
+            <Text style={styles.hint}>
+              {areas.length > 0
+                ? 'Toca dentro del área marcada para elegir dónde entregar'
+                : 'Toca el mapa para elegir dónde entregar'}
+            </Text>
             <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
               {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
             </Pressable>
@@ -154,6 +267,8 @@ export default function CartScreen() {
             key={mapKey}
             latitude={coords.lat ?? DEFAULT_CENTER.lat}
             longitude={coords.lng ?? DEFAULT_CENTER.lng}
+            areas={areas}
+            onOutside={outsideNotice}
             // Picking a point makes this somewhere else, so it is no longer the saved address.
             onPick={(loc) => {
               setCoords({ lat: loc.lat, lng: loc.lng });
@@ -161,18 +276,39 @@ export default function CartScreen() {
               if (loc.address) setAddress(loc.address);
             }}
           />
+          {areas.length > 0 ? (
+            <View style={styles.legend}>
+              <View style={styles.legendDot} />
+              <Text style={styles.legendText}>
+                {areas[0].officeName ?? cart.merchantName ?? 'El comercio'}
+                {areas.length > 1 ? ` y ${areas.length - 1} sucursal(es) más` : ''}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.labelRow}>
             <Text style={styles.labelText}>Dirección de entrega</Text>
             {addressLabel ? <Text style={styles.labelBadge}>{addressLabel}</Text> : null}
           </View>
           <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder="Dirección de entrega" placeholderTextColor={t.textFaint} multiline />
-          <Pressable style={[styles.primary, !address.trim() && styles.disabled]} disabled={!address.trim()} onPress={() => setStep(3)}>
+          {/* A saved address or a GPS fix can land outside the area without any tap being refused,
+              so the step is gated on the point itself rather than only on the map's own check. */}
+          {areas.length > 0 && !insideArea(coords.lat, coords.lng) ? (
+            <Text style={styles.outsideWarn}>
+              Este punto está fuera del área de entrega de {cart.merchantName ?? 'este comercio'}.
+              Elige uno dentro del recuadro.
+            </Text>
+          ) : null}
+          <Pressable
+            style={[styles.primary, (!address.trim() || !insideArea(coords.lat, coords.lng)) && styles.disabled]}
+            disabled={!address.trim() || !insideArea(coords.lat, coords.lng)}
+            onPress={() => setStep(3)}
+          >
             <Text style={styles.primaryText}>Continuar</Text>
           </Pressable>
         </View>
       )}
 
-      {step === 3 && (
+      {!needsOfficeChoice && step === 3 && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Notas para el comercio</Text>
@@ -184,13 +320,15 @@ export default function CartScreen() {
         </>
       )}
 
-      {step === 4 && (
+      {!needsOfficeChoice && step === 4 && (
         <>
           {/* Map with the selected location on top… */}
           <View style={styles.reviewMap}>
             <LocationPicker
               latitude={coords.lat ?? DEFAULT_CENTER.lat}
               longitude={coords.lng ?? DEFAULT_CENTER.lng}
+              areas={areas}
+              onOutside={outsideNotice}
               onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
             />
           </View>
@@ -279,9 +417,26 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 12, color: t.textFaint, fontWeight: '600' },
   stepLabelActive: { color: t.text, fontWeight: '800' },
 
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: 16, color: t.textMuted },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  emptyBadge: {
+    width: 104, height: 104, borderRadius: 52,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontSize: 19, fontWeight: '900', color: t.text, marginTop: 18 },
+  // Capped so the sentence breaks into two balanced lines instead of one edge-to-edge run.
+  emptySubtitle: {
+    fontSize: 14, color: t.textMuted, textAlign: 'center', lineHeight: 20,
+    marginTop: 6, maxWidth: 260,
+  },
+  emptyCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 24,
+    backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 13,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 6px 18px rgba(0,0,0,0.28)' as any } : { elevation: 4 }),
+  },
+  emptyCtaPressed: { opacity: 0.85 },
+  emptyCtaText: { color: t.onAccent, fontSize: 15, fontWeight: '900' },
 
   scroll: { padding: 16 },
   merchant: { fontSize: 18, fontWeight: '800', color: t.text, marginBottom: 12 },
@@ -295,6 +450,25 @@ const styles = StyleSheet.create({
 
   mapStep: { flex: 1, padding: 16 },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  officeLead: { fontSize: 14, color: t.textMuted, lineHeight: 20, marginBottom: 14 },
+  officeCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 14,
+    padding: 14, marginBottom: 10,
+  },
+  officeIcon: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: t.cardStrong,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  officeName: { fontSize: 15, fontWeight: '800', color: t.text },
+  officeAddress: { fontSize: 13, color: t.textMuted, marginTop: 2, lineHeight: 18 },
+  officeChevron: { fontSize: 22, color: t.textFaint, fontWeight: '300' },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  // Matches the office marker drawn on the map, so the dot is identifiable rather than mysterious.
+  legendDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#0b2a6b', borderWidth: 2, borderColor: '#ffffff' },
+  legendText: { flex: 1, fontSize: 12, color: t.textMuted, fontWeight: '600' },
+  // Says why Continuar is disabled; without it the button just looks broken.
+  outsideWarn: { color: t.danger, fontSize: 13, fontWeight: '700', lineHeight: 18 },
   hint: { flex: 1, fontSize: 14, color: t.textMuted, fontWeight: '600' },
   locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },

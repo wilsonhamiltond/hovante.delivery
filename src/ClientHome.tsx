@@ -9,7 +9,7 @@ import { detectCurrentLocation } from './profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { BottomNav, BOTTOM_NAV_HEIGHT } from './BottomNav';
+import { BottomNav } from './BottomNav';
 
 // The marketplace home: a header band with the delivery location and search, the business-category
 // row, and every merchant's products (GET /delivery/products) as a two-across grid of item tiles.
@@ -40,6 +40,9 @@ const emojiFor = (name?: string): string => {
 };
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
+
+// How long the floating cart bar stays up after the cart changes.
+const CART_BAR_MS = 5000;
 
 // Delivery statuses that mean the order is finished -- excluded from the "current orders" row.
 const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
@@ -78,10 +81,16 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   const [orders, setOrders] = useState<Order[]>([]);
   // The delivery-address dropdown: the saved list, and a local echo of the chosen default so the
   // header updates the instant it is switched, before the parent refetches the profile.
+  // The floating "Ver pedido" bar is a confirmation, not a permanent fixture: it appears when the
+  // cart changes and retires itself, leaving the grid unobstructed. The cart stays one tap away in
+  // the header button, which is always there.
+  const [cartBarVisible, setCartBarVisible] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
   const [addresses, setAddresses] = useState<api.AddressHistory[]>([]);
   const [addrBusy, setAddrBusy] = useState<string | null>(null);
-  const [chosen, setChosen] = useState<{ label: string | null; address: string | null } | null>(null);
+  // Carries the coordinates too, not just the text: they are what the catalogue is filtered by
+  // until the profile refetch lands (see deliverLat below).
+  const [chosen, setChosen] = useState<{ label: string | null; address: string | null; latitude: number | null; longitude: number | null } | null>(null);
 
   // The customer's in-progress orders, for the row under the categories. Refetched whenever the home
   // regains focus (after placing an order or coming back from tracking), so their state stays live.
@@ -122,11 +131,29 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   const lockedCompanyId = cart.merchantId ?? undefined;
   const activeCompanyId = lockedCompanyId ?? selectedCompany?.id;
 
-  // Where this order would go, which decides which merchants can take it: the session pin if one is
-  // held, otherwise the account's saved coordinates. Sent with every page so a merchant that does
-  // not cover the customer never appears in the catalog at all.
-  const deliverLat = session.location ? session.location.latitude : profile?.latitude ?? null;
-  const deliverLng = session.location ? session.location.longitude : profile?.longitude ?? null;
+  // Where this order would go, which decides which merchants can take it. Same precedence as the
+  // header pill below: the session pin, then an address just picked from the dropdown, then the
+  // account's saved coordinates.
+  //
+  // `chosen` has to be in here, not just in the pill. The profile only catches up on the next focus
+  // refetch, so reading it alone left the header naming the address the customer had just picked
+  // while the catalogue was still filtered by the previous one's coordinates -- and if the old point
+  // sat outside every quadrant, picking the right address still showed an empty catalogue.
+  const deliverLat = session.location ? session.location.latitude
+    : chosen ? chosen.latitude
+    : profile?.latitude ?? null;
+  const deliverLng = session.location ? session.location.longitude
+    : chosen ? chosen.longitude
+    : profile?.longitude ?? null;
+
+  // Re-shown on every change to the cart, so adding a second item brings it back for another five
+  // seconds rather than leaving the first timer to expire mid-shop.
+  useEffect(() => {
+    if (cart.count === 0) { setCartBarVisible(false); return; }
+    setCartBarVisible(true);
+    const id = setTimeout(() => setCartBarVisible(false), CART_BAR_MS);
+    return () => clearTimeout(id);
+  }, [cart.count]);
 
   const fetchPage = useCallback(async (skip: number) => {
     const mine = ++requestId.current;
@@ -215,16 +242,31 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   };
 
   const chooseDefault = async (item: api.AddressHistory) => {
-    // Picking any saved address is an explicit answer to "where to?", so it retires the session pin
+    // An address seen only on past orders has no row to point the account's default at -- it is text
+    // and coordinates snapshotted onto an order. It is still a real place to deliver to, so picking
+    // it sets the session pin instead: that is exactly "deliver here today", and it is what the
+    // catalogue filters by. Before this, selecting one closed the sheet and did nothing at all.
+    if (!item.id) {
+      session.setLocation({
+        address: item.address,
+        latitude: item.latitude,
+        longitude: item.longitude,
+      });
+      setChosen(null);
+      setAddrOpen(false);
+      return;
+    }
+
+    // Picking a saved address is an explicit answer to "where to?", so it retires the session pin
     // -- including the one already marked default, which is the likeliest way back from "here" to
     // "home" and returns below without touching the server.
     session.clear();
-    if (!item.id || item.isDefault) { setAddrOpen(false); return; }
+    if (item.isDefault) { setAddrOpen(false); return; }
     setAddrBusy(item.id);
     const res = await api.setDefaultAddress(item.id);
     setAddrBusy(null);
     if (!res.success) { Alert.alert('Dirección', res.message); return; }
-    setChosen({ label: item.label, address: item.address });
+    setChosen({ label: item.label, address: item.address, latitude: item.latitude, longitude: item.longitude });
     setAddrOpen(false);
   };
 
@@ -290,6 +332,26 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                 ? <ActivityIndicator color={t.text} size="small" />
                 : <FontAwesome5 name="location-arrow" size={13} color={session.location ? t.onAccent : t.text} />}
             </Pressable>
+
+            {/* The cart, reachable from the top of the screen rather than only from the bar that
+                appears once something is in it: people who came back to finish an order look up
+                here for it. The badge is the whole point -- an empty cart shows none, so the icon
+                stays quiet until there is something to collect. */}
+            <Pressable
+              style={styles.cartBtn}
+              onPress={() => router.push('/cart')}
+              accessibilityRole="button"
+              accessibilityLabel={cart.count > 0 ? `Carrito, ${cart.count} artículos` : 'Carrito vacío'}
+            >
+              <FontAwesome5 name="shopping-cart" size={14} color={t.text} />
+              {cart.count > 0 ? (
+                <View style={styles.cartBadge}>
+                  {/* Past 99 the count stops being a number worth reading and starts breaking the
+                      circle it sits in. */}
+                  <Text style={styles.cartBadgeText}>{cart.count > 99 ? '99+' : cart.count}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
 
           <View style={styles.searchBox}>
@@ -303,6 +365,17 @@ export function ClientHome({ profile }: { profile: Me | null }) {
               autoCapitalize="none"
             />
           </View>
+
+          {/* Cart bar: shows for a few seconds whenever the cart changes, then gets out of the way.
+              Sits under the search field rather than over the tab bar, so it reads as part of the
+              header the person is already looking at. */}
+          {cart.count > 0 && cartBarVisible ? (
+            <Pressable style={styles.cartBar} onPress={() => router.push('/cart')}>
+              <View style={styles.cartCount}><Text style={styles.cartCountText}>{cart.count}</Text></View>
+              <Text style={styles.cartBarText}>Ver pedido</Text>
+              <Text style={styles.cartBarTotal}>{money(cart.total)}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </SafeAreaView>
 
@@ -315,7 +388,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         keyExtractor={(item, index) => item?.id ?? `blank-${index}`}
         numColumns={2}
         columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={[styles.scroll, cart.count > 0 && { paddingBottom: 96 }]}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         onEndReached={loadMore}
         // Half a screen from the bottom, so the next page is usually there before the scroll is.
@@ -358,7 +431,14 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         ListEmptyComponent={
           loading
             ? <View style={styles.loadingBox}><ActivityIndicator color={t.text} /></View>
-            : <Text style={styles.empty}>No encontramos productos para tu búsqueda.</Text>
+            // An empty catalogue has two very different causes, and saying "para tu búsqueda" for
+            // both sent people hunting for a product that was never going to appear: with nothing
+            // typed, the list is empty because no merchant covers where the order would go.
+            : debouncedSearch.trim()
+              ? <Text style={styles.empty}>No encontramos productos para tu búsqueda.</Text>
+              : deliverLat != null && deliverLng != null
+                ? <Text style={styles.empty}>Ningún comercio entrega en {address ? `"${address}"` : 'esta ubicación'} todavía. Prueba con otra dirección.</Text>
+                : <Text style={styles.empty}>Aún no hay productos disponibles.</Text>
         }
         ListHeaderComponent={
           <>
@@ -428,14 +508,6 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         }
       />
 
-      {/* Cart bar: appears once the cart has something; opens the order screen. */}
-      {cart.count > 0 ? (
-        <Pressable style={styles.cartBar} onPress={() => router.push('/cart')}>
-          <View style={styles.cartCount}><Text style={styles.cartCountText}>{cart.count}</Text></View>
-          <Text style={styles.cartBarText}>Ver pedido</Text>
-          <Text style={styles.cartBarTotal}>{money(cart.total)}</Text>
-        </Pressable>
-      ) : null}
 
       {/* Delivery-address picker: pick which saved address to deliver to, or add a new one. */}
       <Modal visible={addrOpen} transparent animationType="slide" onRequestClose={() => setAddrOpen(false)}>
@@ -464,8 +536,18 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             ) : null}
 
             {addresses.map((item) => {
-              const active = chosen ? item.label === chosen.label && item.address === chosen.address : item.isDefault;
-              const busy = addrBusy === item.id;
+              // A session pin outranks both, because it is what the catalogue is actually filtered
+              // by right now -- without this the row you just picked from past orders stayed
+              // unhighlighted and the default kept the tick.
+              const active = session.location
+                ? session.location.address === item.address
+                : chosen
+                  ? item.label === chosen.label && item.address === chosen.address
+                  : item.isDefault;
+              // The id guard is not redundant: addrBusy is null when nothing is in flight, and an
+              // address seen only on past orders has a null id too, so a plain equality made every
+              // one of those rows show a spinner that never stopped.
+              const busy = !!item.id && addrBusy === item.id;
               return (
                 <Pressable
                   key={item.id ?? item.address}
@@ -589,6 +671,23 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   hereBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  // Same pill as the location button, sitting just right of it. No marginLeft:'auto' here -- that
+  // one already pushes the pair to the edge, and a second auto margin would split them apart.
+  cartBtn: {
+    marginLeft: 8, width: 38, height: 38, borderRadius: 19,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  // Overhangs the button's rim, so the count never sits on top of the icon it counts.
+  cartBadge: {
+    position: 'absolute', top: -3, right: -3, minWidth: 19, height: 19, borderRadius: 10,
+    paddingHorizontal: 5, backgroundColor: t.accent,
+    // Against the gradient the white badge and the white-ish button rim would merge; the border
+    // separates them the way the app's other floating chips do.
+    borderWidth: 2, borderColor: '#1d4ed8',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cartBadgeText: { color: t.onAccent, fontSize: 10, fontWeight: '900' },
   chevronWrap: {
     width: 20, height: 20, borderRadius: 10, backgroundColor: t.cardStrong,
     alignItems: 'center', justifyContent: 'center',
@@ -667,10 +766,11 @@ const styles = StyleSheet.create({
   tileAdd: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.accent, justifyContent: 'center', alignItems: 'center' },
 
   cartBar: {
-    // Floats just above the bottom tab bar.
-    position: 'absolute', left: 16, right: 16, bottom: BOTTOM_NAV_HEIGHT + 14, backgroundColor: t.accent, borderRadius: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14,
-    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(0,0,0,0.35)' as any } : { elevation: 6 }),
+    // In the header's flow, directly beneath the search field. Nothing about it is positioned any
+    // more, so the Android navigation bar it used to collide with is no longer a factor.
+    marginTop: 10, backgroundColor: t.accent, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 6px 18px rgba(0,0,0,0.28)' as any } : { elevation: 4 }),
   },
   cartCount: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(29,78,216,0.15)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
   cartCountText: { color: t.onAccent, fontWeight: '800', fontSize: 14 },

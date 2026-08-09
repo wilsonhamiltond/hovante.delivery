@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 // Everything configurable about where the app points, read from .env (see that file for what each
 // value is and how to override it locally).
 //
@@ -21,8 +23,27 @@ console.log(`[config] API_BASE_URL = ${API_BASE_URL}`);
 // Browser key for the Google Maps JavaScript API and Geocoding, used by every map in the app. A
 // maps key is public by nature -- it ships inside the page that loads the map -- so it is fine here,
 // but it must be locked down in Google Cloud Console (restrict it to the Maps JavaScript and
-// Geocoding APIs, and to your app's referrers/bundle ids) or anyone can spend your quota.
-export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+// Geocoding APIs, and to your app's referrers) or anyone can spend your quota.
+//
+// One key per platform: a Google key carries exactly one application restriction, so Android, iOS
+// and web cannot share one and still be restricted. The names differ rather than the values coming
+// from separate EAS environments, because per-platform environments need a Production plan -- with
+// the default three (development/preview/production), one environment serves both mobile platforms,
+// so the platform has to be encoded in the variable name instead.
+//
+// Each is spelled out as a whole `process.env.EXPO_PUBLIC_*` expression: the Expo CLI substitutes
+// that exact text at build time, so a computed key like process.env['...' + Platform.OS] would
+// leave `undefined` in the bundle. The plain EXPO_PUBLIC_GOOGLE_MAPS_API_KEY stays as a fallback so
+// a checkout with one shared key -- which is every local .env today -- keeps working.
+const MAPS_KEY_BY_PLATFORM: Record<string, string | undefined> = {
+  android: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID,
+  ios: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS,
+  web: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB,
+};
+
+export const GOOGLE_MAPS_API_KEY =
+  (MAPS_KEY_BY_PLATFORM[Platform.OS] ?? '').trim()
+  || (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim();
 
 // Without a key Google renders a dark "for development purposes only" watermark over a dead map, so
 // the map components say so plainly instead.

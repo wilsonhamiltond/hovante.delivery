@@ -48,6 +48,17 @@ export interface Me {
   addressLabel: string | null;
   latitude: number | null;
   longitude: number | null;
+  // False for an account created purely through Google, Facebook or Apple: there is no password its
+  // owner ever chose, so "cambiar contraseña" has nothing to change. Becomes true if they set one
+  // through the recovery flow.
+  //
+  // Optional because an API older than this field simply omits it. Read it as "hide only when the
+  // server says false" -- treating a missing field as false hides the button from everyone the
+  // moment the app is newer than the server, which is exactly what happened once already.
+  hasPassword?: boolean;
+  // Public URL of the profile picture, or null when none has been set. The API rebuilds it from the
+  // stored key, so the app never needs to know which bucket or CDN serves it.
+  imageUrl?: string | null;
 }
 
 // One stop on a driver's route (GET /delivery/mine).
@@ -160,6 +171,19 @@ export function resetPassword(token: string, newPassword: string) {
   return post<null>('/auth/reset-password', { token, newPassword });
 }
 
+// Changing the password from inside the app, where the account is already signed in. The current
+// password is required and checked server-side -- the token alone is not treated as proof here,
+// because it lives on the phone and outlives any one session.
+export function changePassword(currentPassword: string, password: string) {
+  return postAuth<string>('/auth/change-password', {
+    currentPassword,
+    password,
+    // The endpoint checks the two match; sending the same value keeps that check satisfied while
+    // the screen does its own confirm-field comparison with a message written for this app.
+    passwordConfirm: password,
+  });
+}
+
 // Authenticated GET: uses the held token (set on login/restore, updated by sliding refresh).
 async function get<T>(path: string): Promise<ApiResponse<T>> {
   if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as T };
@@ -196,6 +220,39 @@ export interface CompleteProfilePayload {
 
 export function completeProfile(payload: CompleteProfilePayload) {
   return postAuth<string>('/auth/complete-profile', payload);
+}
+
+// Editing the account's own details from the "Mi cuenta" screen. Narrower than completeProfile on
+// purpose: no email (it identifies the account) and no address (the address book owns those).
+export function updateProfile(payload: { name: string; lastName: string; phone: string }) {
+  return postAuth<string>('/auth/update-profile', payload);
+}
+
+// Profile picture upload. Multipart rather than JSON, so it cannot go through postAuth: the body is
+// a FormData and the Content-Type header must be left unset for fetch to add the multipart boundary
+// itself. Returns the stored image's public URL as `data`.
+export async function uploadProfileImage(uri: string, mimeType: string, fileName: string): Promise<ApiResponse<string>> {
+  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as unknown as string };
+
+  const form = new FormData();
+  // React Native's FormData takes this shape for a file; the cast is because the DOM typings
+  // describe Blob | string and know nothing about it.
+  form.append('file', { uri, type: mimeType, name: fileName } as unknown as Blob);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/auth/profile-image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${currentToken}` },
+      body: form,
+    });
+  } catch {
+    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
+  }
+  captureRotatedToken(res);
+  const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
+  if (json) return json;
+  return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
 }
 
 // Whether an account still owes us the sign-up details. A social account is minted with just the
@@ -290,6 +347,9 @@ export interface CreateOrderInput {
   address?: string;
   latitude?: number | null;
   longitude?: number | null;
+  // Which branch fulfils the order. Only sent when the customer was asked to choose; the server
+  // checks it belongs to the merchant and that its quadrant reaches the delivery point.
+  officeId?: string;
 }
 
 // Place an order. The server rejects lines from more than one merchant; the app blocks it too.
@@ -342,6 +402,35 @@ export interface AddressHistory {
 
 // The customer's addresses: the saved ones first (default first), then any address seen only on
 // past orders.
+// One of a merchant's branches at checkout: where it is, and the rectangle it delivers inside.
+// The quadrant corners are all set or all null; null means this branch serves anywhere.
+export interface MerchantOffice {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  minLatitude: number | null;
+  maxLatitude: number | null;
+  minLongitude: number | null;
+  maxLongitude: number | null;
+}
+
+export function merchantOffices(companyId: string) {
+  return get<MerchantOffice[]>(`/delivery/companies/${companyId}/offices`);
+}
+
+// Whether a branch can take an order to a point: no quadrant means anywhere, otherwise the point
+// must fall inside it. Inclusive on every edge, matching the server and the map picker -- if they
+// disagreed, the app could offer a branch the server then refuses.
+export function officeCovers(o: MerchantOffice, lat: number | null, lng: number | null): boolean {
+  if (o.minLatitude == null || o.maxLatitude == null
+      || o.minLongitude == null || o.maxLongitude == null) return true;
+  if (lat == null || lng == null) return false;
+  return lat >= o.minLatitude && lat <= o.maxLatitude
+    && lng >= o.minLongitude && lng <= o.maxLongitude;
+}
+
 export function myAddresses() {
   return get<AddressHistory[]>('/delivery/my-addresses');
 }
@@ -362,6 +451,18 @@ export function createMyAddress(payload: SaveAddressPayload) {
 // Makes one of the customer's saved addresses the default.
 export function setDefaultAddress(id: string) {
   return postAuth<AddressHistory>(`/delivery/my-addresses/${id}/default`, {});
+}
+
+// Rewrites one of the customer's saved addresses. Editing the default one also moves the contact's
+// address snapshot, so checkout stops preselecting the text as it read before the edit.
+export function updateMyAddress(id: string, payload: SaveAddressPayload) {
+  return putAuth<AddressHistory>(`/delivery/my-addresses/${id}`, payload);
+}
+
+// Removes one of the customer's saved addresses. Deleting the default one promotes another, so the
+// address book is never left without one.
+export function deleteMyAddress(id: string) {
+  return deleteAuth<boolean>(`/delivery/my-addresses/${id}`);
 }
 
 export function myDeliveries() {
@@ -385,16 +486,17 @@ export function pickupDelivery(id: string) {
 // Authenticated POST for the driver's status actions. An optional idempotency key (8.5.9) lets a
 // retried action -- e.g. the offline queue flushing something that actually went through -- be
 // recognised by the server and not applied twice.
-async function postAuth<T>(path: string, body: unknown, idempotencyKey?: string): Promise<ApiResponse<T>> {
+async function sendAuth<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown, idempotencyKey?: string): Promise<ApiResponse<T>> {
   if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as T };
   let res: Response;
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${currentToken}` };
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
+      method,
       headers,
-      body: JSON.stringify(body ?? {}),
+      // DELETE carries no body: some proxies drop one, and the id is already in the path.
+      body: method === 'DELETE' ? undefined : JSON.stringify(body ?? {}),
     });
   } catch {
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
@@ -403,6 +505,18 @@ async function postAuth<T>(path: string, body: unknown, idempotencyKey?: string)
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
+}
+
+function postAuth<T>(path: string, body: unknown, idempotencyKey?: string) {
+  return sendAuth<T>('POST', path, body, idempotencyKey);
+}
+
+function putAuth<T>(path: string, body: unknown) {
+  return sendAuth<T>('PUT', path, body);
+}
+
+function deleteAuth<T>(path: string) {
+  return sendAuth<T>('DELETE', path, null);
 }
 
 export function startDelivery(id: string, idempotencyKey?: string) {

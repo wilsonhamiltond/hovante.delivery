@@ -8,7 +8,9 @@
     "expo-auth-session": "~7.0.11",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
+    "expo-dev-client": "~6.0.21",
     "expo-font": "~14.0.12",
+    "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-location": "~19.0.8",
@@ -34,16 +36,19 @@
     "typescript": "~5.9.2"
   },
   "scripts": {
-    "start": "rm -f .env.local && expo start",
-    "android": "rm -f .env.local && expo start --android",
-    "ios": "rm -f .env.local && expo start --ios",
-    "web": "rm -f .env.local && expo start --web",
-    "start:prod": "cp .env.prod .env.local && expo start --clear",
-    "android:prod": "cp .env.prod .env.local && expo start --clear --android",
-    "ios:prod": "cp .env.prod .env.local && expo start --clear --ios",
-    "web:prod": "cp .env.prod .env.local && expo start --clear --web",
+    "start": "node -e \"require('fs').rmSync('.env.local',{force:true})\" && expo start",
+    "start:prod": "node -e \"require('fs').copyFileSync('.env.android','.env.local')\" && expo start --clear",
+    "dev:android": "node -e \"require('fs').copyFileSync('.env.android','.env.local')\" && expo start --dev-client --clear",
+    "android": "node -e \"require('fs').rmSync('.env.local',{force:true})\" && expo start --android",
+    "ios": "node -e \"require('fs').rmSync('.env.local',{force:true})\" && expo start --ios",
+    "web": "node -e \"require('fs').rmSync('.env.local',{force:true})\" && expo start --web",
+    "start:web": "node -e \"require('fs').copyFileSync('.env.web','.env.local')\" && expo start --clear",
+    "android:prod": "node -e \"require('fs').copyFileSync('.env.android','.env.local')\" && expo start --clear --android",
+    "ios:prod": "node -e \"require('fs').copyFileSync('.env.ios','.env.local')\" && expo start --clear --ios",
+    "web:prod": "node -e \"require('fs').copyFileSync('.env.web','.env.local')\" && expo start --clear --web",
     "test": "jest",
-    "test:watch": "jest --watchAll"
+    "test:watch": "jest --watchAll",
+    "_comment": "The .env.local juggling runs through node instead of rm/cp: npm shells out to cmd.exe on Windows, which has neither."
   },
   "jest": {
     "preset": "jest-expo"

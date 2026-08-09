@@ -41,5 +41,9 @@ yarn-error.*
 /android
 
 .env
-.env.prod
+.env.web
+.env.android
+.env.ios
 .env.local
+# bundletool is a 31 MB Google release binary, fetched on demand (see BUILD.md), never committed.
+scripts/bundletool*.jar

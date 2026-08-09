@@ -31,11 +31,11 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.actions}>
-          <FacebookSignInButton onError={setError} />
+          {false && <FacebookSignInButton onError={setError} />}
 
           <GoogleSignInButton onError={setError} />
 
-          <AppleSignInButton onError={setError} />
+          {false && <AppleSignInButton onError={setError} />}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

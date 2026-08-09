@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import type { Me } from '../src/api';
@@ -15,11 +16,18 @@ export default function AccountScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  // The picture is uploading. Shown over the avatar so the tap has visible effect straight away.
+  const [uploading, setUploading] = useState(false);
+  // Set the moment an upload succeeds, so the new picture appears without waiting for a refetch.
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    api.me().then((res) => { if (active && res.success) setProfile(res.data); })
-      .finally(() => { if (active) setLoading(false); });
+    api.me().then((res) => {
+      if (!active || !res.success) return;
+      setProfile(res.data);
+      setImageUrl(res.data?.imageUrl ?? null);
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []));
 
@@ -32,6 +40,41 @@ export default function AccountScreen() {
   // Shared by both roles: the tab bar and the extra rows adapt to who is signed in.
   const isDriver = !!profile?.isDriver;
 
+  // Pick a picture and upload it. The library is asked for a square crop, and the result is
+  // downscaled and re-encoded before sending -- a modern phone photo is several megabytes, which is
+  // slow on mobile data and far more detail than a 56px avatar can show.
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso de fotos', 'Activa el permiso de fotos para cambiar tu imagen.');
+      return;
+    }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+
+    const asset = picked.assets[0];
+    setUploading(true);
+    const res = await api.uploadProfileImage(
+      asset.uri,
+      asset.mimeType ?? 'image/jpeg',
+      asset.fileName ?? 'perfil.jpg',
+    );
+    setUploading(false);
+
+    if (!res.success) {
+      Alert.alert('Imagen', res.message);
+      return;
+    }
+    // The endpoint answers with the stored image's URL, so there is nothing to refetch.
+    if (res.data) setImageUrl(res.data);
+  };
+
   return (
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -42,7 +85,27 @@ export default function AccountScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.scroll}>
             <View style={styles.profile}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
+              {/* The whole avatar is the control, with the pencil as the affordance: a 20px badge
+                  is a hard target on a phone, and tapping your own picture is the gesture people
+                  already expect. */}
+              <Pressable
+                onPress={pickImage}
+                disabled={uploading}
+                accessibilityRole="button"
+                accessibilityLabel="Cambiar imagen de perfil"
+              >
+                <View style={styles.avatar}>
+                  {imageUrl
+                    ? <Image source={{ uri: imageUrl }} style={styles.avatarImage} />
+                    : <Text style={styles.avatarText}>{initial}</Text>}
+                  {uploading ? (
+                    <View style={styles.avatarBusy}><ActivityIndicator color={t.text} /></View>
+                  ) : null}
+                </View>
+                <View style={styles.avatarBadge}>
+                  <FontAwesome5 name="pencil-alt" size={10} solid color={t.onAccent} />
+                </View>
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name} numberOfLines={1}>{fullName || (isDriver ? 'Repartidor' : 'Cliente')}</Text>
                 {profile?.email ? <Text style={styles.email} numberOfLines={1}>{profile.email}</Text> : null}
@@ -65,11 +128,34 @@ export default function AccountScreen() {
             </View>
 
             <View style={styles.card}>
+              <Pressable style={styles.row} onPress={() => router.push('/edit-profile')}>
+                <FontAwesome5 name="user-edit" size={15} solid color={t.text} style={styles.rowIcon} />
+                <Text style={styles.rowText}>Mis datos</Text>
+                <Text style={styles.rowChevron}>›</Text>
+              </Pressable>
+              <View style={styles.rowDivider} />
               {isDriver ? (
                 <>
                   <Pressable style={styles.row} onPress={() => Alert.alert('Mi vehículo', 'Disponible próximamente.')}>
                     <FontAwesome5 name="motorcycle" size={16} solid color={t.text} style={styles.rowIcon} />
                     <Text style={styles.rowText}>Mi vehículo</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                </>
+              ) : null}
+              {/* Shown to both roles -- a driver's account is as worth protecting as a customer's --
+                  but hidden for an account created through Google, Facebook or Apple: it has no
+                  password of its own to change, so the row would only lead to a dead end.
+                  Explicitly `!== false`, not truthiness: an API older than the hasPassword field
+                  omits it, and treating that as "no password" hid the row from everyone. Showing it
+                  is the safe default -- the server still refuses a social account, with a message
+                  that says so. */}
+              {profile?.hasPassword !== false ? (
+                <>
+                  <Pressable style={styles.row} onPress={() => router.push('/change-password')}>
+                    <FontAwesome5 name="lock" size={16} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>Cambiar contraseña</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
@@ -103,7 +189,16 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, gap: 14, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
 
   profile: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
+  // Covers the picture while the upload is in flight, rather than sitting beside it.
+  avatarBusy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
+  // Sits on the rim, outside the avatar's overflow clip, so it survives a round picture.
+  avatarBadge: {
+    position: 'absolute', right: -2, bottom: -2, width: 22, height: 22, borderRadius: 11,
+    backgroundColor: t.accent, borderWidth: 2, borderColor: '#1d4ed8',
+    justifyContent: 'center', alignItems: 'center',
+  },
   avatarText: { color: t.text, fontSize: 22, fontWeight: '900' },
   name: { fontSize: 18, fontWeight: '800', color: t.text },
   email: { fontSize: 13, color: t.textMuted, marginTop: 2 },

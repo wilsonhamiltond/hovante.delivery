@@ -40,7 +40,14 @@
           "locationWhenInUsePermission": "Hovante Delivery usa tu ubicación para seleccionar dónde entregar tu pedido."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Volao usa tus fotos para que elijas tu imagen de perfil.",
+          "cameraPermission": "Volao usa la cámara para que tomes tu imagen de perfil."
+        }
+      ]
     ],
     "extra": {
       "router": {},
