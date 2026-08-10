@@ -5,8 +5,8 @@ import { locationPickerHtml, type LocationPickerProps, type PickedLocation } fro
 // Web build: renders the Google map in a real <iframe> (this file only loads on web, where the tree
 // is React DOM under react-native-web) and listens for the map's postMessage. Keeps
 // react-native-webview off the web bundle entirely.
-export function LocationPicker({ latitude, longitude, onPick, areas, onOutside }: LocationPickerProps) {
-  const html = useRef(locationPickerHtml(latitude, longitude, areas)).current;
+export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, origin }: LocationPickerProps) {
+  const html = useRef(locationPickerHtml(latitude, longitude, areas, origin ?? null)).current;
   // Refs so the listener below can subscribe once and still call the current callbacks.
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;

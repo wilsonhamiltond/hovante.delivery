@@ -6,7 +6,10 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useCart } from '../src/cart';
 import * as api from '../src/api';
+import { formatEta, useRouteEta } from '../src/eta';
+import { deliveryFeeRd } from '../src/deliveryFee';
 import { LocationPicker } from '../src/LocationPicker';
+import { PointsMap } from '../src/PointsMap';
 import { DEFAULT_CENTER, type DeliveryArea } from '../src/mapHtml';
 import { detectCurrentLocation } from '../src/profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
@@ -88,6 +91,20 @@ export default function CartScreen() {
   }, [officeId, eligible.length]);
 
   const selectedOffice = offices.find((o) => o.id === officeId) ?? null;
+
+  // The chosen branch as the route's start: the location step draws office -> pin and redraws it
+  // on every new pick. Null (no route) while no branch is chosen or it has no pin of its own.
+  const routeOrigin = selectedOffice && selectedOffice.latitude != null && selectedOffice.longitude != null
+    ? { lat: selectedOffice.latitude, lng: selectedOffice.longitude, title: selectedOffice.name }
+    : null;
+
+  // Driving distance/time branch -> chosen point, shown on the summary. Follows the pin: it
+  // re-resolves whenever the coordinates change, and hides while unknown.
+  const eta = useRouteEta(routeOrigin?.lat, routeOrigin?.lng, coords.lat, coords.lng);
+
+  // What the delivery costs for that route. Null while the distance is unknown, in which case the
+  // summary says so and the footer total stays products-only rather than showing a wrong number.
+  const deliveryFee = eta ? deliveryFeeRd(eta.distanceM) : null;
 
   // The step exists only when there is a real choice to make.
   const needsOfficeChoice = !officeId && eligible.length > 1;
@@ -202,29 +219,46 @@ export default function CartScreen() {
       {!needsOfficeChoice ? <Stepper step={step} /> : null}
 
       {/* Branch selection: shown only when more than one of the merchant's branches covers where the
-          order is going. With one there is nothing to decide, and it is chosen automatically. */}
+          order is going. With one there is nothing to decide, and it is chosen automatically. The
+          list is numbered to match the pins on the map below it, so "Sucursal 2" is a place, not
+          just a name. */}
       {needsOfficeChoice && (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.merchant}>{cart.merchantName}</Text>
-          <Text style={styles.officeLead}>
-            Varias sucursales entregan en tu ubicación. Elige desde cuál quieres tu pedido.
-          </Text>
-          {eligible.map((o) => (
-            <Pressable
-              key={o.id}
-              style={styles.officeCard}
-              onPress={() => setOfficeId(o.id)}
-              accessibilityRole="button"
-            >
-              <View style={styles.officeIcon}><FontAwesome5 name="store" size={14} solid color={t.text} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.officeName}>{o.name}</Text>
-                {o.address ? <Text style={styles.officeAddress} numberOfLines={2}>{o.address}</Text> : null}
-              </View>
-              <Text style={styles.officeChevron}>›</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={styles.officeStep}>
+          <ScrollView style={styles.officeList} contentContainerStyle={styles.scroll}>
+            <Text style={styles.merchant}>{cart.merchantName}</Text>
+            <Text style={styles.officeLead}>
+              Varias sucursales entregan en tu ubicación. Elige desde cuál quieres tu pedido.
+            </Text>
+            {eligible.map((o, i) => (
+              <Pressable
+                key={o.id}
+                style={styles.officeCard}
+                onPress={() => setOfficeId(o.id)}
+                accessibilityRole="button"
+              >
+                <View style={styles.officeNum}><Text style={styles.officeNumText}>{i + 1}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.officeName}>{o.name}</Text>
+                  {o.address ? <Text style={styles.officeAddress} numberOfLines={2}>{o.address}</Text> : null}
+                </View>
+                <Text style={styles.officeChevron}>›</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {/* The same branches as pins. Keyed by the branch list because the map builds its HTML
+              once on mount and would otherwise keep showing a stale set. */}
+          {eligible.some((o) => o.latitude != null || o.address) ? (
+            <View style={styles.officeMap}>
+              <PointsMap
+                key={eligible.map((o) => o.id).join(',')}
+                points={eligible.map((o, i) => ({
+                  lat: o.latitude, lng: o.longitude, address: o.address,
+                  label: String(i + 1), title: o.name, color: '#0b2a6b',
+                }))}
+              />
+            </View>
+          ) : null}
+        </View>
       )}
 
       {!needsOfficeChoice && step === 1 && (
@@ -268,6 +302,7 @@ export default function CartScreen() {
             latitude={coords.lat ?? DEFAULT_CENTER.lat}
             longitude={coords.lng ?? DEFAULT_CENTER.lng}
             areas={areas}
+            origin={routeOrigin}
             onOutside={outsideNotice}
             // Picking a point makes this somewhere else, so it is no longer the saved address.
             onPick={(loc) => {
@@ -328,6 +363,7 @@ export default function CartScreen() {
               latitude={coords.lat ?? DEFAULT_CENTER.lat}
               longitude={coords.lng ?? DEFAULT_CENTER.lng}
               areas={areas}
+              origin={routeOrigin}
               onOutside={outsideNotice}
               onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
             />
@@ -336,7 +372,14 @@ export default function CartScreen() {
             <Text style={styles.label}>Entregar en</Text>
             <View style={styles.addrCard}>
               <Text style={styles.pin}>📍</Text>
-              <Text style={styles.addrText}>{address || 'Sin dirección'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addrText}>{address || 'Sin dirección'}</Text>
+                {eta ? (
+                  <Text style={styles.etaText}>
+                    ⏱️ {formatEta(eta)} desde {selectedOffice?.name ?? 'el comercio'}
+                  </Text>
+                ) : null}
+              </View>
             </View>
 
             {/* …the products in the middle… */}
@@ -349,11 +392,22 @@ export default function CartScreen() {
               </View>
             ))}
 
+            {/* …the delivery cost for the route about to be driven… */}
+            <Text style={styles.label}>Envío</Text>
+            <View style={styles.reviewLine}>
+              <Text style={styles.reviewName}>
+                {deliveryFee != null && eta
+                  ? `Entrega a domicilio · ${formatEta(eta)}`
+                  : 'Se calcula al conocer la distancia'}
+              </Text>
+              {deliveryFee != null ? <Text style={styles.reviewPrice}>{money(deliveryFee)}</Text> : null}
+            </View>
+
             {/* …and the note at the bottom. */}
             <Text style={styles.label}>Nota</Text>
             <View style={styles.noteCard}><Text style={styles.noteText}>{notes.trim() || 'Sin nota'}</Text></View>
           </ScrollView>
-          <Footer total={cart.total}>
+          <Footer total={cart.total + (deliveryFee ?? 0)}>
             <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={placeOrder} disabled={submitting}>
               {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>Realizar pedido</Text>}
             </Pressable>
@@ -456,10 +510,17 @@ const styles = StyleSheet.create({
     backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 14,
     padding: 14, marginBottom: 10,
   },
-  officeIcon: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: t.cardStrong,
-    alignItems: 'center', justifyContent: 'center',
+  officeStep: { flex: 1 },
+  // The list sizes to its cards (capped so a long branch list cannot squeeze the map away);
+  // the map takes everything left.
+  officeList: { flexGrow: 0, maxHeight: '45%' },
+  officeMap: { flex: 1, marginHorizontal: 16, marginBottom: 16, borderRadius: 12, overflow: 'hidden' },
+  // Matches the numbered pin drawn for the same branch on the map below.
+  officeNum: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: '#0b2a6b',
+    borderWidth: 2, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center',
   },
+  officeNumText: { color: '#ffffff', fontWeight: '800', fontSize: 15 },
   officeName: { fontSize: 15, fontWeight: '800', color: t.text },
   officeAddress: { fontSize: 13, color: t.textMuted, marginTop: 2, lineHeight: 18 },
   officeChevron: { fontSize: 22, color: t.textFaint, fontWeight: '300' },
@@ -485,7 +546,8 @@ const styles = StyleSheet.create({
 
   addrCard: { flexDirection: 'row', gap: 8, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, alignItems: 'flex-start' },
   pin: { fontSize: 16 },
-  addrText: { flex: 1, fontSize: 15, color: t.text, fontWeight: '600' },
+  addrText: { fontSize: 15, color: t.text, fontWeight: '600' },
+  etaText: { fontSize: 13, color: t.textMuted, fontWeight: '700', marginTop: 6 },
   notes: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, minHeight: 70, fontSize: 15, color: t.text, textAlignVertical: 'top' },
 
   // Step 4 (review)

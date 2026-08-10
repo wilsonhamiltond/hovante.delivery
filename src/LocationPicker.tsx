@@ -5,10 +5,10 @@ import { locationPickerHtml, type LocationPickerProps, type PickedLocation } fro
 
 // Native build: the Google map inside a react-native-webview. (On web, LocationPicker.web.tsx is
 // used instead, so react-native-webview never reaches the web bundle.)
-export function LocationPicker({ latitude, longitude, onPick, areas, onOutside }: LocationPickerProps) {
+export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, origin }: LocationPickerProps) {
   // Built once on mount, like the coordinates: the map ignores later prop changes, and callers
   // remount it with a key when they need it rebuilt.
-  const html = useRef(locationPickerHtml(latitude, longitude, areas)).current;
+  const html = useRef(locationPickerHtml(latitude, longitude, areas, origin ?? null)).current;
   return (
     <View style={styles.wrap}>
       <WebView

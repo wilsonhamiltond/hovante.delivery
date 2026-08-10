@@ -27,6 +27,14 @@ export interface DeliveryArea {
   longitude?: number | null;
 }
 
+// Where the order comes from (the chosen branch). When given, the picker draws the driving route
+// from here to the pin and redraws it on every new pick.
+export interface RouteOrigin {
+  lat: number;
+  lng: number;
+  title?: string | null;
+}
+
 export interface LocationPickerProps {
   latitude: number;
   longitude: number;
@@ -39,6 +47,8 @@ export interface LocationPickerProps {
   areas?: DeliveryArea[];
   /** Called when a tap was refused, so the screen can say why. */
   onOutside?: () => void;
+  /** The chosen branch. When set, the route from it to the pin is drawn and kept current. */
+  origin?: RouteOrigin | null;
 }
 
 // Santo Domingo, used when the customer has no saved coordinates yet.
@@ -70,7 +80,9 @@ function loaderTag(callback: string): string {
 // A Google map with one draggable pin. Tapping the map or dragging the pin posts the coordinates
 // back, then reverse-geocodes them (Google Geocoding, same key) and posts again with a readable
 // address -- so the caller gets the point immediately and the address a moment later.
-export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea[] = []): string {
+export function locationPickerHtml(
+  lat: number, lng: number, areas: DeliveryArea[] = [], origin: RouteOrigin | null = null,
+): string {
   if (!MAPS_ENABLED) {
     return missingKeyHtml('Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.');
   }
@@ -85,7 +97,70 @@ export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea
 <script>
   var lat = ${lat}, lng = ${lng};
   var areas = ${JSON.stringify(areas)};
-  var marker, geocoder;
+  var origin = ${JSON.stringify(origin)};
+  var marker, geocoder, map;
+
+  // The office -> pin driving route, redrawn on every pick. Same cascade as the driver's route
+  // map: Google Directions, then the public OSRM router, then a dashed straight hop. The sequence
+  // number discards answers that arrive after the pin has already moved again, so a slow response
+  // can never paint a stale route over a fresh one.
+  var routeSeq = 0, routeLine = null, routeRenderer = null;
+
+  function clearRoute() {
+    if (routeLine) { routeLine.setMap(null); routeLine = null; }
+    if (routeRenderer) { routeRenderer.setMap(null); routeRenderer = null; }
+  }
+
+  function straightRoute(dest) {
+    routeLine = new google.maps.Polyline({
+      path: [{ lat: origin.lat, lng: origin.lng }, dest], map: map, strokeOpacity: 0, geodesic: true,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#2563eb', strokeWeight: 3, scale: 3 },
+        offset: '0', repeat: '14px',
+      }],
+    });
+  }
+
+  function osrmRoute(dest, seq) {
+    var url = 'https://router.project-osrm.org/route/v1/driving/'
+      + origin.lng + ',' + origin.lat + ';' + dest.lng + ',' + dest.lat
+      + '?overview=full&geometries=geojson';
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (seq !== routeSeq) return;
+        var coords = d && d.routes && d.routes[0] && d.routes[0].geometry
+          && d.routes[0].geometry.coordinates;
+        if (!coords || !coords.length) { straightRoute(dest); return; }
+        routeLine = new google.maps.Polyline({
+          path: coords.map(function (c) { return { lat: c[1], lng: c[0] }; }),
+          map: map, strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9,
+        });
+      })
+      .catch(function () { if (seq === routeSeq) straightRoute(dest); });
+  }
+
+  function drawRoute(dest) {
+    if (!origin || !map) return;
+    var seq = ++routeSeq;
+    new google.maps.DirectionsService().route({
+      origin: { lat: origin.lat, lng: origin.lng }, destination: dest,
+      travelMode: google.maps.TravelMode.DRIVING,
+    }, function (result, status) {
+      if (seq !== routeSeq) return;
+      clearRoute();
+      if (status === 'OK' && result && result.routes && result.routes[0]) {
+        routeRenderer = new google.maps.DirectionsRenderer({
+          // preserveViewport: this map is for picking a point -- the route must not yank the
+          // camera away from where the person is about to tap.
+          map: map, directions: result, suppressMarkers: true, preserveViewport: true,
+          polylineOptions: { strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9 },
+        });
+      } else {
+        osrmRoute(dest, seq);
+      }
+    });
+  }
 
   // Inclusive on every edge: a pin dropped exactly on the boundary is inside the area the merchant
   // drew, and the server's catalogue filter uses >= / <= too -- disagreeing would let someone place
@@ -118,7 +193,7 @@ export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea
   }
 
   function initPicker() {
-    var map = new google.maps.Map(document.getElementById('map'), {
+    map = new google.maps.Map(document.getElementById('map'), {
       center: { lat: lat, lng: lng },
       zoom: 16,
       // Nothing here navigates elsewhere: this map exists to drop one pin.
@@ -171,11 +246,35 @@ export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea
       if (!inside(lat, lng)) map.fitBounds(bounds, 32);
     }
 
+    // The chosen branch, when it is not already dotted by its own area above (an office with no
+    // quadrant never enters areas, yet the route still needs its endpoint visible).
+    if (origin) {
+      var dotted = areas.some(function (a) {
+        return a.latitude === origin.lat && a.longitude === origin.lng;
+      });
+      if (!dotted) {
+        new google.maps.Marker({
+          map: map, clickable: false, zIndex: 1,
+          position: { lat: origin.lat, lng: origin.lng },
+          title: origin.title || 'Comercio',
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#0b2a6b', fillOpacity: 1,
+            strokeColor: '#ffffff', strokeWeight: 3,
+          },
+        });
+      }
+      // The pin the picker opened on already is a picked location; route to it straight away.
+      drawRoute({ lat: lat, lng: lng });
+    }
+
     map.addListener('click', function (e) {
       var la = e.latLng.lat(), ln = e.latLng.lng();
       if (!inside(la, ln)) { post({ outside: true }); return; }
       marker.setPosition(e.latLng);
       pick(la, ln);
+      drawRoute({ lat: la, lng: ln });
     });
     marker.addListener('dragend', function () {
       var p = marker.getPosition();
@@ -188,6 +287,7 @@ export function locationPickerHtml(lat: number, lng: number, areas: DeliveryArea
       }
       lat = la; lng = ln;
       pick(la, ln);
+      drawRoute({ lat: la, lng: ln });
     });
   }
 </script>
