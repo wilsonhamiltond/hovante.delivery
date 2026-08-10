@@ -1,5 +1,5 @@
 import { isProfileComplete, type Me } from './api';
-import { isCompletePhone, maskPhone, splitDisplayName } from './profileForm';
+import { isCompletePhone, maskPhone, parsePhone, splitDisplayName, toE164 } from './profileForm';
 
 const account = (over: Partial<Me>): Me => ({
   email: 'a@b.com',
@@ -60,13 +60,15 @@ describe('splitDisplayName', () => {
   });
 });
 
-// The phone field accepts exactly one shape, so the mask is what enforces it -- typing, pasting a
-// number that already carries punctuation, and deleting all have to land in the same format.
+// The phone field is country-aware now: libphonenumber-js decides how each country groups its
+// digits and what counts as a whole number. These pin the behaviour the screens rely on -- the
+// exact separators are the library's business, not ours to re-specify.
 describe('maskPhone', () => {
   it('formats progressively as digits are typed', () => {
     expect(maskPhone('')).toBe('');
-    expect(maskPhone('8')).toBe('(8');
-    expect(maskPhone('809')).toBe('(809');
+    // No dangling open bracket: the group closes only once its three digits are there.
+    expect(maskPhone('8')).toBe('8');
+    expect(maskPhone('809')).toBe('(809)');
     expect(maskPhone('8095')).toBe('(809) 5');
     expect(maskPhone('809555')).toBe('(809) 555');
     expect(maskPhone('8095550')).toBe('(809) 555-0');
@@ -80,10 +82,16 @@ describe('maskPhone', () => {
     expect(maskPhone('abc809def555')).toBe('(809) 555');
   });
 
-  it('stops at ten digits however many are given', () => {
-    expect(maskPhone('809555010099999')).toBe('(809) 555-0100');
-    // A pasted country code is just more digits: "+1" shifts everything and the tail is cut.
-    expect(maskPhone('+1 809-555-0100')).toBe('(180) 955-5010');
+  it('stops at E.164 length, the only universal ceiling', () => {
+    // 15 digits is the most any number can have. Beyond it the extra keystrokes are dropped rather
+    // than accumulating into something no country could format.
+    expect(maskPhone('8095550100999999999').replace(/\D/g, '')).toHaveLength(15);
+  });
+
+  it('formats each country in its own convention', () => {
+    expect(maskPhone('612345678', 'ES')).toBe('612 34 56 78');
+    expect(maskPhone('2015550123', 'US')).toBe('(201) 555-0123');
+    expect(maskPhone('8095550100', 'DO')).toBe('(809) 555-0100');
   });
 
   it('re-formats after a digit is deleted', () => {
@@ -92,10 +100,50 @@ describe('maskPhone', () => {
   });
 });
 
+// Validity is per country: the same ten digits are a whole number in one place and nonsense in
+// another, which is the entire reason the picker exists.
 describe('isCompletePhone', () => {
-  it('accepts only a full ten-digit number', () => {
-    expect(isCompletePhone('(809) 555-0100')).toBe(true);
-    expect(isCompletePhone('(809) 555-010')).toBe(false);
-    expect(isCompletePhone('')).toBe(false);
+  it('accepts a whole number for its own country', () => {
+    expect(isCompletePhone('(809) 555-0100', 'DO')).toBe(true);
+    expect(isCompletePhone('612 34 56 78', 'ES')).toBe(true);
+  });
+
+  it('rejects a half-typed one', () => {
+    expect(isCompletePhone('(809) 555', 'DO')).toBe(false);
+    expect(isCompletePhone('', 'DO')).toBe(false);
+  });
+
+  it('judges the same digits differently per country', () => {
+    // Nine digits: a complete Spanish mobile, not a complete Dominican number.
+    expect(isCompletePhone('612345678', 'ES')).toBe(true);
+    expect(isCompletePhone('612345678', 'DO')).toBe(false);
+  });
+});
+
+describe('toE164', () => {
+  it('stores the unambiguous international form', () => {
+    expect(toE164('(809) 555-0100', 'DO')).toBe('+18095550100');
+    expect(toE164('612 34 56 78', 'ES')).toBe('+34612345678');
+  });
+
+  it('gives nothing back for a number that is not usable', () => {
+    expect(toE164('(809) 555', 'DO')).toBe('');
+    expect(toE164('', 'DO')).toBe('');
+  });
+});
+
+// Editing has to reopen an existing number on the right flag -- including the bare Dominican ones
+// stored before the country picker existed.
+describe('parsePhone', () => {
+  it('splits a stored E.164 number', () => {
+    expect(parsePhone('+34612345678')).toEqual({ country: 'ES', national: '612 34 56 78' });
+  });
+
+  it('reads a legacy Dominican number as Dominican', () => {
+    expect(parsePhone('(809) 555-0100')).toEqual({ country: 'DO', national: '(809) 555-0100' });
+  });
+
+  it('is empty for no number at all', () => {
+    expect(parsePhone(null)).toEqual({ country: 'DO', national: '' });
   });
 });

@@ -19,6 +19,9 @@ export const t = {
   onAccent: '#1d4ed8',
   danger: '#fecaca',
   success: '#bbf7d0',
+  // Green for a mark drawn ON a light surface (the add-to-cart tick sits on the white button),
+  // where the pale `success` above would disappear. Same relationship as accent/onAccent.
+  onSuccess: '#166534',
 };
 
 // Full-screen blue gradient. Wrap a screen's content in this and keep inner surfaces transparent.

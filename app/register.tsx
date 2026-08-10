@@ -8,10 +8,13 @@ import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import {
-  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, maskPhone, PHONE_MASK, splitDisplayName,
+  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, splitDisplayName, toE164,
   type LabelChoice,
 } from '../src/profileForm';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
+import { PhoneInput } from '../src/PhoneInput';
+import { DEFAULT_COUNTRY } from '../src/countries';
+import type { CountryCode } from 'libphonenumber-js';
 import { GradientBackground, t } from '../src/theme';
 
 const STEPS = ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'];
@@ -42,7 +45,9 @@ export default function RegisterScreen() {
   const [code, setCode] = useState('');
   // Step 3. One field for the whole name: the account still stores a name and a surname separately
   // (the API asks for both), so this is split on submit rather than asked for twice.
+  // The number is held as the country plus its national part; what gets sent is E.164.
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   const [fullName, setFullName] = useState('');
   // Step 4
   const [password, setPassword] = useState('');
@@ -102,7 +107,8 @@ export default function RegisterScreen() {
       // The account keeps a surname of its own, so one word is not enough to fill it.
       if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (!isCompletePhone(phone)) return setError(`El teléfono debe tener el formato ${PHONE_MASK}.`);
+      // Validity is per country: what is a whole number in one is half of one in another.
+      if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
       return setStep(4);
     }
     if (step === 4) {
@@ -151,7 +157,8 @@ export default function RegisterScreen() {
       password,
       name: person.name,
       lastName: person.lastName,
-      phone: phone.trim(),
+      // Stored in E.164 so the number is unambiguous wherever it is read back.
+      phone: toE164(phone, phoneCountry),
       address: address.trim(),
       latitude: coords.lat,
       longitude: coords.lng,
@@ -222,9 +229,11 @@ export default function RegisterScreen() {
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
               autoCapitalize="words" value={fullName} onChangeText={setFullName} />
             <Text style={styles.label}>Teléfono</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={PHONE_MASK}
-              keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(maskPhone(v))}
-              maxLength={PHONE_MASK.length} />
+            <PhoneInput
+              country={phoneCountry}
+              national={phone}
+              onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
+            />
           </ScrollView>
         )}
 

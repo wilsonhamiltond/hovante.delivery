@@ -6,10 +6,13 @@ import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import {
-  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, maskPhone, PHONE_MASK, splitDisplayName,
+  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, parsePhone, splitDisplayName, toE164,
   type LabelChoice,
 } from '../src/profileForm';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
+import { PhoneInput } from '../src/PhoneInput';
+import { DEFAULT_COUNTRY } from '../src/countries';
+import type { CountryCode } from 'libphonenumber-js';
 import { GradientBackground, t } from '../src/theme';
 
 const STEPS = ['Datos', 'Ubicación'];
@@ -31,6 +34,7 @@ export default function CompleteProfileScreen() {
   // and a surname separately. Pre-filled from the provider's display name where it can be.
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   // Step 2: where to deliver.
   const [address, setAddress] = useState('');
   const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(null);
@@ -51,7 +55,11 @@ export default function CompleteProfileScreen() {
       setFullName((current) => current || joined);
       // Masked on the way in too: a number stored before this format existed would otherwise show
       // raw and then be rejected by the very validation that is about to run on it.
-      setPhone((current) => current || maskPhone(res.data.phone ?? ''));
+      // Split a stored number back into its country and national part, so an existing one opens on
+      // the right flag rather than being read as Dominican.
+      const parsed = parsePhone(res.data.phone ?? '');
+      setPhone((current) => current || parsed.national);
+      setPhoneCountry((current) => (current === DEFAULT_COUNTRY ? parsed.country : current));
     });
     return () => { active = false; };
   }, []);
@@ -88,7 +96,7 @@ export default function CompleteProfileScreen() {
       // completeProfile refuses a blank surname, so one word cannot be enough here.
       if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (!isCompletePhone(phone)) return setError(`El teléfono debe tener el formato ${PHONE_MASK}.`);
+      if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
       return setStep(2);
     }
     return submit();
@@ -105,7 +113,7 @@ export default function CompleteProfileScreen() {
     const res = await api.completeProfile({
       name: person.name,
       lastName: person.lastName,
-      phone: phone.trim(),
+      phone: toE164(phone, phoneCountry),
       address: address.trim(),
       latitude: coords.lat,
       longitude: coords.lng,
@@ -158,9 +166,11 @@ export default function CompleteProfileScreen() {
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
               autoCapitalize="words" value={fullName} onChangeText={setFullName} />
             <Text style={styles.label}>Teléfono</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={PHONE_MASK}
-              keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(maskPhone(v))}
-              maxLength={PHONE_MASK.length} />
+            <PhoneInput
+              country={phoneCountry}
+              national={phone}
+              onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
+            />
 
             <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
               <Text style={styles.signOutText}>Usar otra cuenta</Text>

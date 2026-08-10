@@ -4,7 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as api from '../src/api';
-import { isCompletePhone, maskPhone, PHONE_MASK, splitDisplayName } from '../src/profileForm';
+import { isCompletePhone, parsePhone, splitDisplayName, toE164 } from '../src/profileForm';
+import { PhoneInput } from '../src/PhoneInput';
+import { DEFAULT_COUNTRY } from '../src/countries';
+import type { CountryCode } from 'libphonenumber-js';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { GradientBackground, t } from '../src/theme';
@@ -21,6 +24,7 @@ export default function EditProfileScreen() {
   // One field for both halves, matching the sign-up wizard: people write their full name in one go.
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -34,7 +38,11 @@ export default function EditProfileScreen() {
       const me = res.data;
       setEmail(me.email ?? '');
       setFullName([me.name, me.lastName].map((p) => p?.trim()).filter(Boolean).join(' '));
-      setPhone(maskPhone(me.phone ?? ''));
+      // A number saved before the country picker existed is a bare Dominican one; parsePhone reads
+      // both that and E.164 back onto the right flag.
+      const parsed = parsePhone(me.phone ?? '');
+      setPhone(parsed.national);
+      setPhoneCountry(parsed.country);
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -44,12 +52,12 @@ export default function EditProfileScreen() {
     if (!fullName.trim()) return setNotice({ tone: 'error', message: 'Escribe tu nombre y apellido.' });
     const person = splitDisplayName(fullName);
     if (!person.lastName) return setNotice({ tone: 'error', message: 'Escribe tu nombre y tu apellido.' });
-    if (!isCompletePhone(phone)) {
-      return setNotice({ tone: 'error', message: `El teléfono debe tener el formato ${PHONE_MASK}.` });
+    if (!isCompletePhone(phone, phoneCountry)) {
+      return setNotice({ tone: 'error', message: 'Escribe un número de teléfono válido para el país seleccionado.' });
     }
 
     setSubmitting(true);
-    const res = await api.updateProfile({ name: person.name, lastName: person.lastName, phone });
+    const res = await api.updateProfile({ name: person.name, lastName: person.lastName, phone: toE164(phone, phoneCountry) });
     setSubmitting(false);
 
     if (!res.success) return setNotice({ tone: 'error', message: res.message });
@@ -100,15 +108,10 @@ export default function EditProfileScreen() {
               />
 
               <Text style={[styles.label, styles.labelSpaced]}>Teléfono</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={(v) => setPhone(maskPhone(v))}
-                placeholder={PHONE_MASK}
-                placeholderTextColor={t.textFaint}
-                keyboardType="phone-pad"
-                onSubmitEditing={submit}
-                returnKeyType="done"
+              <PhoneInput
+                country={phoneCountry}
+                national={phone}
+                onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
               />
             </ScrollView>
 

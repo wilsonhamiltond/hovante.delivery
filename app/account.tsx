@@ -134,6 +134,19 @@ export default function AccountScreen() {
                 <Text style={styles.rowChevron}>›</Text>
               </Pressable>
               <View style={styles.rowDivider} />
+              {/* Clients only, like the "Dirección principal" field above: a driver has no address
+                  book, and their tab bar carries no Direcciones tab either. Same icon as that tab
+                  so the two routes into the same screen read as the same place. */}
+              {!isDriver ? (
+                <>
+                  <Pressable style={styles.row} onPress={() => router.push('/addresses')}>
+                    <FontAwesome5 name="map-marker-alt" size={17} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>Direcciones</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                </>
+              ) : null}
               {isDriver ? (
                 <>
                   <Pressable style={styles.row} onPress={() => Alert.alert('Mi vehículo', 'Disponible próximamente.')}>

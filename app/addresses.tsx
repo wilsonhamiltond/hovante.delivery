@@ -7,7 +7,7 @@ import * as api from '../src/api';
 import type { AddressHistory } from '../src/api';
 import { useSessionLocation } from '../src/sessionLocation';
 import { GradientBackground, t } from '../src/theme';
-import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { BackButton } from '../src/BackButton';
 
 const fmtDate = (iso: string): string => {
   const d = new Date(iso);
@@ -114,8 +114,11 @@ export default function AddressesScreen() {
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
+        {/* Reached from Cuenta > Direcciones rather than a tab, so it goes back like every other
+            pushed screen. The replace fallback covers a deep link that arrives with no stack. */}
+        <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/account'))} />
         <Text style={styles.title}>Direcciones</Text>
         <Pressable
           style={styles.addBtn}
@@ -217,7 +220,6 @@ export default function AddressesScreen() {
           )}
         />
       )}
-      <BottomNav active="addresses" />
     </SafeAreaView>
     </GradientBackground>
   );
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { fontSize: 22, fontWeight: '900', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, gap: 10, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
+  list: { padding: 16, gap: 10, paddingBottom: 24 },
   // Sits above its group with air over it, so the break between the two lists is obvious without a
   // divider. The first one loses that top margin -- the screen header is already right above it.
   sectionHeader: { marginTop: 14, marginBottom: 2 },

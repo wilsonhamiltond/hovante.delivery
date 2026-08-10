@@ -1,37 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
-import type { Me, Order } from './api';
+import type { Me, Order, Product } from './api';
 import { useCart } from './cart';
 import { detectCurrentLocation } from './profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
+import { AddToCartButton, ADDED_FEEDBACK_MS } from './AddToCartButton';
 import { emojiFor } from './categoryEmoji';
 
-// The client home: the delivery location, search, and the orders the customer has in flight. The
-// catalogue itself -- business categories and the product grid -- lives in the Explorar tab
-// (ExploreHome), so this screen answers "where are my orders?" rather than "what can I buy?".
+// The "Explorar" tab: the full marketplace -- a header band with the delivery location and search,
+// the business-category row, and every merchant's products (GET /delivery/products) as a
+// two-across grid of item tiles.
+// Each tile names its own merchant, so the catalog reads as one list of things to buy rather than a
+// list of shops. Adding a product to the cart is blocked across merchants (one order, one merchant).
+
+// PedidosYa's signature palette: a vivid rose-red on light-grey surfaces.
+interface Category {
+  key: string;   // 'all', or a business-category id
+  label: string;
+  emoji: string;
+}
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
 // How long the floating cart bar stays up after the cart changes.
 const CART_BAR_MS = 5000;
-
-// Carousel card width. Named because the snap interval has to match it (plus the 12px gap), and
-// the two drifting apart is what makes a snapping list land off-centre.
-const TOP_CARD_WIDTH = 150;
-
-// How many cards each carousel shows.
-const TOP_CAROUSEL_SIZE = 10;
-
-// How many ranked items to pull. More than the items carousel shows, because the merchant ranking
-// below it is summed from the same response: asking for ten items would rank merchants on ten
-// products. There is no top-companies endpoint to ask instead.
-const TOP_FETCH_LIMIT = 50;
 
 // Delivery statuses that mean the order is finished -- excluded from the "current orders" row.
 const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
@@ -45,20 +43,37 @@ const orderStatusLabel = (o: Order): string => {
   return 'Esperando al comercio';
 };
 
-export function ClientHome({ profile }: { profile: Me | null }) {
+// The grid is two across, so an odd number of products would leave the last one stretched over the
+// full width. Padding the data with a null lets that slot render as an empty tile of equal size.
+type GridCell = Product | null;
+
+// `initialSearch` is what the home screen's search box was carrying when it sent the person here:
+// that box no longer lists anything itself, so submitting it opens this tab already filtered.
+// `initialCompany` does the same for a merchant tapped in the home carousel -- it opens the grid
+// already narrowed to that shop, exactly as tapping a tile's merchant name does.
+export function ExploreHome({ profile, initialSearch, initialCompany }: {
+  profile: Me | null;
+  initialSearch?: string;
+  initialCompany?: { id: string; name: string } | null;
+}) {
   const router = useRouter();
   const cart = useCart();
   const session = useSessionLocation();
   // Whether the GPS lookup behind the header button is in flight.
   const [locating, setLocating] = useState(false);
-  // Typed here, searched in Explorar: submitting hands the text to that tab rather than filtering
-  // anything on this screen, which no longer lists products.
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch ?? '');
+  const [category, setCategory] = useState('all');
+  const [categories, setCategories] = useState<api.BusinessCategory[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Paging state: the debounced search actually sent, whether another page exists, and whether one
+  // is in flight. requestId retires the results of a filter the person has already moved on from.
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch ?? '');
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestId = useRef(0);
+  const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(initialCompany ?? null);
   const [orders, setOrders] = useState<Order[]>([]);
-  // The most-ordered items of the last 7 days, for the carousel.
-  const [topItems, setTopItems] = useState<api.TopItem[]>([]);
-  // Live price offers, shown above the best sellers.
-  const [offers, setOffers] = useState<api.OfferItem[]>([]);
   // The delivery-address dropdown: the saved list, and a local echo of the chosen default so the
   // header updates the instant it is switched, before the parent refetches the profile.
   // The floating "Ver pedido" bar is a confirmation, not a permanent fixture: it appears when the
@@ -72,7 +87,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   // until the profile refetch lands (see deliverLat below).
   const [chosen, setChosen] = useState<{ label: string | null; address: string | null; latitude: number | null; longitude: number | null } | null>(null);
 
-  // The customer's in-progress orders -- now the body of this screen. Refetched whenever the home
+  // The customer's in-progress orders, for the row under the categories. Refetched whenever the home
   // regains focus (after placing an order or coming back from tracking), so their state stays live.
   const loadOrders = useCallback(() => {
     api.myOrders().then((res) => {
@@ -85,37 +100,46 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   }, []);
   useFocusEffect(useCallback(() => { loadOrders(); }, [loadOrders]));
 
-  // Fetched once per mount rather than on every focus: the week's ranking does not move while
-  // someone taps between tabs, and re-ordering the carousel under them would be worse than stale.
+  // The category row is driven by the business categories the marketplace exposes.
   useEffect(() => {
-    api.topWeekly(TOP_FETCH_LIMIT).then((res) => {
-      if (res.success) setTopItems(res.data ?? []);
+    api.businessCategories().then((res) => {
+      if (res.success) setCategories((res.data ?? []).filter((c) => c.active));
     });
   }, []);
 
-  // Refetched on focus, unlike the week's ranking: an offer can start or expire at any minute, and
-  // a card promising a price that has just lapsed is worse than one arriving a moment late.
-  useFocusEffect(useCallback(() => {
-    api.latestOffers(TOP_CAROUSEL_SIZE).then((res) => {
-      if (res.success) setOffers(res.data ?? []);
-    });
-  }, []));
+  // --- Catalog paging ---------------------------------------------------------------------------
+  // The grid holds only the pages it has scrolled to, so merchant, category and search are all
+  // server-side: filtering here would only ever search the products already fetched. Changing any
+  // of them restarts from the first page.
 
-  // The merchants behind those sales, best first. Summed here rather than fetched: the API ranks
-  // items, not companies, so this is the same week's numbers grouped a second way.
-  const topCompanies = useMemo(() => {
-    const byCompany = new Map<string, { id: string | null; name: string; sold: number }>();
-    for (const item of topItems) {
-      const name = item.companyName ?? 'Comercio';
-      // Fall back to the name as the key: an item with no companyId still belongs to a merchant,
-      // and dropping it would understate that merchant's total.
-      const key = item.companyId ?? name;
-      const row = byCompany.get(key) ?? { id: item.companyId, name, sold: 0 };
-      row.sold += item.orderedCount ?? 0;
-      byCompany.set(key, row);
-    }
-    return [...byCompany.values()].sort((a, b) => b.sold - a.sold).slice(0, TOP_CAROUSEL_SIZE);
-  }, [topItems]);
+  // Typing should not fire a request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const businessCategoryId = category === 'all' ? undefined : category;
+
+  // One order, one merchant. So from the moment the first product goes in the cart, the catalog is
+  // that merchant's: showing the rest would only lead to the "cambiar de comercio" prompt. The
+  // cart's merchant is the first line's company, and it outranks a merchant picked by hand.
+  const lockedCompanyId = cart.merchantId ?? undefined;
+  const activeCompanyId = lockedCompanyId ?? selectedCompany?.id;
+
+  // Where this order would go, which decides which merchants can take it. Same precedence as the
+  // header pill below: the session pin, then an address just picked from the dropdown, then the
+  // account's saved coordinates.
+  //
+  // `chosen` has to be in here, not just in the pill. The profile only catches up on the next focus
+  // refetch, so reading it alone left the header naming the address the customer had just picked
+  // while the catalogue was still filtered by the previous one's coordinates -- and if the old point
+  // sat outside every quadrant, picking the right address still showed an empty catalogue.
+  const deliverLat = session.location ? session.location.latitude
+    : chosen ? chosen.latitude
+    : profile?.latitude ?? null;
+  const deliverLng = session.location ? session.location.longitude
+    : chosen ? chosen.longitude
+    : profile?.longitude ?? null;
 
   // Re-shown on every change to the cart, so adding a second item brings it back for another five
   // seconds rather than leaving the first timer to expire mid-shop.
@@ -126,15 +150,51 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     return () => clearTimeout(id);
   }, [cart.count]);
 
+  const fetchPage = useCallback(async (skip: number) => {
+    const mine = ++requestId.current;
+    const res = await api.products({
+      companyId: activeCompanyId,
+      businessCategoryId,
+      search: debouncedSearch,
+      latitude: deliverLat,
+      longitude: deliverLng,
+      skip,
+      take: api.PRODUCT_PAGE_SIZE,
+    });
+    // A slower response for an older filter must not overwrite a newer one's results.
+    if (mine !== requestId.current) return;
+    const page = res.success ? (res.data ?? []) : [];
+    setProducts((prev) => (skip === 0 ? page : [...prev, ...page]));
+    // A short page is the end of the catalog; a full one means there may be more.
+    setHasMore(page.length === api.PRODUCT_PAGE_SIZE);
+    // Moving the delivery point changes who can serve it, so the catalog reloads from page 1.
+  }, [activeCompanyId, businessCategoryId, debouncedSearch, deliverLat, deliverLng]);
+
+  // First page, and again whenever the merchant, category or search changes.
+  useEffect(() => {
+    setLoading(true);
+    fetchPage(0).finally(() => setLoading(false));
+  }, [fetchPage]);
+
+  // Next page, when the grid scrolls near the end.
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    fetchPage(products.length).finally(() => setLoadingMore(false));
+  };
+
   // Once the parent refetches the profile (on focus, e.g. back from adding an address), that is the
   // truth again -- drop the local echo so a newer default cannot be masked by a stale pick.
   useEffect(() => { setChosen(null); }, [profile?.address, profile?.addressLabel]);
 
-  // Hands the query to Explorar, which is where the catalogue lives now.
-  const submitSearch = () => {
-    const q = search.trim();
-    if (q) router.push({ pathname: '/explore', params: { q } });
-  };
+  // Both only set state: the effect above notices and reloads from the first page.
+  const selectCompany = (id: string, name: string) => setSelectedCompany({ id, name });
+  const clearCompany = () => setSelectedCompany(null);
+
+  const categoryChips: Category[] = useMemo(() => [
+    { key: 'all', label: 'Todos', emoji: '🍽️' },
+    ...categories.map((c) => ({ key: c.id, label: c.name, emoji: emojiFor(c.name) })),
+  ], [categories]);
 
   const fullName = profile?.name?.trim() || '';
   const greeting = fullName.split(' ')[0] || profile?.email || '';
@@ -207,6 +267,61 @@ export function ClientHome({ profile }: { profile: Me | null }) {
 
   const addAddress = () => { setAddrOpen(false); router.push('/address-new'); };
 
+  // No client-side filtering left: the server returns exactly the page asked for. The list is not
+  // grouped by store either -- every tile names its own merchant, so the catalog reads as one list
+  // of things to buy.
+  const gridData: GridCell[] = useMemo(
+    () => (products.length % 2 === 1 ? [...products, null] : products),
+    [products],
+  );
+
+  // Which products are currently showing the "added" tick, and the timer that clears each one.
+  // Keyed by product id rather than a single id: adding a second product must not snap the first
+  // one's tick back to the cart icon mid-confirmation.
+  const [added, setAdded] = useState<Record<string, true>>({});
+  const addedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const markAdded = (id: string) => {
+    setAdded((prev) => ({ ...prev, [id]: true }));
+    // Tapping the same product again restarts its five seconds instead of stacking timers.
+    clearTimeout(addedTimers.current[id]);
+    addedTimers.current[id] = setTimeout(() => {
+      setAdded((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      delete addedTimers.current[id];
+    }, ADDED_FEEDBACK_MS);
+  };
+
+  // Leaving the screen with ticks still counting down would fire setState on an unmounted tree.
+  useEffect(() => () => {
+    Object.values(addedTimers.current).forEach(clearTimeout);
+    addedTimers.current = {};
+  }, []);
+
+  const onAdd = (p: Product) => {
+    if (cart.tryAdd(p) === 'conflict') {
+      Alert.alert(
+        'Cambiar de comercio',
+        `Tu carrito tiene productos de ${cart.merchantName}. ¿Vaciarlo y agregar de ${p.companyName}?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Vaciar y agregar',
+            style: 'destructive',
+            // The tick waits for the confirmation: showing it on the first tap would claim the
+            // product went in while the dialog was still asking whether to empty the cart.
+            onPress: () => { cart.replaceWith(p); markAdded(p.id); },
+          },
+        ],
+      );
+      return;
+    }
+    markAdded(p.id);
+  };
+
   return (
     <GradientBackground>
     <View style={styles.root}>
@@ -276,8 +391,6 @@ export function ClientHome({ profile }: { profile: Me | null }) {
               placeholderTextColor={t.textFaint}
               value={search}
               onChangeText={setSearch}
-              onSubmitEditing={submitSearch}
-              returnKeyType="search"
               autoCapitalize="none"
             />
           </View>
@@ -295,16 +408,84 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         </View>
       </SafeAreaView>
 
-      {/* A plain ScrollView: what is left is a greeting and however many orders are in flight,
-          which is a handful at most. The catalogue that needed virtualising now lives in Explorar. */}
-      <ScrollView
+      {/* A FlatList, not a ScrollView: the catalog is thousands of products, and only a ScrollView
+          would mount every one of them up front. Everything above the grid rides along as the list
+          header so it scrolls with the products. */}
+      <FlatList
         style={styles.body}
+        data={gridData}
+        keyExtractor={(item, index) => item?.id ?? `blank-${index}`}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-      >
+        onEndReached={loadMore}
+        // Half a screen from the bottom, so the next page is usually there before the scroll is.
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore
+            ? <View style={styles.footerLoading}><ActivityIndicator color={t.text} /></View>
+            : null
+        }
+        renderItem={({ item }) => {
+          // The padding cell: same width, nothing drawn, so a lone last product is not stretched.
+          if (!item) return <View style={styles.tile} />;
+          return (
+            <View style={styles.tile}>
+              {/* No product images yet: imagePath is a storage key and most items have none, so
+                  the thumbnail stands in with the merchant's category icon. */}
+              <View style={styles.tileThumb}>
+                <Text style={styles.tileThumbEmoji}>{emojiFor(item.categories[0] ?? item.companyName)}</Text>
+              </View>
+              <View style={styles.tileBody}>
+                <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
+                <Pressable onPress={() => selectCompany(item.companyId, item.companyName)}>
+                  <Text style={styles.tileCompany} numberOfLines={1}>{item.companyName}</Text>
+                </Pressable>
+                <View style={styles.tileFooter}>
+                  <Text style={styles.tilePrice}>{money(item.price)}</Text>
+                  <AddToCartButton
+                    added={!!added[item.id]}
+                    onPress={() => onAdd(item)}
+                    label={`Agregar ${item.name}`}
+                  />
+                </View>
+              </View>
+            </View>
+          );
+        }}
+        ListEmptyComponent={
+          loading
+            ? <View style={styles.loadingBox}><ActivityIndicator color={t.text} /></View>
+            // An empty catalogue has two very different causes, and saying "para tu búsqueda" for
+            // both sent people hunting for a product that was never going to appear: with nothing
+            // typed, the list is empty because no merchant covers where the order would go.
+            : debouncedSearch.trim()
+              ? <Text style={styles.empty}>No encontramos productos para tu búsqueda.</Text>
+              : deliverLat != null && deliverLng != null
+                ? <Text style={styles.empty}>Ningún comercio entrega en {address ? `"${address}"` : 'esta ubicación'} todavía. Prueba con otra dirección.</Text>
+                : <Text style={styles.empty}>Aún no hay productos disponibles.</Text>
+        }
+        ListHeaderComponent={
+          <>
         <Text style={styles.hello}>¡Hola, {greeting}! 👋</Text>
 
-        {/* Current orders; tap one to track it. */}
+        {/* Circular category tiles */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
+          {categoryChips.map((c) => {
+            const active = c.key === category;
+            return (
+              <Pressable key={c.key} onPress={() => setCategory(c.key)} style={styles.catTile}>
+                <View style={[styles.catCircle, active && styles.catCircleActive]}>
+                  <Text style={styles.catEmoji}>{c.emoji}</Text>
+                </View>
+                <Text style={[styles.catLabel, active && styles.catLabelActive]} numberOfLines={1}>{c.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Current orders: a line of in-progress orders under the categories; tap one to track it. */}
         {orders.length > 0 ? (
           <View style={styles.ordersSection}>
             <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
@@ -322,136 +503,37 @@ export function ClientHome({ profile }: { profile: Me | null }) {
               ))}
             </ScrollView>
           </View>
-        ) : (
-          // Without the grid this screen would otherwise be a greeting on an empty page.
-          <Text style={styles.empty}>No tienes pedidos en curso.</Text>
-        )}
-
-        {/* Últimas ofertas: the offers running right now, newest first. Sits above the best
-            sellers because it is the only rail whose contents expire -- a promotion nobody sees
-            in time is a promotion that did not happen. The API sends both prices and the badge
-            percentage, so nothing here recomputes a discount. */}
-        {offers.length > 0 ? (
-          <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Últimas ofertas</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.ordersRow}
-              snapToInterval={TOP_CARD_WIDTH + 12}
-              decelerationRate="fast"
-            >
-              {offers.map((offer) => (
-                <Pressable
-                  key={offer.id}
-                  style={styles.topCard}
-                  onPress={() => router.push({ pathname: '/explore', params: { q: offer.name } })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver ${offer.name}, ${offer.discountPercent}% de descuento`}
-                >
-                  <View style={styles.topThumb}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(offer.itemTypeName ?? offer.companyName ?? undefined)}</Text>
-                    {/* Only when the rounding leaves something worth shouting about: a 0% badge
-                        on a fixed-price offer that barely undercuts the item reads as a bug. */}
-                    {offer.discountPercent > 0 ? (
-                      <View style={styles.offerBadge}>
-                        <Text style={styles.offerBadgeText}>-{offer.discountPercent}%</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.topName} numberOfLines={2}>{offer.name}</Text>
-                  <Text style={styles.topCompany} numberOfLines={1}>{offer.companyName ?? 'Comercio'}</Text>
-                  <View style={styles.offerPrices}>
-                    <Text style={styles.topPrice}>{money(offer.offerPrice)}</Text>
-                    {offer.offerPrice < offer.price ? (
-                      <Text style={styles.offerWas}>{money(offer.price)}</Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
         ) : null}
 
-        {/* Lo más pedido: a horizontal carousel of the week's best sellers. Tapping a card opens
-            Explorar filtered to that product -- adding straight to the cart from here would drag
-            the whole one-order-one-merchant conflict flow back onto a screen that no longer sells
-            anything. Hidden entirely when the week has no sales rather than showing an empty rail. */}
-        {topItems.length > 0 ? (
-          <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Lo más pedido</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.ordersRow}
-              // Each card snaps into place instead of drifting to a half-shown one.
-              snapToInterval={TOP_CARD_WIDTH + 12}
-              decelerationRate="fast"
-            >
-              {topItems.slice(0, TOP_CAROUSEL_SIZE).map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.topCard}
-                  onPress={() => router.push({ pathname: '/explore', params: { q: item.name } })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver ${item.name}`}
-                >
-                  {/* Same stand-in as the catalogue tiles: imagePath is a storage key and most
-                      items have none, so the category's icon does the work. */}
-                  <View style={styles.topThumb}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(item.itemType?.name ?? item.companyName ?? undefined)}</Text>
-                  </View>
-                  <Text style={styles.topName} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.topCompany} numberOfLines={1}>{item.companyName ?? 'Comercio'}</Text>
-                  <View style={styles.topFooter}>
-                    <Text style={styles.topPrice}>{money(item.price)}</Text>
-                    {item.orderedCount ? (
-                      <Text style={styles.topCount}>{item.orderedCount} vendidos</Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
+        <Text style={styles.sectionTitle}>
+          {cart.merchantName ?? selectedCompany?.name ?? 'Productos'}
+        </Text>
 
-        {/* Los comercios más pedidos: the same week's sales grouped by merchant. Tapping one opens
-            Explorar showing only that merchant's catalogue, which is the same state the grid enters
-            when a product tile's merchant name is tapped. */}
-        {topCompanies.length > 0 ? (
-          <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Comercios más pedidos</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.ordersRow}
-              snapToInterval={TOP_CARD_WIDTH + 12}
-              decelerationRate="fast"
+        {/* Why the catalog is showing one merchant. Locked by the cart it explains itself and
+            offers the only way out (emptying it); picked by hand it is just a step back. */}
+        {cart.merchantId ? (
+          <View style={styles.focusBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.focusTitle}>Tu pedido es de {cart.merchantName}</Text>
+              <Text style={styles.focusHint}>Solo puedes pedir de un comercio a la vez</Text>
+            </View>
+            <Pressable
+              style={styles.focusAction}
+              onPress={() => cart.clear()}
+              accessibilityRole="button"
             >
-              {topCompanies.map((company) => (
-                <Pressable
-                  key={company.id ?? company.name}
-                  style={styles.topCard}
-                  onPress={() => router.push({
-                    pathname: '/explore',
-                    params: { companyId: company.id ?? '', companyName: company.name },
-                  })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver productos de ${company.name}`}
-                >
-                  <View style={styles.companyAvatar}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(company.name)}</Text>
-                  </View>
-                  <Text style={styles.topName} numberOfLines={2}>{company.name}</Text>
-                  {company.sold > 0 ? (
-                    <Text style={styles.topCount}>{company.sold} vendidos esta semana</Text>
-                  ) : null}
-                </Pressable>
-              ))}
-            </ScrollView>
+              <Text style={styles.focusActionText}>Vaciar</Text>
+            </Pressable>
           </View>
+        ) : selectedCompany ? (
+          <Pressable style={styles.focusBanner} onPress={clearCompany}>
+            <Text style={styles.focusBack}>‹ Todos los comercios</Text>
+          </Pressable>
         ) : null}
-      </ScrollView>
+          </>
+        }
+      />
+
 
       {/* Delivery-address picker: pick which saved address to deliver to, or add a new one. */}
       <Modal visible={addrOpen} transparent animationType="slide" onRequestClose={() => setAddrOpen(false)}>
@@ -529,7 +611,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         </Pressable>
       </Modal>
 
-      <BottomNav active="home" />
+      <BottomNav active="explore" />
     </View>
     </GradientBackground>
   );
@@ -647,6 +729,16 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 32 },
   hello: { fontSize: 22, fontWeight: '800', color: t.text, paddingHorizontal: 16, marginTop: 18 },
 
+  cats: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, gap: 16 },
+  catTile: { alignItems: 'center', width: 72 },
+  catCircle: {
+    width: 60, height: 60, borderRadius: 30, backgroundColor: t.card, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: t.border,
+  },
+  catCircleActive: { borderColor: t.accent, backgroundColor: t.cardStrong },
+  catEmoji: { fontSize: 26 },
+  catLabel: { fontSize: 12, color: t.textMuted, marginTop: 6, fontWeight: '600' },
+  catLabelActive: { color: t.text, fontWeight: '800' },
 
   ordersSection: { marginTop: 20 },
   ordersTitle: { fontSize: 16, fontWeight: '800', color: t.text, paddingHorizontal: 16, marginBottom: 10 },
@@ -662,38 +754,41 @@ const styles = StyleSheet.create({
   orderChipStatus: { fontSize: 13, fontWeight: '700', color: t.text, marginTop: 4 },
   orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 6 },
 
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: t.text, paddingHorizontal: 16, marginTop: 26, marginBottom: 12 },
+  focusBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 12, backgroundColor: t.card,
+    borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  focusBack: { color: t.text, fontWeight: '800', fontSize: 14 },
+  focusTitle: { color: t.text, fontWeight: '800', fontSize: 14 },
+  focusHint: { color: t.textMuted, fontSize: 12, marginTop: 2 },
+  focusAction: {
+    backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border,
+    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7,
+  },
+  focusActionText: { color: t.text, fontWeight: '800', fontSize: 13 },
+  storeChevron: { color: t.text, fontSize: 26, fontWeight: '800', marginLeft: 4 },
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 12 },
+  loadingBox: { paddingVertical: 30, alignItems: 'center' },
+  footerLoading: { paddingVertical: 18, alignItems: 'center' },
 
-  // Narrower than an order chip: a card and a bit of the next one show at once, which is what says
-  // "this scrolls" without an arrow or a row of dots.
-  topCard: {
-    width: TOP_CARD_WIDTH, backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-    borderRadius: 14, padding: 12,
+  // Two tiles across. The row supplies the gutters; each tile just fills its half.
+  gridRow: { gap: 12, paddingHorizontal: 16, marginBottom: 12 },
+  tile: {
+    flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
+    borderRadius: 14, overflow: 'hidden',
   },
-  topThumb: {
-    height: 64, borderRadius: 10, backgroundColor: t.cardStrong,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 10,
-  },
-  topThumbEmoji: { fontSize: 28 },
-  // Corner of the thumbnail, so the discount is read with the picture rather than the price.
-  offerBadge: {
-    position: 'absolute', top: 6, right: 6, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
-    backgroundColor: t.accent,
-  },
-  offerBadgeText: { fontSize: 11, fontWeight: '900', color: t.onAccent },
-  offerPrices: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8 },
-  // The old price, struck through and quieter, so the pair reads as "was / now" at a glance.
-  offerWas: { fontSize: 12, fontWeight: '700', color: t.textFaint, textDecorationLine: 'line-through' },
-  // Round, not the items' rounded square: a merchant reads as a badge, an item as a picture.
-  companyAvatar: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: t.cardStrong,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 10, alignSelf: 'center',
-  },
-  topName: { fontSize: 14, fontWeight: '800', color: t.text },
-  topCompany: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 3 },
-  topFooter: { marginTop: 8 },
-  topPrice: { fontSize: 14, fontWeight: '800', color: t.text },
-  topCount: { fontSize: 11, fontWeight: '700', color: t.textMuted, marginTop: 2 },
+  tileThumb: { height: 84, backgroundColor: t.cardStrong, justifyContent: 'center', alignItems: 'center' },
+  tileThumbEmoji: { fontSize: 34 },
+  tileBody: { padding: 10 },
+  // No reserved second line: a one-line name would otherwise leave a blank one above the merchant.
+  // Tiles in a row still match height (the row stretches them); the slack sits at the bottom of the
+  // shorter card instead of inside the text block.
+  tileName: { fontSize: 14, fontWeight: '700', color: t.text, lineHeight: 17 },
+  tileCompany: { fontSize: 12, color: t.textMuted, marginTop: 1 },
+  tileFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  tilePrice: { flex: 1, fontSize: 15, fontWeight: '800', color: t.text },
 
   cartBar: {
     // In the header's flow, directly beneath the search field. Nothing about it is positioned any

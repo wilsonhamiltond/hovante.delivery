@@ -272,6 +272,54 @@ export function businessCategories() {
   return get<BusinessCategory[]>('/public/company-categories');
 }
 
+// A live price offer, for the home screen's "Últimas ofertas" carousel. The API sends both prices
+// and the whole-percent badge, so the app never recomputes a discount the server already decided.
+export interface OfferItem {
+  /** The offer's own id. */
+  id: string;
+  /** The discounted item -- this is what goes in a cart, not the offer id. */
+  itemId: string;
+  name: string;
+  description: string | null;
+  imagePath: string | null;
+  /** The normal price, for the struck-through "before". */
+  price: number;
+  offerPrice: number;
+  discountPercent: number;
+  companyId: string | null;
+  companyName: string | null;
+  itemTypeName: string | null;
+  startsAt: string;
+  endsAt: string | null;
+}
+
+// The offers running right now, newest first. Not tenant-scoped: a customer shops every merchant.
+export function latestOffers(limit = 10) {
+  return get<OfferItem[]>(`/itemOffer/latest?limit=${limit}`);
+}
+
+// An entry in the home screen's "lo más pedido" carousel. This is the ERP's item shape, not the
+// catalogue's Product: the endpoint serves DiscoveryItemDto (ItemDto + the merchant's name + the
+// units sold), so the category arrives as a nested itemType rather than a `categories` array.
+export interface TopItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  imagePath: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  /** Units sold in the last 7 days. Null outside the top-weekly endpoint. */
+  orderedCount: number | null;
+  itemType?: { name?: string | null } | null;
+}
+
+// The most-ordered items of the last 7 days, most popular first. Behind auth, unlike the identical
+// /public/top-weekly the marketing site uses.
+export function topWeekly(limit = 10) {
+  return get<TopItem[]>(`/delivery/top-weekly?limit=${limit}`);
+}
+
 // A marketplace product (an item from any merchant company).
 export interface Product {
   id: string;

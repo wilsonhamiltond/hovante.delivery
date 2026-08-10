@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
 
-export type TabKey = 'home' | 'orders' | 'addresses' | 'account' | 'pickup' | 'history';
+export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'pickup' | 'history';
 type Variant = 'client' | 'driver';
 
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its
@@ -12,8 +12,11 @@ type Variant = 'client' | 'driver';
 const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: string }[]> = {
   client: [
     { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
+    // Clients only -- the driver bar below has no equivalent.
+    { key: 'explore', label: 'Explorar', icon: 'compass', route: '/explore' },
     { key: 'orders', label: 'Pedidos', icon: 'receipt', route: '/orders' },
-    { key: 'addresses', label: 'Direcciones', icon: 'map-marker-alt', route: '/addresses' },
+    // No Direcciones tab: the address book is reached from Cuenta > Direcciones instead, which
+    // keeps the bar to the three things a customer actually moves between while ordering.
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],
   driver: [
