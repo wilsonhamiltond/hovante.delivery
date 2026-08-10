@@ -289,6 +289,8 @@ export interface OfferItem {
   companyId: string | null;
   companyName: string | null;
   itemTypeName: string | null;
+  /** Units left at the offer price, or null when the offer is unlimited. */
+  remainingQuantity: number | null;
   startsAt: string;
   endsAt: string | null;
 }

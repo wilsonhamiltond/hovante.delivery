@@ -25,6 +25,9 @@ const CART_BAR_MS = 5000;
 // the two drifting apart is what makes a snapping list land off-centre.
 const TOP_CARD_WIDTH = 150;
 
+// Below this many units left, the offer card says so. Above it the number is just noise.
+const OFFER_SCARCITY_THRESHOLD = 10;
+
 // How many cards each carousel shows.
 const TOP_CAROUSEL_SIZE = 10;
 
@@ -367,6 +370,16 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                       <Text style={styles.offerWas}>{money(offer.price)}</Text>
                     ) : null}
                   </View>
+                  {/* Only when the count is low enough to matter: "quedan 47" is noise, and an
+                      unlimited offer sends null rather than a number. A sold-out line never
+                      reaches the app -- the server drops it from the list. */}
+                  {offer.remainingQuantity != null && offer.remainingQuantity <= OFFER_SCARCITY_THRESHOLD ? (
+                    <Text style={styles.offerLeft}>
+                      {offer.remainingQuantity === 1
+                        ? 'Queda 1'
+                        : `Quedan ${offer.remainingQuantity}`}
+                    </Text>
+                  ) : null}
                 </Pressable>
               ))}
             </ScrollView>
@@ -684,6 +697,7 @@ const styles = StyleSheet.create({
   offerPrices: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8 },
   // The old price, struck through and quieter, so the pair reads as "was / now" at a glance.
   offerWas: { fontSize: 12, fontWeight: '700', color: t.textFaint, textDecorationLine: 'line-through' },
+  offerLeft: { fontSize: 11, fontWeight: '800', color: t.danger, marginTop: 4 },
   // Round, not the items' rounded square: a merchant reads as a badge, an item as a picture.
   companyAvatar: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: t.cardStrong,
