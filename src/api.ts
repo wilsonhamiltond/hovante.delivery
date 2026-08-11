@@ -88,6 +88,10 @@ export interface Delivery {
   inTransitAt: string | null;
   deliveredAt: string | null;
   failedAt: string | null;
+  // The linked order's amounts (products + delivery charge, separately), so the driver sees what
+  // to collect at the door. Null on deliveries without a marketplace order behind them.
+  orderTotal?: number | null;
+  orderDeliveryFee?: number | null;
 }
 
 // A business category (the company business type) from the ERP catalog. Drives the category row
@@ -352,6 +356,13 @@ export interface Order {
   // The delivery pin snapshotted at checkout; null on orders placed before the location step.
   latitude: number | null;
   longitude: number | null;
+  // The delivery charge the server computed when the order was placed, separate from total (which
+  // stays products-only). Optional-null: an older API or a pre-tariff order simply has none, and
+  // the screens then show the products total alone.
+  deliveryFee?: number | null;
+  deliveryDistanceM?: number | null;
+  // Why the customer cancelled, when they did; shown back on the tracking screen.
+  cancelReason?: string | null;
   createdAt: string;
   items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
   // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
@@ -400,6 +411,9 @@ export interface CreateOrderInput {
   // Which branch fulfils the order. Only sent when the customer was asked to choose; the server
   // checks it belongs to the merchant and that its quadrant reaches the delivery point.
   officeId?: string;
+  // The street-route distance (metres) the checkout measured office -> delivery point. The server
+  // recomputes the fee from it with its own tariff, floored at the straight-line distance.
+  deliveryDistanceM?: number;
 }
 
 // Place an order. The server rejects lines from more than one merchant; the app blocks it too.
@@ -407,8 +421,21 @@ export function createOrder(input: CreateOrderInput) {
   return postAuth<Order>('/delivery/orders', input);
 }
 
+// The customer's ACTIVE orders; finished ones come from the paginated history below.
 export function myOrders() {
   return get<Order[]>('/delivery/orders/mine');
+}
+
+// A page of finished orders (delivered/cancelled/failed), newest first, for infinite scroll.
+export function myOrderHistory(skip: number, take: number) {
+  return get<Order[]>(`/delivery/orders/history?skip=${skip}&take=${take}`);
+}
+
+// Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).
+// The server refuses it once the merchant has confirmed, so the button only exists while the
+// tracking still shows "esperando confirmación".
+export function cancelOrder(id: string, reason: string, notes?: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/cancel`, { reason, notes: notes || undefined });
 }
 
 // An order plus its live delivery status, for the tracking screen.

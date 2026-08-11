@@ -22,6 +22,8 @@ const STATUS: Record<string, { label: string; color: string }> = {
 
 const FAIL_REASONS = ['Cliente ausente', 'Dirección incorrecta', 'Cliente rechazó el pedido', 'No se pudo contactar', 'Otro'];
 
+const money = (n: number) => `RD$${n.toFixed(2)}`;
+
 export default function DeliveryDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -120,6 +122,20 @@ export default function DeliveryDetail() {
           <Text style={styles.number}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
         </View>
+
+        {/* What the driver collects at the door: the order's grand total, with the envío spelled
+            out so the number is explained. Hidden on deliveries with no order amounts. */}
+        {delivery.orderTotal != null ? (
+          <View style={styles.payCard}>
+            <Text style={styles.payLabel}>TOTAL A COBRAR</Text>
+            <Text style={styles.payValue}>{money(delivery.orderTotal + (delivery.orderDeliveryFee ?? 0))}</Text>
+            {delivery.orderDeliveryFee != null ? (
+              <Text style={styles.paySub}>
+                Productos {money(delivery.orderTotal)} · Envío {money(delivery.orderDeliveryFee)}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Pickup: where the driver collects the order (merchant). */}
         {delivery.pickupName || delivery.pickupAddress ? (
@@ -228,6 +244,10 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   number: { fontSize: 20, fontWeight: '800', color: t.text },
   muted: { color: t.textMuted },
+  payCard: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, gap: 2 },
+  payLabel: { fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5 },
+  payValue: { fontSize: 24, fontWeight: '900', color: t.text },
+  paySub: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   stopCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, borderLeftWidth: 4, padding: 14, gap: 4 },
   stopKind: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   stopName: { fontSize: 17, fontWeight: '800', color: t.text, marginTop: 2 },

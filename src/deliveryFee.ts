@@ -1,15 +1,22 @@
-// The delivery tariff: RD$30 flat, plus RD$20 for each of the first 2 km and RD$10 for every km
-// after that. Kilometres are rounded to the nearest whole one first, so a 2.4 km trip bills 2 km
-// and a 2.5 km one bills 3. A trip that rounds to 0 km still pays the flat fee.
+// The delivery tariff: RD$30 flat; RD$10 per half kilometre across the first 2 km; RD$5 per half
+// kilometre past that. Distance is billed in STARTED half-kilometres -- 0.3 km bills as 0.5,
+// 0.6 as 1.0, 1.1 as 1.5 -- so a started half is always a charged half. Billing only: the
+// distance the customer reads on screen stays the exact route distance.
 
 export const DELIVERY_BASE_RD = 30;
-export const DELIVERY_FIRST_KM_RD = 20;
-export const DELIVERY_EXTRA_KM_RD = 10;
+/** RD$ per started half km inside the first stretch. */
+export const DELIVERY_FIRST_HALF_KM_RD = 10;
+/** RD$ per started half km after the first stretch. */
+export const DELIVERY_EXTRA_HALF_KM_RD = 5;
+/** How many km the first stretch covers. */
 export const DELIVERY_FIRST_KM_COUNT = 2;
 
 export function deliveryFeeRd(distanceM: number): number {
-  const km = Math.round(distanceM / 1000);
-  const firstKm = Math.min(km, DELIVERY_FIRST_KM_COUNT);
-  const extraKm = Math.max(km - DELIVERY_FIRST_KM_COUNT, 0);
-  return DELIVERY_BASE_RD + firstKm * DELIVERY_FIRST_KM_RD + extraKm * DELIVERY_EXTRA_KM_RD;
+  // Started half-kilometres, the tariff's billing unit.
+  const halves = Math.ceil(distanceM / 500);
+  const firstHalves = Math.min(halves, DELIVERY_FIRST_KM_COUNT * 2);
+  const extraHalves = Math.max(halves - DELIVERY_FIRST_KM_COUNT * 2, 0);
+  return DELIVERY_BASE_RD
+    + firstHalves * DELIVERY_FIRST_HALF_KM_RD
+    + extraHalves * DELIVERY_EXTRA_HALF_KM_RD;
 }

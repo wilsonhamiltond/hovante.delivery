@@ -320,7 +320,12 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   </View>
                   <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? 'Comercio'}</Text>
                   <Text style={styles.orderChipStatus} numberOfLines={1}>{orderStatusLabel(o)}</Text>
-                  <Text style={styles.orderChipTotal}>{money(o.total)}</Text>
+                  {/* Grand total (products + envío), with the fee named so the number is explained.
+                      Orders without a stored fee keep showing the products total alone. */}
+                  {o.deliveryFee != null ? (
+                    <Text style={styles.orderChipFee}>Envío {money(o.deliveryFee)}</Text>
+                  ) : null}
+                  <Text style={styles.orderChipTotal}>{money(o.total + (o.deliveryFee ?? 0))}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -673,7 +678,8 @@ const styles = StyleSheet.create({
   orderChipArrow: { fontSize: 18, fontWeight: '800', color: t.text },
   orderChipMerchant: { fontSize: 15, fontWeight: '800', color: t.text, marginTop: 6 },
   orderChipStatus: { fontSize: 13, fontWeight: '700', color: t.text, marginTop: 4 },
-  orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 6 },
+  orderChipFee: { fontSize: 11, fontWeight: '700', color: t.textFaint, marginTop: 6 },
+  orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 2 },
 
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 12 },
 

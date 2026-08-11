@@ -67,6 +67,7 @@ export default function OrderTrackingScreen() {
     return () => { active = false; clearInterval(timer); };
   }, [load]));
 
+
   if (loading) {
     return (
       <GradientBackground>
@@ -184,8 +185,32 @@ export default function OrderTrackingScreen() {
               <Text style={styles.linePrice}>{money(it.lineTotal)}</Text>
             </View>
           ))}
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(order.total)}</Text></View>
+          {order.deliveryFee != null ? (
+            <>
+              {/* With a delivery charge the breakdown is spelled out; without one (older orders)
+                  the single products total stays as it always was. */}
+              <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>Envío</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(order.total + order.deliveryFee)}</Text></View>
+            </>
+          ) : (
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(order.total)}</Text></View>
+          )}
         </View>
+
+        {/* The reason the customer gave when cancelling, echoed back once the order is cancelled. */}
+        {order.status === 'CANCELLED' && order.cancelReason ? (
+          <Text style={styles.cancelReason}>Motivo: {order.cancelReason}</Text>
+        ) : null}
+
+        {/* Cancel: only while the merchant has not confirmed (PENDING). Opens the cancel screen,
+            which collects the reason before anything happens; the moment the merchant confirms,
+            the button disappears on the next poll and the server refuses stragglers anyway. */}
+        {order.status === 'PENDING' && !failed ? (
+          <Pressable style={styles.cancelBtn} onPress={() => router.push(`/cancel-order/${order.id}`)}>
+            <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable style={styles.secondary} onPress={() => router.replace('/orders')}>
           <Text style={styles.secondaryText}>Ver mis pedidos</Text>
@@ -250,9 +275,15 @@ const styles = StyleSheet.create({
   lineName: { flex: 1, fontSize: 15, color: t.text },
   linePrice: { fontSize: 14, fontWeight: '700', color: t.text },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 12 },
+  subRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   totalLabel: { fontSize: 15, fontWeight: '700', color: t.textMuted },
+  subValue: { fontSize: 15, fontWeight: '700', color: t.text },
   totalValue: { fontSize: 18, fontWeight: '800', color: t.text },
 
   secondary: { backgroundColor: t.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: t.border },
   secondaryText: { color: t.text, fontSize: 16, fontWeight: '800' },
+
+  cancelBtn: { marginTop: 16, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  cancelBtnText: { color: '#fecaca', fontSize: 16, fontWeight: '800' },
+  cancelReason: { marginTop: 12, color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

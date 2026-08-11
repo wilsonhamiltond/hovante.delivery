@@ -167,6 +167,8 @@ export default function CartScreen() {
       latitude: coords.lat,
       longitude: coords.lng,
       officeId: officeId ?? undefined,
+      // The measured route distance; the server rebuilds the fee from it with its own tariff.
+      deliveryDistanceM: eta ? Math.round(eta.distanceM) : undefined,
     });
     setSubmitting(false);
     if (!res.success) { Alert.alert('No se pudo crear el pedido', res.message); return; }
@@ -195,7 +197,7 @@ export default function CartScreen() {
               button means "finish this", and nothing is being finished on an empty cart. */}
           <Pressable
             style={({ pressed }) => [styles.emptyCta, pressed && styles.emptyCtaPressed]}
-            onPress={() => router.replace('/home')}
+            onPress={() => router.replace('/explore')}
             accessibilityRole="button"
           >
             <FontAwesome5 name="store" size={14} solid color={t.onAccent} />
