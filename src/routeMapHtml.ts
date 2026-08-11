@@ -17,6 +17,12 @@ export interface MapPoint {
   label: string; // marker badge, e.g. '1'
   title: string; // info-window text
   color: string; // marker colour
+  /** Drawn INSIDE the pin (circle-cropped) instead of the teardrop, e.g. the order's photo. */
+  imageUrl?: string | null;
+  /** When set, tapping the pin posts { pointId } out to the host, which can navigate. */
+  id?: string | null;
+  /** A count worn on the pin's shoulder (photo pins) when several orders share the spot. */
+  badge?: number | null;
 }
 
 export interface RouteMapProps {
@@ -54,6 +60,7 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
   return `<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <style>html,body,#map{height:100%;margin:0;padding:0}</style>
 </head>

@@ -14,8 +14,9 @@ export const NEARBY_RADIUS_KM = 5;
 
 // The first place a driver actually rides to is the merchant, so distance is measured to the pickup
 // when it has been geocoded, and to the drop-off otherwise. A delivery with neither pin cannot be
-// placed and so never counts as near.
-function originOf(d: Delivery): LatLng | null {
+// placed and so never counts as near. Exported so the home's pool map places its pins by the same
+// rule this count filters by.
+export function originOf(d: Delivery): LatLng | null {
   if (d.pickupLatitude != null && d.pickupLongitude != null) {
     return { lat: d.pickupLatitude, lng: d.pickupLongitude };
   }
@@ -29,6 +30,8 @@ export interface NearbyAvailable {
   count: number;
   /** False when the device position is unknown and the count is the whole pool instead. */
   filtered: boolean;
+  /** The whole pickup pool, so the home can draw every available delivery on its map. */
+  pool: Delivery[];
 }
 
 export function useNearbyAvailable(): NearbyAvailable {
@@ -56,11 +59,11 @@ export function useNearbyAvailable(): NearbyAvailable {
   return useMemo(() => {
     // No fix (denied, or still resolving): the whole pool is the honest answer. Better a count that
     // is too broad than a badge that hides work the driver could take.
-    if (!origin) return { count: pool.length, filtered: false };
+    if (!origin) return { count: pool.length, filtered: false, pool };
     const near = pool.filter((d) => {
       const o = originOf(d);
       return o != null && distanceKm(origin, o) <= NEARBY_RADIUS_KM;
     });
-    return { count: near.length, filtered: true };
+    return { count: near.length, filtered: true, pool };
   }, [pool, origin]);
 }

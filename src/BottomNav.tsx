@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
 
-export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'pickup' | 'history';
+export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history';
 type Variant = 'client' | 'driver';
 
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its
@@ -20,8 +20,9 @@ const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: s
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],
   driver: [
-    { key: 'home', label: 'Mi ruta', icon: 'route', route: '/home' },
-    { key: 'pickup', label: 'Disponibles', icon: 'box-open', route: '/pickup' },
+    // The home is the pool map (finding the NEXT job); Mi ruta is the work already in hand.
+    { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
+    { key: 'route', label: 'Mi ruta', icon: 'route', route: '/route' },
     { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/history' },
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],

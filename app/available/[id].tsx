@@ -72,7 +72,7 @@ export default function AvailableDeliveryScreen() {
       // Another driver got there first. Back to the pool, which refetches on focus, rather than
       // leaving them looking at a job that is no longer theirs to take.
       Alert.alert('No disponible', res.message);
-      router.replace('/pickup');
+      router.replace('/home');
       return;
     }
     // It is on their route now, so the route's own screen owns it from here. Replace rather than
@@ -84,7 +84,7 @@ export default function AvailableDeliveryScreen() {
   // there is nowhere else for "back" to mean -- and going through history instead threw
   // "GO_BACK not handled" whenever canGoBack() said yes but the stack could not honour it (opened
   // from a link, or re-entered after a claim replaced the stack).
-  const goBack = () => router.replace('/pickup');
+  const goBack = () => router.replace('/home');
 
   // The header is outside the branches below so it is there while the job is still loading and when
   // it turns out to be gone: both are states a driver needs to be able to leave.
@@ -110,7 +110,7 @@ export default function AvailableDeliveryScreen() {
         {header}
         <View style={styles.center}>
           <Text style={styles.muted}>Esta entrega ya no está disponible.</Text>
-          <Pressable style={[styles.action, styles.primary, { marginTop: 16, paddingHorizontal: 24 }]} onPress={() => router.replace('/pickup')}>
+          <Pressable style={[styles.action, styles.primary, { marginTop: 16, paddingHorizontal: 24 }]} onPress={() => router.replace('/home')}>
             <Text style={styles.actionText}>Ver otras entregas</Text>
           </Pressable>
         </View>

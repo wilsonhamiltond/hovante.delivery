@@ -43,6 +43,10 @@ export interface Me {
   document: string | null;
   isClient: boolean;
   isDriver: boolean;
+  // True for a merchant-company (ERP) account signed into the app: it gets the orders screen
+  // instead of the marketplace. Optional so an older API simply reads as "not a merchant".
+  isMerchant?: boolean;
+  merchantCompanyName?: string | null;
   address: string | null;
   // What the customer calls their default address ("Casa", "Trabajo"). Null with no saved address.
   addressLabel: string | null;
@@ -92,6 +96,8 @@ export interface Delivery {
   // to collect at the door. Null on deliveries without a marketplace order behind them.
   orderTotal?: number | null;
   orderDeliveryFee?: number | null;
+  // The first product's photo (public URL), worn by the delivery's pin on the pool map.
+  orderImageUrl?: string | null;
   // The order's lines -- what is actually in the bag. Empty on deliveries with no marketplace order
   // behind them, for the same reason the two amounts above are null there.
   orderItems?: DeliveryOrderItem[];
@@ -379,6 +385,9 @@ export interface Order {
   items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
   // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
   deliveryStatus?: string | null;
+  // Who to deliver to -- populated on the merchant view only (null in the customer's own list).
+  customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 // One page of the catalog. The home grid pulls these as it scrolls rather than loading every
@@ -441,6 +450,25 @@ export function myOrders() {
 // A page of finished orders (delivered/cancelled/failed), newest first, for infinite scroll.
 export function myOrderHistory(skip: number, take: number) {
   return get<Order[]>(`/delivery/orders/history?skip=${skip}&take=${take}`);
+}
+
+// The merchant view (an ERP account signed into the app): every order placed to their company,
+// and the same accept/release/reject actions the web back office has. All scoped server-side by
+// the token's company claim.
+export function merchantOrders() {
+  return get<Order[]>('/delivery/orders/merchant');
+}
+
+export function confirmMerchantOrder(id: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/confirm`, {});
+}
+
+export function readyMerchantOrder(id: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/ready`, {});
+}
+
+export function rejectMerchantOrder(id: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/reject`, {});
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).
