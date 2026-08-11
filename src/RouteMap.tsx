@@ -1,15 +1,37 @@
-import { useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { routeMapHtml, type RouteMapProps } from './routeMapHtml';
+import { routeMapHtml, setDriverJs, type DriverPosition, type RouteMapProps } from './routeMapHtml';
 
-// Native: the two-marker map inside a react-native-webview. (Web uses RouteMap.web.tsx instead, so
+// Native: the map inside a react-native-webview. (Web uses RouteMap.web.tsx instead, so
 // react-native-webview never reaches the web bundle.)
-export function RouteMap({ pickup, client }: RouteMapProps) {
+export function RouteMap({ pickup, client, driver }: RouteMapProps) {
   const html = useRef(routeMapHtml(pickup, client)).current;
+  const webview = useRef<WebView>(null);
+  // The last position, so a document that reloads can be caught up without waiting for the driver
+  // to move again.
+  const last = useRef(driver ?? null);
+
+  const push = useCallback((at: DriverPosition) => {
+    // The trailing `true` keeps iOS from warning about the injected script's return value.
+    webview.current?.injectJavaScript(`${setDriverJs(at)} true;`);
+  }, []);
+
+  useEffect(() => {
+    if (!driver) return;
+    last.current = driver;
+    push(driver);
+  }, [driver?.lat, driver?.lng, driver?.accuracyM, push]);
+
   return (
     <View style={styles.wrap}>
-      <WebView originWhitelist={['*']} source={{ html }} style={{ flex: 1, backgroundColor: 'transparent' }} />
+      <WebView
+        ref={webview}
+        originWhitelist={['*']}
+        source={{ html }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        onLoadEnd={() => { if (last.current) push(last.current); }}
+      />
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
@@ -7,6 +7,7 @@ import * as outbox from './outbox';
 import type { Delivery, Me } from './api';
 import { GradientBackground, t } from './theme';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from './BottomNav';
+import { NEARBY_RADIUS_KM, useNearbyAvailable } from './nearby';
 
 // The driver's home: the day's counters over the blue gradient, then "Mi ruta de hoy" -- the assigned
 // stops in order, each opening its detail.
@@ -21,12 +22,15 @@ const STATUS: Record<string, { label: string; color: string }> = {
   CANCELLED: { label: 'Cancelada', color: '#94a3b8' },
 };
 
+const money = (n: number) => `RD$${n.toFixed(2)}`;
+
 export function DriverHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const nearby = useNearbyAvailable();
 
   const load = useCallback(async () => {
     setError(null);
@@ -61,6 +65,11 @@ export function DriverHome({ profile }: { profile: Me | null }) {
     return { pendientes, enCamino, entregadas };
   }, [deliveries]);
 
+  // "Mi ruta de hoy" is the work that is left, so a delivered stop drops off it: there is no action
+  // left on it and it already lives in the history tab. The counters above still read the full list,
+  // since they summarise the day rather than the remaining route.
+  const route = useMemo(() => deliveries.filter((d) => d.status !== 'DELIVERED'), [deliveries]);
+
   return (
     <GradientBackground>
     <View style={styles.root}>
@@ -81,15 +90,30 @@ export function DriverHome({ profile }: { profile: Me | null }) {
       </SafeAreaView>
 
       <FlatList
-        data={deliveries}
+        data={route}
         keyExtractor={(d) => d.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
         ListHeaderComponent={
           <View>
+            {/* The pool, carried onto the home as a count: the driver sees there is work to claim
+                without opening the screen to find out. Silent when there is nothing -- a "0" badge
+                is noise, and the button still works as a way in. */}
             <Pressable style={styles.pickupBtn} onPress={() => router.push('/pickup')}>
               <Text style={styles.pickupIcon}>🔍</Text>
-              <Text style={styles.pickupText}>Entregas disponibles</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pickupText}>Entregas disponibles</Text>
+                {nearby.count > 0 ? (
+                  <Text style={styles.pickupSub}>
+                    {nearby.filtered ? `Listas para tomar a menos de ${NEARBY_RADIUS_KM} km` : 'Listas para tomar'}
+                  </Text>
+                ) : null}
+              </View>
+              {nearby.count > 0 ? (
+                <View style={styles.pickupBadge}>
+                  <Text style={styles.pickupBadgeText}>{nearby.count > 99 ? '99+' : nearby.count}</Text>
+                </View>
+              ) : null}
               <Text style={styles.pickupChevron}>›</Text>
             </Pressable>
             <Text style={styles.sectionTitle}>Mi ruta de hoy</Text>
@@ -101,19 +125,57 @@ export function DriverHome({ profile }: { profile: Me | null }) {
             ) : null}
           </View>
         }
-        ListEmptyComponent={<Text style={styles.empty}>No tienes entregas asignadas para hoy.</Text>}
+        ListEmptyComponent={
+          // An emptied route reads differently from one that was never filled: the driver who just
+          // closed their last stop should be told they finished, not that they were assigned nothing.
+          <Text style={styles.empty}>
+            {deliveries.length > 0
+              ? '¡Listo! Completaste todas tus entregas. 🎉'
+              : 'No tienes entregas asignadas para hoy.'}
+          </Text>
+        }
         renderItem={({ item }) => {
           const s = STATUS[item.status] ?? { label: item.status, color: '#64748b' };
+          // The whole stop at a glance, so the driver decides without opening it: where to pick up,
+          // where to drop off, what to collect, and who to call. Every line hides when its data is
+          // missing -- a delivery with no order behind it just shows fewer rows.
+          const collect = item.orderTotal != null ? item.orderTotal + (item.orderDeliveryFee ?? 0) : null;
           return (
             <Pressable style={styles.card} onPress={() => router.push(`/delivery/${item.id}`)}>
-              <View style={styles.seq}><Text style={styles.seqText}>{item.sequence}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? 'Destinatario'}</Text>
-                <Text style={styles.address} numberOfLines={1}>
-                  {item.addressLine ?? 'Sin dirección'}{item.city ? `, ${item.city}` : ''}
-                </Text>
+              <View style={styles.cardTop}>
+                <View style={styles.seq}><Text style={styles.seqText}>{item.sequence}</Text></View>
+                <Text style={styles.number} numberOfLines={1}>{item.deliveryNumber ?? 'Entrega'}</Text>
+                <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
               </View>
-              <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
+
+              {item.pickupName || item.pickupAddress ? (
+                <Text style={styles.line} numberOfLines={1}>
+                  <Text style={styles.lineKind}>🏪 Recoger: </Text>{item.pickupName ?? item.pickupAddress}
+                </Text>
+              ) : null}
+
+              <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? 'Destinatario'}</Text>
+              <Text style={styles.address} numberOfLines={2}>
+                📍 {item.addressLine ?? 'Sin dirección'}{item.city ? `, ${item.city}` : ''}
+              </Text>
+
+              {item.notes ? <Text style={styles.notes} numberOfLines={2}>📝 {item.notes}</Text> : null}
+
+              {collect != null || item.clientPhone ? (
+                <View style={styles.cardFoot}>
+                  {collect != null ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.collect}>{money(collect)}</Text>
+                      <Text style={styles.collectLabel}>a cobrar</Text>
+                    </View>
+                  ) : <View style={{ flex: 1 }} />}
+                  {item.clientPhone ? (
+                    <Pressable style={styles.callBtn} onPress={() => Linking.openURL(`tel:${item.clientPhone}`)}>
+                      <Text style={styles.callBtnText}>📞 Llamar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
             </Pressable>
           );
         }}
@@ -148,7 +210,10 @@ const styles = StyleSheet.create({
 
   pickupBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.cardStrong, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, marginTop: 12, borderWidth: 1, borderColor: t.border },
   pickupIcon: { fontSize: 18 },
-  pickupText: { flex: 1, fontSize: 15, fontWeight: '800', color: t.text },
+  pickupText: { fontSize: 15, fontWeight: '800', color: t.text },
+  pickupSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },
+  pickupBadge: { minWidth: 26, height: 26, borderRadius: 13, paddingHorizontal: 8, backgroundColor: t.accent, justifyContent: 'center', alignItems: 'center' },
+  pickupBadgeText: { color: t.onAccent, fontSize: 13, fontWeight: '900' },
   pickupChevron: { fontSize: 22, fontWeight: '800', color: t.text },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: t.text, marginTop: 8, marginBottom: 10 },
   error: { color: t.danger, fontSize: 14, marginBottom: 8 },
@@ -157,12 +222,22 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 10, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 20 },
   card: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, gap: 12,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, gap: 4,
   },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  number: { flex: 1, fontSize: 13, fontWeight: '800', color: t.textMuted, letterSpacing: 0.3 },
   seq: { width: 34, height: 34, borderRadius: 17, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
   seqText: { color: t.text, fontWeight: '800', fontSize: 15 },
+  line: { fontSize: 13, color: t.text, fontWeight: '600' },
+  lineKind: { color: t.textMuted, fontWeight: '700' },
   recipient: { fontSize: 15, fontWeight: '700', color: t.text },
-  address: { fontSize: 13, color: t.textMuted, marginTop: 2 },
+  address: { fontSize: 13, color: t.textMuted },
+  notes: { fontSize: 13, color: t.textMuted, fontStyle: 'italic' },
+  cardFoot: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 10 },
+  collect: { fontSize: 17, fontWeight: '900', color: t.text },
+  collectLabel: { fontSize: 11, fontWeight: '700', color: t.textMuted, letterSpacing: 0.4 },
+  callBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  callBtnText: { color: t.text, fontWeight: '700', fontSize: 13 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 

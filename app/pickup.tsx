@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
@@ -7,14 +7,14 @@ import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
-// The pickup pool: unassigned deliveries a driver can claim. Taking one assigns it to the driver
-// (server-side, atomic) and it disappears from the pool.
+// The pickup pool: unassigned deliveries a driver can claim. This screen only lists them -- opening
+// one shows what it pays and where it goes, and taking it happens there, so a mis-tap in a list can
+// no longer commit a driver to a job they have not read.
 export default function PickupScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await api.availableDeliveries();
@@ -28,22 +28,6 @@ export default function PickupScreen() {
   }, [load]));
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
-
-
-  const pickup = async (d: Delivery) => {
-    setClaimingId(d.id);
-    const res = await api.pickupDelivery(d.id);
-    setClaimingId(null);
-    if (!res.success) {
-      // Someone else likely took it -- refresh the pool so it reflects reality.
-      Alert.alert('No disponible', res.message);
-      await load();
-      return;
-    }
-    setItems((prev) => prev.filter((x) => x.id !== d.id));
-    // The order is now on the driver's route -- take them straight to its delivery detail.
-    router.push(`/delivery/${d.id}`);
-  };
 
   return (
     <GradientBackground>
@@ -62,7 +46,9 @@ export default function PickupScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
           ListEmptyComponent={<Text style={styles.empty}>No hay entregas disponibles por ahora.</Text>}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            // The whole row opens it, not just the button -- the button is there to name what the
+            // tap does, and a driver reaching for a card should not have to find the small target.
+            <Pressable style={styles.card} onPress={() => router.push(`/available/${item.id}`)}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? 'Destinatario'}</Text>
                 <Text style={styles.address} numberOfLines={2}>
@@ -70,14 +56,8 @@ export default function PickupScreen() {
                 </Text>
                 {item.deliveryNumber ? <Text style={styles.num}>{item.deliveryNumber}</Text> : null}
               </View>
-              <Pressable
-                style={[styles.takeBtn, claimingId === item.id && { opacity: 0.6 }]}
-                onPress={() => pickup(item)}
-                disabled={claimingId === item.id}
-              >
-                {claimingId === item.id ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.takeText}>Tomar</Text>}
-              </Pressable>
-            </View>
+              <View style={styles.viewBtn}><Text style={styles.viewText}>Ver orden</Text></View>
+            </Pressable>
           )}
         />
       )}
@@ -98,6 +78,6 @@ const styles = StyleSheet.create({
   recipient: { fontSize: 15, fontWeight: '700', color: t.text },
   address: { fontSize: 13, color: t.textMuted, marginTop: 2 },
   num: { fontSize: 12, color: t.textFaint, marginTop: 4, fontWeight: '600' },
-  takeBtn: { backgroundColor: t.accent, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, minWidth: 74, alignItems: 'center' },
-  takeText: { color: t.onAccent, fontWeight: '800', fontSize: 14 },
+  viewBtn: { backgroundColor: t.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
+  viewText: { color: t.onAccent, fontWeight: '800', fontSize: 14 },
 });

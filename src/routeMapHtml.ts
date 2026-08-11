@@ -22,6 +22,24 @@ export interface MapPoint {
 export interface RouteMapProps {
   pickup: MapPoint;
   client: MapPoint;
+  /** The driver's own position, re-sent as they move. Omitted or null draws no third marker. */
+  driver?: DriverPosition | null;
+}
+
+export interface DriverPosition {
+  lat: number;
+  lng: number;
+  /** Radius the fix is confident within, drawn around the marker. Null hides the halo. */
+  accuracyM?: number | null;
+}
+
+/**
+ * The call that moves the driver's marker, run inside the map document. Both hosts send the same
+ * statement -- native injects it into the WebView, web posts it to the iframe -- so the document
+ * only has to implement one entry point.
+ */
+export function setDriverJs(d: DriverPosition): string {
+  return `window.setDriver && window.setDriver(${d.lat}, ${d.lng}, ${d.accuracyM ?? 'null'});`;
 }
 
 export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
@@ -43,6 +61,157 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
 <div id="map"></div>
 <script>
   var pickup = ${enc(pickup)}, client = ${enc(client)};
+
+  // The driver's live dot. The position is pushed in from the app (expo-location) rather than read
+  // here with navigator.geolocation: the app already holds the permission, and a WebView asking for
+  // its own would be a second prompt with its own per-platform quirks.
+  var mapRef = null, driverMarker = null, driverHalo = null, pendingDriver = null, driverFramed = false;
+
+  function moveDriver(at, acc) {
+    // The halo is the fix's own accuracy radius. Worth drawing rather than hiding: a phone indoors
+    // or a laptop on wifi can be off by a block, and a bare dot claims a precision it does not have.
+    if (typeof acc === 'number' && acc > 0) {
+      if (!driverHalo) {
+        driverHalo = new google.maps.Circle({
+          map: mapRef, center: at, radius: acc, clickable: false, zIndex: 2,
+          strokeColor: '#2563eb', strokeOpacity: 0.4, strokeWeight: 1,
+          fillColor: '#2563eb', fillOpacity: 0.12,
+        });
+      } else {
+        driverHalo.setCenter(at);
+        driverHalo.setRadius(acc);
+      }
+    } else if (driverHalo) {
+      driverHalo.setMap(null);
+      driverHalo = null;
+    }
+
+    if (!driverMarker) {
+      driverMarker = new google.maps.Marker({
+        map: mapRef, position: at, title: 'Tú',
+        // Above both stops: the marker that moves must never end up hidden under one that does not.
+        zIndex: 3,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 13,
+          fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3,
+        },
+        label: { text: '🛵', fontSize: '14px' },
+      });
+    } else {
+      driverMarker.setPosition(at);
+    }
+  }
+
+  window.setDriver = function (la, ln, acc) {
+    var at = { lat: la, lng: ln };
+    // Fixes can beat the Maps library: hold the newest one and place it once the map exists.
+    if (!mapRef) { pendingDriver = { at: at, acc: acc }; return; }
+    moveDriver(at, acc);
+
+    // Leg 1, redrawn as the driver rides. Only once they have actually covered ground: routing on
+    // every fix would spend a Directions request on a moto idling at a light.
+    if (pickupPoint && (!legDrawnFrom || metresBetween(legDrawnFrom, at) > 75)) {
+      legDrawnFrom = at;
+      drawLeg(at, pickupPoint, '#f59e0b', driverLeg);
+    }
+
+    // Only the first fix widens the framing, so a driver who starts outside the two stops still
+    // sees themselves. Re-framing on every update would fight them panning the map as they ride.
+    if (!driverFramed) {
+      var b = mapRef.getBounds();
+      // No bounds yet means the map has not settled; leave the flag down and try the next fix.
+      if (b) {
+        driverFramed = true;
+        if (!b.contains(at)) { b.extend(at); mapRef.fitBounds(b, 50); }
+      }
+    }
+  };
+
+  // How the position arrives on web, where the map is an iframe and there is no injectJavaScript.
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (err) { return; } }
+    if (d && d.driver) window.setDriver(d.driver.lat, d.driver.lng, d.driver.accuracyM);
+  });
+
+  // The ride is two legs: the driver to the office, then the office to the client. Each keeps its
+  // own state so the first can be redrawn as the driver moves without disturbing the second, and
+  // its sequence number discards a slow answer that lands after a newer request went out.
+  var driverLeg = { seq: 0, line: null, renderer: null };
+  var stopsLeg = { seq: 0, line: null, renderer: null };
+  var pickupPoint = null, legDrawnFrom = null;
+
+  function clearLeg(leg) {
+    if (leg.line) { leg.line.setMap(null); leg.line = null; }
+    if (leg.renderer) { leg.renderer.setMap(null); leg.renderer = null; }
+  }
+
+  // The last resort when no router can answer: a dashed straight hop, so the two ends still read as
+  // connected rather than as unrelated pins.
+  function straightLeg(from, to, color, leg, seq) {
+    if (seq !== leg.seq) return;
+    clearLeg(leg);
+    leg.line = new google.maps.Polyline({
+      path: [from, to], map: mapRef, strokeOpacity: 0, geodesic: true,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: color, strokeWeight: 3, scale: 3 },
+        offset: '0', repeat: '14px',
+      }],
+    });
+  }
+
+  // Street route from the public OSRM demo router (no key). Good enough for the driver's overview;
+  // replaced by Google's routing the moment the key gains the Directions API.
+  function osrmLeg(from, to, color, leg, seq) {
+    var url = 'https://router.project-osrm.org/route/v1/driving/'
+      + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat
+      + '?overview=full&geometries=geojson';
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (seq !== leg.seq) return;
+        var coords = d && d.routes && d.routes[0] && d.routes[0].geometry
+          && d.routes[0].geometry.coordinates;
+        if (!coords || !coords.length) { straightLeg(from, to, color, leg, seq); return; }
+        clearLeg(leg);
+        leg.line = new google.maps.Polyline({
+          path: coords.map(function (c) { return { lat: c[1], lng: c[0] }; }),
+          map: mapRef, strokeColor: color, strokeWeight: 5, strokeOpacity: 0.9,
+        });
+      })
+      .catch(function () { straightLeg(from, to, color, leg, seq); });
+  }
+
+  function drawLeg(from, to, color, leg) {
+    if (!mapRef || !from || !to) return;
+    var seq = ++leg.seq;
+    new google.maps.DirectionsService().route({
+      origin: from, destination: to, travelMode: google.maps.TravelMode.DRIVING,
+    }, function (result, status) {
+      if (seq !== leg.seq) return;
+      if (status === 'OK' && result && result.routes && result.routes[0]) {
+        clearLeg(leg);
+        leg.renderer = new google.maps.DirectionsRenderer({
+          // preserveViewport: the framing is set once from the stops and widened by the driver's
+          // first fix. A leg that reframes on redraw would pull the camera away every time the
+          // driver moved.
+          map: mapRef, directions: result, suppressMarkers: true, preserveViewport: true,
+          polylineOptions: { strokeColor: color, strokeWeight: 5, strokeOpacity: 0.9 },
+        });
+      } else {
+        osrmLeg(from, to, color, leg, seq);
+      }
+    });
+  }
+
+  // Metres between two points, for deciding whether the driver has moved enough to be worth
+  // re-routing. Rough equirectangular rather than haversine: over the tens of metres that matter
+  // here the difference is centimetres.
+  function metresBetween(a, b) {
+    var x = (b.lng - a.lng) * Math.cos((a.lat + b.lat) * Math.PI / 360);
+    var y = b.lat - a.lat;
+    return Math.sqrt(x * x + y * y) * 111320;
+  }
 
   // A teardrop in the stop's colour with its number in the middle -- the same shape the map had
   // before, drawn as an SVG path so Google can scale and anchor it properly.
@@ -81,6 +250,7 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
       clickableIcons: false,
     });
+    mapRef = map;
     var geocoder = new google.maps.Geocoder();
     var info = new google.maps.InfoWindow();
 
@@ -97,37 +267,6 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
       return marker;
     }
 
-    // The last-resort line when no router can answer: a dashed straight hop between the stops.
-    function straightLine(pp, cp) {
-      new google.maps.Polyline({
-        path: [pp, cp], map: map, strokeOpacity: 0, geodesic: true,
-        icons: [{
-          icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#2563eb', strokeWeight: 3, scale: 3 },
-          offset: '0', repeat: '14px',
-        }],
-      });
-    }
-
-    // Street route from the public OSRM demo router (no key). Good enough for the driver's
-    // overview; replaced by Google's routing the moment the key gains the Directions API.
-    function osrmRoute(pp, cp) {
-      var url = 'https://router.project-osrm.org/route/v1/driving/'
-        + pp.lng + ',' + pp.lat + ';' + cp.lng + ',' + cp.lat
-        + '?overview=full&geometries=geojson';
-      fetch(url)
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          var coords = d && d.routes && d.routes[0] && d.routes[0].geometry
-            && d.routes[0].geometry.coordinates;
-          if (!coords || !coords.length) { straightLine(pp, cp); return; }
-          new google.maps.Polyline({
-            path: coords.map(function (c) { return { lat: c[1], lng: c[0] }; }),
-            map: map, strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9,
-          });
-        })
-        .catch(function () { straightLine(pp, cp); });
-    }
-
     Promise.all([resolve(geocoder, pickup), resolve(geocoder, client)]).then(function (pts) {
       var pp = pts[0], cp = pts[1];
       var bounds = new google.maps.LatLngBounds();
@@ -139,26 +278,15 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
       if (count === 2) { map.fitBounds(bounds, 50); }
       else if (count === 1) { map.setCenter(bounds.getCenter()); map.setZoom(16); }
 
-      if (pp && cp) {
-        // The driving route from the office to the order. Markers stay ours (suppressMarkers), the
-        // renderer only contributes the road polyline, and its own fitBounds is disabled so the
-        // route appearing does not fight the framing set above.
-        var directions = new google.maps.DirectionsService();
-        directions.route({
-          origin: pp, destination: cp,
-          travelMode: google.maps.TravelMode.DRIVING,
-        }, function (result, status) {
-          if (status === 'OK' && result && result.routes && result.routes[0]) {
-            new google.maps.DirectionsRenderer({
-              map: map, directions: result,
-              suppressMarkers: true, preserveViewport: false,
-              polylineOptions: { strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.9 },
-            });
-          } else {
-            osrmRoute(pp, cp);
-          }
-        });
-      }
+      pickupPoint = pp;
+
+      // Leg 2, office -> client. Fixed for the life of the screen: neither end moves.
+      if (pp && cp) drawLeg(pp, cp, '#2563eb', stopsLeg);
+
+      // Any fix that arrived while the stops were resolving. Replayed after pickupPoint is set, so
+      // it draws leg 1 rather than only placing the dot, and after the framing above so the driver
+      // widens the view rather than being overwritten by it.
+      if (pendingDriver) { var pd = pendingDriver; pendingDriver = null; window.setDriver(pd.at.lat, pd.at.lng, pd.acc); }
     });
   }
 </script>

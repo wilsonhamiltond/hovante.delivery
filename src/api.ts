@@ -92,6 +92,18 @@ export interface Delivery {
   // to collect at the door. Null on deliveries without a marketplace order behind them.
   orderTotal?: number | null;
   orderDeliveryFee?: number | null;
+  // The order's lines -- what is actually in the bag. Empty on deliveries with no marketplace order
+  // behind them, for the same reason the two amounts above are null there.
+  orderItems?: DeliveryOrderItem[];
+}
+
+export interface DeliveryOrderItem {
+  id: string;
+  itemId: string;
+  name: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
 }
 
 // A business category (the company business type) from the ERP catalog. Drives the category row
