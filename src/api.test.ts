@@ -70,6 +70,29 @@ describe('api client', () => {
     expect(JSON.parse(init.body)).toEqual({ token: 'the-token', newPassword: 'NewPass123' });
   });
 
+  // The merchant home splits its list across these two: the queue whole, the finished orders a
+  // page at a time. Asking the plain endpoint (the web's shape, everything) for the queue would
+  // silently duplicate every history row into the active section.
+  it('asks the merchant endpoints for the queue and one history page', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      headers: { get: () => null },
+      json: async () => ({ success: true, message: 'ok', data: [] }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    // These are authenticated reads: without a token the client answers "Sesión no iniciada."
+    // before it ever reaches fetch.
+    api.setAuthToken('merchant-jwt');
+
+    await api.merchantOrders(true);
+    await api.merchantOrders();
+    await api.merchantOrderHistory(10, 10);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/delivery/orders/merchant?activeOnly=true');
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\/delivery\/orders\/merchant$/);
+    expect(fetchMock.mock.calls[2][0]).toContain('/delivery/orders/merchant/history?skip=10&take=10');
+    api.setAuthToken(null);
+  });
+
   it('returns a friendly failure when the network is down', async () => {
     globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
 
@@ -77,5 +100,66 @@ describe('api client', () => {
 
     expect(res.success).toBe(false);
     expect(res.message).toMatch(/servidor/i);
+  });
+});
+
+// The bottom tab bar picks its destinations from the signed-in role, and every screen refetches
+// me() when it gains focus. Reading the role from request state alone means rendering the client
+// bar until that request lands, which a merchant sees as their menu changing each time they open
+// Cuenta. These cover the cache that lets a screen answer synchronously instead.
+describe('cached profile', () => {
+  const originalFetch = globalThis.fetch;
+  const mockMe = (data: any) => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      // /auth/me is an authenticated read, so the mock needs the rotation header the client
+      // inspects on every response -- and the caller needs a token, or get() answers
+      // "Sesión no iniciada." before it ever reaches fetch.
+      headers: { get: () => null },
+      json: async () => ({ success: true, message: 'ok', data }),
+    }) as unknown as typeof fetch;
+    api.setAuthToken('merchant-jwt');
+  };
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    api.setAuthToken(null);
+    api.clearCachedMe();
+  });
+
+  it('has nothing to offer before the first fetch', () => {
+    api.clearCachedMe();
+    expect(api.cachedMe()).toBeNull();
+  });
+
+  it('remembers the merchant flag so the bar can render before me() returns', async () => {
+    api.clearCachedMe();
+    mockMe({ email: 'm@x.com', isMerchant: true, isDriver: false, isClient: false });
+
+    await api.me();
+
+    expect(api.cachedMe()?.isMerchant).toBe(true);
+  });
+
+  it('keeps the last good profile when a refetch fails, rather than blanking the role', async () => {
+    api.clearCachedMe();
+    mockMe({ email: 'm@x.com', isMerchant: true });
+    await api.me();
+
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
+    const res = await api.me();
+
+    expect(res.success).toBe(false);
+    expect(api.cachedMe()?.isMerchant).toBe(true);
+  });
+
+  it('forgets the profile on sign-out so the next account cannot inherit the bar', async () => {
+    api.clearCachedMe();
+    mockMe({ email: 'm@x.com', isMerchant: true });
+    await api.me();
+    expect(api.cachedMe()).not.toBeNull();
+
+    api.clearCachedMe();
+
+    expect(api.cachedMe()).toBeNull();
   });
 });

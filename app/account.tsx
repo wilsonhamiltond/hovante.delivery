@@ -14,7 +14,10 @@ import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 export default function AccountScreen() {
   const { signOut } = useAuth();
   const router = useRouter();
-  const [profile, setProfile] = useState<Me | null>(null);
+  // Seeded from the last fetch rather than null: the tab bar below renders on every pass, and a
+  // null profile reads as a client, so a merchant opening Cuenta watched their bar turn into the
+  // client one until me() came back. Whatever arrives replaces it.
+  const [profile, setProfile] = useState<Me | null>(api.cachedMe());
   const [loading, setLoading] = useState(true);
   // The picture is uploading. Shown over the avatar so the tap has visible effect straight away.
   const [uploading, setUploading] = useState(false);
@@ -37,8 +40,11 @@ export default function AccountScreen() {
     .filter(Boolean)
     .join(' ');
   const initial = (fullName || profile?.email || '?').charAt(0).toUpperCase();
-  // Shared by both roles: the tab bar and the extra rows adapt to who is signed in.
+  // Shared by every role: the tab bar and the extra rows adapt to who is signed in.
   const isDriver = !!profile?.isDriver;
+  // A merchant kept the client bar here, which offered them Explorar and Pedidos (screens their
+  // account cannot use) and dropped the Historial tab the moment they opened Cuenta.
+  const navVariant = profile?.isMerchant ? 'merchant' : isDriver ? 'driver' : 'client';
 
   // Pick a picture and upload it. The library is asked for a square crop, and the result is
   // downscaled and re-encoded before sending -- a modern phone photo is several megabytes, which is
@@ -188,7 +194,7 @@ export default function AccountScreen() {
           </ScrollView>
         )}
 
-        <BottomNav active="account" variant={isDriver ? 'driver' : 'client'} />
+        <BottomNav active="account" variant={navVariant} />
       </SafeAreaView>
     </GradientBackground>
   );

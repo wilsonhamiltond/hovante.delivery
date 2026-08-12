@@ -10,6 +10,7 @@ import { BottomNav } from './BottomNav';
 import { NEARBY_RADIUS_KM, originOf, useNearbyAvailable } from './nearby';
 import { PointsMap } from './PointsMap';
 import { distanceKm, useDriverPosition } from './position';
+import { useDriverPositionReporter } from './positionReport';
 import { loadReached, saveReached } from './pickupProgress';
 
 // The driver's home IS the pickup pool: one full-screen map where every available order hangs as a
@@ -30,6 +31,8 @@ export function DriverHome({ profile }: { profile: Me | null }) {
   // The driver's own bike on the map, refreshed as they move (null until the first fix, or for
   // good if the location permission is refused -- the pool map is still worth showing without it).
   const driver = useDriverPosition();
+  // And reported upstream (throttled) so the merchant sees where their order is.
+  useDriverPositionReporter(driver);
 
   // The driver's own deliveries, deciding which face the home wears: an active one turns the map
   // into the current order's leg; none leaves it as the pickup pool.

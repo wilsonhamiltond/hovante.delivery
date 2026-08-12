@@ -17,16 +17,22 @@ import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
-const STEPS = ['Carrito', 'Ubicación', 'Nota', 'Resumen'];
+const STEPS = ['Carrito', 'Ubicación', 'Detalles', 'Nota', 'Resumen'];
 
-// Checkout wizard: 1) review the cart, 2) pick the delivery location on a map, 3) add a note and
-// place the order.
+// Checkout wizard: 1) review the cart, 2) pick the delivery location on a map, 3) choose the
+// order's details (delivery mode + payment), 4) add a note, 5) review and place the order. The
+// location comes before the details because it decides which branch serves the order.
 export default function CartScreen() {
   const router = useRouter();
   const cart = useCart();
   const session = useSessionLocation();
   const [step, setStep] = useState(1);
   const [notes, setNotes] = useState('');
+  // How the order leaves the store. Pickup skips the envío entirely -- the customer rides, not us.
+  const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
+  // How it gets paid. Card is shown but not yet available, so cash is both the default and the
+  // only enabled choice today; the state exists so enabling card later is a UI change alone.
+  const [paymentType] = useState<'cash'>('cash');
   // The merchant's branches. A branch with no quadrant serves anywhere, which is how the catalogue
   // filter treats it too.
   const [offices, setOffices] = useState<api.MerchantOffice[]>([]);
@@ -104,7 +110,8 @@ export default function CartScreen() {
 
   // What the delivery costs for that route. Null while the distance is unknown, in which case the
   // summary says so and the footer total stays products-only rather than showing a wrong number.
-  const deliveryFee = eta ? deliveryFeeRd(eta.distanceM) : null;
+  // Pickup charges no envío at all: the customer collects the order themselves.
+  const deliveryFee = deliveryMode === 'delivery' && eta ? deliveryFeeRd(eta.distanceM) : null;
 
   // The step exists only when there is a real choice to make.
   const needsOfficeChoice = !officeId && eligible.length > 1;
@@ -168,7 +175,10 @@ export default function CartScreen() {
       longitude: coords.lng,
       officeId: officeId ?? undefined,
       // The measured route distance; the server rebuilds the fee from it with its own tariff.
-      deliveryDistanceM: eta ? Math.round(eta.distanceM) : undefined,
+      // Withheld on pickup so no fee is computed for an order nobody rides.
+      deliveryDistanceM: deliveryMode === 'delivery' && eta ? Math.round(eta.distanceM) : undefined,
+      deliveryMode,
+      paymentType,
     });
     setSubmitting(false);
     if (!res.success) { Alert.alert('No se pudo crear el pedido', res.message); return; }
@@ -287,6 +297,66 @@ export default function CartScreen() {
         </>
       )}
 
+      {/* Step 3 -- the order's details: how it leaves the store and how it gets paid. Card is
+          offered but disabled until it actually works; showing it dead is honest about what is
+          coming without letting anyone pick a payment that cannot happen. */}
+      {!needsOfficeChoice && step === 3 && (
+        <>
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <Text style={styles.label}>Modo de entrega</Text>
+            <Pressable
+              style={[styles.optionCard, deliveryMode === 'delivery' && styles.optionActive]}
+              onPress={() => setDeliveryMode('delivery')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.optionIcon}>🛵</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionTitle}>Delivery</Text>
+                <Text style={styles.optionSub}>Te lo llevamos a tu ubicación</Text>
+              </View>
+              <View style={[styles.radio, deliveryMode === 'delivery' && styles.radioActive]}>
+                {deliveryMode === 'delivery' ? <View style={styles.radioDot} /> : null}
+              </View>
+            </Pressable>
+            <Pressable
+              style={[styles.optionCard, deliveryMode === 'pickup' && styles.optionActive]}
+              onPress={() => setDeliveryMode('pickup')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.optionIcon}>🏪</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionTitle}>Retiro en tienda</Text>
+                <Text style={styles.optionSub}>Lo recoges tú en el comercio · sin costo de envío</Text>
+              </View>
+              <View style={[styles.radio, deliveryMode === 'pickup' && styles.radioActive]}>
+                {deliveryMode === 'pickup' ? <View style={styles.radioDot} /> : null}
+              </View>
+            </Pressable>
+
+            <Text style={styles.label}>Método de pago</Text>
+            <Pressable style={[styles.optionCard, styles.optionActive]} accessibilityRole="button">
+              <Text style={styles.optionIcon}>💵</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionTitle}>Efectivo</Text>
+                <Text style={styles.optionSub}>Pagas al recibir tu pedido</Text>
+              </View>
+              <View style={[styles.radio, styles.radioActive]}><View style={styles.radioDot} /></View>
+            </Pressable>
+            <View style={[styles.optionCard, styles.optionDisabled]}>
+              <Text style={styles.optionIcon}>💳</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionTitle}>Tarjeta de crédito</Text>
+                <Text style={styles.optionSub}>Muy pronto</Text>
+              </View>
+              <View style={styles.soonBadge}><Text style={styles.soonBadgeText}>Próximamente</Text></View>
+            </View>
+          </ScrollView>
+          <Footer total={cart.total}>
+            <Pressable style={styles.primary} onPress={() => setStep(4)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+          </Footer>
+        </>
+      )}
+
       {!needsOfficeChoice && step === 2 && (
         <View style={styles.mapStep}>
           <View style={styles.locRow}>
@@ -345,19 +415,19 @@ export default function CartScreen() {
         </View>
       )}
 
-      {!needsOfficeChoice && step === 3 && (
+      {!needsOfficeChoice && step === 4 && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Notas para el comercio</Text>
             <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor={t.textFaint} multiline />
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={() => setStep(4)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={() => setStep(5)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
           </Footer>
         </>
       )}
 
-      {!needsOfficeChoice && step === 4 && (
+      {!needsOfficeChoice && step === 5 && (
         <>
           {/* Map with the selected location on top… */}
           <View style={styles.reviewMap}>
@@ -371,12 +441,25 @@ export default function CartScreen() {
             />
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
-            <Text style={styles.label}>Entregar en</Text>
+            {/* What was chosen on the details step, echoed so the review really reviews it. */}
+            <Text style={styles.label}>Detalles</Text>
+            <View style={styles.addrCard}>
+              <Text style={styles.pin}>{deliveryMode === 'delivery' ? '🛵' : '🏪'}</Text>
+              <Text style={styles.addrText}>
+                {deliveryMode === 'delivery' ? 'Delivery' : 'Retiro en tienda'} · Pago en efectivo
+              </Text>
+            </View>
+
+            <Text style={styles.label}>{deliveryMode === 'delivery' ? 'Entregar en' : 'Retirar en'}</Text>
             <View style={styles.addrCard}>
               <Text style={styles.pin}>📍</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.addrText}>{address || 'Sin dirección'}</Text>
-                {eta ? (
+                <Text style={styles.addrText}>
+                  {deliveryMode === 'delivery'
+                    ? (address || 'Sin dirección')
+                    : (selectedOffice?.address ?? selectedOffice?.name ?? cart.merchantName ?? 'El comercio')}
+                </Text>
+                {deliveryMode === 'delivery' && eta ? (
                   <Text style={styles.etaText}>
                     ⏱️ {formatEta(eta)} desde {selectedOffice?.name ?? 'el comercio'}
                   </Text>
@@ -394,13 +477,15 @@ export default function CartScreen() {
               </View>
             ))}
 
-            {/* …the delivery cost for the route about to be driven… */}
+            {/* …the delivery cost for the route about to be driven (or none, on pickup)… */}
             <Text style={styles.label}>Envío</Text>
             <View style={styles.reviewLine}>
               <Text style={styles.reviewName}>
-                {deliveryFee != null && eta
-                  ? `Entrega a domicilio · ${formatEta(eta)}`
-                  : 'Se calcula al conocer la distancia'}
+                {deliveryMode === 'pickup'
+                  ? 'Retiro en tienda · sin costo de envío'
+                  : deliveryFee != null && eta
+                    ? `Entrega a domicilio · ${formatEta(eta)}`
+                    : 'Se calcula al conocer la distancia'}
               </Text>
               {deliveryFee != null ? <Text style={styles.reviewPrice}>{money(deliveryFee)}</Text> : null}
             </View>
@@ -503,6 +588,23 @@ const styles = StyleSheet.create({
   stepBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, justifyContent: 'center', alignItems: 'center' },
   stepText: { color: t.text, fontSize: 20, fontWeight: '800', lineHeight: 22 },
   qty: { fontSize: 16, fontWeight: '800', color: t.text, minWidth: 20, textAlign: 'center' },
+
+  // Step 2 (details): delivery-mode and payment option cards.
+  optionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 14,
+    padding: 14, marginBottom: 10,
+  },
+  optionActive: { borderColor: 'rgba(255,255,255,0.75)', backgroundColor: t.cardStrong },
+  optionDisabled: { opacity: 0.55 },
+  optionIcon: { fontSize: 22 },
+  optionTitle: { fontSize: 15, fontWeight: '800', color: t.text },
+  optionSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: '#ffffff' },
+  radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#ffffff' },
+  soonBadge: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  soonBadgeText: { color: t.textMuted, fontSize: 11, fontWeight: '800' },
 
   mapStep: { flex: 1, padding: 16 },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },

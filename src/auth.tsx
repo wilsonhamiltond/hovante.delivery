@@ -102,6 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     api.setAuthToken(null);
+    // Drops the cached profile the tab bar reads its role from, so the next account to sign in
+    // cannot inherit this one's bar.
+    api.clearCachedMe();
     await clearToken();
     setToken(null);
     setProfileComplete(null);

@@ -7,10 +7,12 @@ import * as api from '../src/api';
 import type { Me } from '../src/api';
 import { ClientHome } from '../src/ClientHome';
 import { DriverHome } from '../src/DriverHome';
+import { MerchantHome } from '../src/MerchantHome';
 import { GradientBackground, t } from '../src/theme';
 
-// Routes the home by role: a driver gets DriverHome (their route), a customer gets ClientHome (the
-// marketplace). Each screen loads its own data; this only resolves who is signed in.
+// Routes the home by role: a merchant (ERP account) gets their orders screen, a driver gets
+// DriverHome (the pool map), a customer gets ClientHome (the marketplace). Each screen loads its
+// own data; this only resolves who is signed in.
 export default function HomeScreen() {
   const { token, signOut } = useAuth();
   const [profile, setProfile] = useState<Me | null>(null);
@@ -40,8 +42,30 @@ export default function HomeScreen() {
     );
   }
 
-  // Both roles sign out from their "Cuenta" tab, so neither home needs the handler.
+  // Every role signs out from its "Cuenta" tab, so no home needs the handler. The merchant check
+  // goes first: an ERP account has no delivery contact, so its driver/client flags are both false
+  // and it would otherwise fall through to the marketplace.
+  if (profile?.isMerchant) return <MerchantHome profile={profile} />;
   if (profile?.isDriver) return <DriverHome profile={profile} />;
+
+  // An ERP account WITHOUT the "Acceso App Delivery" flag gets no home at all: refused clearly
+  // rather than left shopping the marketplace with an account that has no delivery contact.
+  if (profile && !profile.isClient && !profile.isDriver) {
+    return (
+      <GradientBackground>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <Text style={styles.title}>Esta cuenta no tiene acceso a la app</Text>
+          <Text style={styles.error}>
+            Pide a tu administrador que active "Acceso App Delivery" para tu usuario.
+          </Text>
+          <Pressable onPress={signOut}><Text style={styles.link}>Cerrar sesión</Text></Pressable>
+        </View>
+      </SafeAreaView>
+      </GradientBackground>
+    );
+  }
+
   if (profile && !profile.isDriver) return <ClientHome profile={profile} />;
 
   // Profile failed to load (e.g. session expired): let the user sign out and back in.

@@ -223,8 +223,27 @@ async function get<T>(path: string): Promise<ApiResponse<T>> {
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
 }
 
-export function me() {
-  return get<Me>('/auth/me');
+// The last profile fetched, kept so a screen can know the signed-in role synchronously.
+// The bottom bar's tabs differ per role and every screen refetches me() on focus, so a screen
+// that reads the role from request state alone renders the client bar for the length of that
+// request and then snaps to the merchant/driver one -- visible every time the tab is opened.
+let lastMe: Me | null = null;
+
+export function cachedMe(): Me | null {
+  return lastMe;
+}
+
+// Must be called on sign-out: otherwise the next account to sign in briefly gets the previous
+// one's tab bar, which for a client landing on a merchant's bar is a link to screens they
+// cannot open.
+export function clearCachedMe() {
+  lastMe = null;
+}
+
+export async function me() {
+  const res = await get<Me>('/auth/me');
+  if (res.success && res.data) lastMe = res.data;
+  return res;
 }
 
 // What a social sign-in (Facebook/Google) could not supply. The provider proves the email and is
@@ -388,6 +407,16 @@ export interface Order {
   // Who to deliver to -- populated on the merchant view only (null in the customer's own list).
   customerName?: string | null;
   customerPhone?: string | null;
+  // The invoice issued for the order ("Facturar" on the web), merchant view only. Null until then.
+  documentNumber?: string | null;
+  ncf?: string | null;
+  // The driver who took the delivery (merchant view; null until one claims it).
+  driverName?: string | null;
+  driverPhone?: string | null;
+  // The driver's last reported position and when it was reported, for the merchant's map.
+  driverLatitude?: number | null;
+  driverLongitude?: number | null;
+  driverPositionAt?: string | null;
 }
 
 // One page of the catalog. The home grid pulls these as it scrolls rather than loading every
@@ -435,6 +464,11 @@ export interface CreateOrderInput {
   // The street-route distance (metres) the checkout measured office -> delivery point. The server
   // recomputes the fee from it with its own tariff, floored at the straight-line distance.
   deliveryDistanceM?: number;
+  // How the order leaves the store and how it gets paid. Sent for forward compatibility -- the
+  // server does not store them yet, but an app that already asks does not need another release
+  // when it does.
+  deliveryMode?: 'delivery' | 'pickup';
+  paymentType?: 'cash' | 'card';
 }
 
 // Place an order. The server rejects lines from more than one merchant; the app blocks it too.
@@ -452,11 +486,17 @@ export function myOrderHistory(skip: number, take: number) {
   return get<Order[]>(`/delivery/orders/history?skip=${skip}&take=${take}`);
 }
 
-// The merchant view (an ERP account signed into the app): every order placed to their company,
-// and the same accept/release/reject actions the web back office has. All scoped server-side by
-// the token's company claim.
-export function merchantOrders() {
-  return get<Order[]>('/delivery/orders/merchant');
+// The merchant view (an ERP account signed into the app): the orders placed to their company, and
+// the same accept/release/reject actions the web back office has. All scoped server-side by the
+// token's company claim. With activeOnly, only the counter's queue -- the finished ones come from
+// the paginated history below.
+export function merchantOrders(activeOnly = false) {
+  return get<Order[]>(`/delivery/orders/merchant${activeOnly ? '?activeOnly=true' : ''}`);
+}
+
+// A page of the merchant's finished orders, newest first, for infinite scroll.
+export function merchantOrderHistory(skip: number, take: number) {
+  return get<Order[]>(`/delivery/orders/merchant/history?skip=${skip}&take=${take}`);
 }
 
 export function confirmMerchantOrder(id: string) {
@@ -598,6 +638,12 @@ export function availableDeliveries() {
 
 export function pickupDelivery(id: string) {
   return postAuth<Delivery>(`/delivery/${id}/pickup`, {});
+}
+
+// The driver's app reporting where they are; the server stamps it onto their active deliveries so
+// the merchant's order view can show the position on a map. Fire-and-forget.
+export function reportDriverPosition(latitude: number, longitude: number) {
+  return postAuth<boolean>('/delivery/driver/position', { latitude, longitude });
 }
 
 // Authenticated POST for the driver's status actions. An optional idempotency key (8.5.9) lets a

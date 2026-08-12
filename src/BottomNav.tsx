@@ -5,7 +5,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
 
 export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history';
-type Variant = 'client' | 'driver';
+type Variant = 'client' | 'driver' | 'merchant';
 
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its
 // own set of destinations; "Cuenta" is shared and adapts to who is signed in.
@@ -24,6 +24,13 @@ const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: s
     { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
     { key: 'route', label: 'Mi ruta', icon: 'route', route: '/route' },
     { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/history' },
+    { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
+  ],
+  // The merchant's counter view: the queue still to be dealt with, the orders already finished,
+  // and the shared account tab.
+  merchant: [
+    { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
+    { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/merchant-history' },
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],
 };

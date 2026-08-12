@@ -8,6 +8,7 @@ import type { Delivery } from '../../src/api';
 import { RouteMap } from '../../src/RouteMap';
 import { formatEta, useRouteEta, type RouteEstimate } from '../../src/eta';
 import { useCoarsePosition, useDriverPosition } from '../../src/position';
+import { useDriverPositionReporter } from '../../src/positionReport';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
 
@@ -22,6 +23,9 @@ export default function DeliveryMapScreen() {
   // The driver's own dot, refreshed as they ride. Null until the first fix, and for good if the
   // location permission is refused -- the map is still worth showing with only its two stops.
   const driver = useDriverPosition();
+  // And reported upstream (throttled) so the merchant sees where their order is while this map --
+  // the screen a riding driver actually keeps open -- stays up.
+  useDriverPositionReporter(driver);
   // The estimate re-requests whenever its origin changes, so it runs off a position that only moves
   // in hundred-metre steps rather than off every GPS tick.
   const routeOrigin = useCoarsePosition(driver, 100);
