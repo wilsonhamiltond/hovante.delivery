@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
@@ -38,15 +38,19 @@ export function DriverHome({ profile }: { profile: Me | null }) {
   // into the current order's leg; none leaves it as the pickup pool.
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 
+  const loadDeliveries = useCallback(async () => {
+    const res = await api.myDeliveries();
+    if (res.success) setDeliveries(res.data ?? []);
+  }, []);
+
   // On focus: flush any queued offline actions, reload the route, then show what's still pending.
   useFocusEffect(useCallback(() => {
     (async () => {
       await outbox.flush();
-      const res = await api.myDeliveries();
-      if (res.success) setDeliveries(res.data ?? []);
+      await loadDeliveries();
       setPending(await outbox.pendingCount());
     })();
-  }, []));
+  }, [loadDeliveries]));
 
   // The order being worked right now. IN_TRANSIT outranks a merely claimed one: it is the leg
   // being ridden.
@@ -71,8 +75,9 @@ export function DriverHome({ profile }: { profile: Me | null }) {
     });
   }, [deliveries]);
 
-  // Arrival at the office is what counts as the pickup, not the button: within 150 m of the
-  // office pin the stop is marked reached, and only then may the leg flip to the client.
+  // Arrival at the office, within 150 m of its pin. It no longer decides the route -- taking the
+  // "en camino" status does -- but it is what offers the button, so the driver is asked to start
+  // the ride at the counter rather than from anywhere on the map.
   useEffect(() => {
     if (!current || !driver) return;
     if (current.pickupLatitude == null || current.pickupLongitude == null) return;
@@ -86,14 +91,11 @@ export function DriverHome({ profile }: { profile: Me | null }) {
     }
   }, [driver?.lat, driver?.lng, current, reached]);
 
-  // The map's one destination: FIRST the office -- even if "Recogí el pedido" was pressed early --
-  // and the client only once the delivery is started AND the office was actually visited. An
-  // office that was never geocoded cannot be geofenced, so there the started status decides alone.
+  // The map's one destination, decided by the status alone: the office while the order is merely
+  // claimed, the client the moment the driver takes it "en camino". That status is the driver
+  // saying they have the bag, so it -- not a geofence -- is what turns the route around.
   const officePinned = current?.pickupLatitude != null && current?.pickupLongitude != null;
-  const phase: 'office' | 'client' =
-    current?.status === 'IN_TRANSIT' && (!officePinned || reached.has(current.id))
-      ? 'client'
-      : 'office';
+  const phase: 'office' | 'client' = current?.status === 'IN_TRANSIT' ? 'client' : 'office';
   const currentPoint = current ? (phase === 'office'
     ? {
       lat: current.pickupLatitude, lng: current.pickupLongitude, address: current.pickupAddress,
@@ -103,6 +105,26 @@ export function DriverHome({ profile }: { profile: Me | null }) {
       lat: current.latitude, lng: current.longitude, address: current.addressLine,
       label: '2', title: current.recipientName ?? 'Entregar', color: '#16a34a', id: current.id,
     }) : null;
+
+  // "Entrega en camino": offered once the driver is AT the office (the 150 m arrival above).
+  // Withheld only when we can actually tell they are elsewhere -- an office with no pin, or no
+  // fix to compare against, cannot be fenced, and refusing the button there would strand the
+  // ride. Pressing it starts the delivery through the offline outbox -- exactly the detail
+  // screen's "Iniciar entrega" -- and the reload turns the map towards the client.
+  const [startingRide, setStartingRide] = useState(false);
+  const canStartRide = current != null
+    && (current.status === 'ASSIGNED' || current.status === 'PENDING')
+    && (!officePinned || driver == null || reached.has(current.id));
+  const startRide = async () => {
+    if (!current || startingRide) return;
+    setStartingRide(true);
+    await outbox.submit({
+      key: outbox.newKey(), deliveryId: current.id, type: 'start', createdAt: new Date().toISOString(),
+    });
+    await loadDeliveries();
+    setPending(await outbox.pendingCount());
+    setStartingRide(false);
+  };
 
   const fullName = profile?.name?.trim() || '';
   const greeting = fullName.split(' ')[0] || profile?.email || '';
@@ -180,15 +202,29 @@ export function DriverHome({ profile }: { profile: Me | null }) {
             Otherwise it is the pickup pool, up the whole time there is ANY available order. */}
         <View style={styles.mapWrap}>
           {current && currentPoint ? (
-            // Keyed by delivery + phase: pressing "Recogí el pedido" swaps the office pin for the
-            // client's, and the map must rebuild for the new destination.
-            <PointsMap
-              key={`${current.id}:${phase}`}
-              points={[currentPoint]}
-              driver={driver}
-              routeFromDriver
-              onPointPress={() => router.push(`/delivery/${current.id}`)}
-            />
+            <>
+              {/* Keyed by delivery + phase: starting the ride swaps the office pin for the
+                  client's, and the map must rebuild for the new destination. */}
+              <PointsMap
+                key={`${current.id}:${phase}`}
+                points={[currentPoint]}
+                driver={driver}
+                routeFromDriver
+                onPointPress={() => router.push(`/delivery/${current.id}`)}
+              />
+              {/* At the counter, bag in hand: one tap says the ride to the client has begun. */}
+              {canStartRide ? (
+                <Pressable
+                  style={[styles.startRideBtn, startingRide && styles.startRideDisabled]}
+                  disabled={startingRide}
+                  onPress={startRide}
+                >
+                  {startingRide
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.startRideText}>🚚 Entrega en camino</Text>}
+                </Pressable>
+              ) : null}
+            </>
           ) : nearby.pool.length > 0 ? (
             // Keyed by the pin set: the map builds its HTML once on mount and would otherwise
             // keep showing a pool that has since been claimed empty.
@@ -375,6 +411,14 @@ const styles = StyleSheet.create({
   // Bleeds to the screen edges: the map is the content, not a card on it. The nav bar sits in
   // normal flow below it, so no clearance margin is needed.
   mapWrap: { flex: 1 },
+  // Floats over the map's foot so the action is one thumb-reach away while the route stays visible.
+  startRideBtn: {
+    position: 'absolute', left: 16, right: 16, bottom: 16,
+    backgroundColor: '#16a34a', borderRadius: 12, paddingVertical: 15, alignItems: 'center',
+    ...(Platform.OS === 'web' ? { boxShadow: '0 6px 18px rgba(0,0,0,0.35)' as any } : { elevation: 6 }),
+  },
+  startRideDisabled: { opacity: 0.7 },
+  startRideText: { color: '#fff', fontSize: 16, fontWeight: '900' },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   emptyBadge: {
     width: 104, height: 104, borderRadius: 52,
