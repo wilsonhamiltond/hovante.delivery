@@ -12,10 +12,12 @@ import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 // road -- in route order, each opening its detail. Finished ones live in Historial; finding NEW
 // work lives on the home map. This page is only the work in hand.
 
+// The two legs of a delivery, named. "Asignada" and "En camino" both said something true and
+// neither said where the driver is headed -- which is the only thing these two states differ by.
 const STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Pendiente', color: '#64748b' },
-  ASSIGNED: { label: 'Asignada', color: '#2563eb' },
-  IN_TRANSIT: { label: 'En camino', color: '#d97706' },
+  ASSIGNED: { label: 'Recoger en oficina', color: '#2563eb' },
+  IN_TRANSIT: { label: 'En camino al cliente', color: '#d97706' },
 };
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;

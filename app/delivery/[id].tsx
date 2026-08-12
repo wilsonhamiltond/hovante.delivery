@@ -10,10 +10,12 @@ import type { OutboxItem } from '../../src/outbox';
 import { formatEta, useRouteEta } from '../../src/eta';
 import { GradientBackground, t } from '../../src/theme';
 
+// Named by leg, matching Mi ruta: a claimed delivery is a ride to the merchant's office, and a
+// started one is the ride to the customer. Same wording in both places so a driver reads one story.
 const STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Pendiente', color: '#64748b' },
-  ASSIGNED: { label: 'Asignada', color: '#2563eb' },
-  IN_TRANSIT: { label: 'En camino', color: '#d97706' },
+  ASSIGNED: { label: 'Recoger en oficina', color: '#2563eb' },
+  IN_TRANSIT: { label: 'En camino al cliente', color: '#d97706' },
   DELIVERED: { label: 'Entregada', color: '#16a34a' },
   FAILED: { label: 'Fallida', color: '#dc2626' },
   RETURNED: { label: 'Devuelta', color: '#dc2626' },
@@ -109,7 +111,9 @@ export default function DeliveryDetail() {
   }
 
   const s = STATUS[delivery.status] ?? { label: delivery.status, color: '#64748b' };
-  const canStart = delivery.status === 'ASSIGNED' || delivery.status === 'PENDING';
+  // Still on the way to the office, so the outstanding action is collecting the order there. The
+  // 'start' transition IS the collection: it is what moves the delivery onto the client leg.
+  const canCollect = delivery.status === 'ASSIGNED' || delivery.status === 'PENDING';
   const canFinish = delivery.status === 'IN_TRANSIT';
   const finished = delivery.status === 'DELIVERED' || delivery.status === 'FAILED';
 
@@ -182,10 +186,13 @@ export default function DeliveryDetail() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {/* Actions */}
-        {canStart ? (
-          <Pressable style={[styles.action, styles.primary]} disabled={busy} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'start', createdAt: new Date().toISOString() }))}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Iniciar entrega</Text>}
-          </Pressable>
+        {canCollect ? (
+          <View style={{ gap: 6 }}>
+            <Pressable style={[styles.action, styles.primary]} disabled={busy} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'start', createdAt: new Date().toISOString() }))}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Recogí el pedido</Text>}
+            </Pressable>
+            <Text style={styles.panelHint}>Confírmalo en el comercio: la ruta pasa entonces a la dirección del cliente.</Text>
+          </View>
         ) : null}
 
         {canFinish && panel === 'none' ? (

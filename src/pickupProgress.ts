@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // Which deliveries this driver has already reached the office for. The home map's current-order
 // leg keys off it: driver -> office until they have actually been at the counter, driver -> client
-// only after -- pressing "Iniciar entrega" early from home must not flip the route prematurely.
+// only after -- pressing "Recogí el pedido" early from home must not flip the route prematurely.
 // Persisted (localStorage on web, SecureStore on device, like the outbox) so an app restart in the
 // middle of a ride does not send the map back to the office.
 

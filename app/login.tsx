@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { APP_VERSION_LABEL } from '../src/appVersion';
 import { AppleSignInButton } from '../src/AppleSignInButton';
 import { FacebookSignInButton } from '../src/FacebookSignInButton';
 import { GoogleSignInButton } from '../src/GoogleSignInButton';
@@ -53,6 +54,8 @@ export default function WelcomeScreen() {
           <Pressable style={styles.signIn} onPress={() => router.push('/email-login')} accessibilityRole="button">
             <Text style={styles.signInText}>¿Ya tienes cuenta? <Text style={styles.signInStrong}>Inicia sesión</Text></Text>
           </Pressable>
+
+          {APP_VERSION_LABEL ? <Text style={styles.version}>Versión {APP_VERSION_LABEL}</Text> : null}
         </View>
       </SafeAreaView>
     </GradientBackground>
@@ -77,4 +80,7 @@ const styles = StyleSheet.create({
   signIn: { alignItems: 'center', paddingVertical: 6 },
   signInText: { color: t.textMuted, fontSize: 14 },
   signInStrong: { color: t.text, fontWeight: '800' },
+  // Faint on purpose: useful when someone is reporting a problem, not something to read past on
+  // the way in.
+  version: { color: t.textFaint, fontSize: 12, textAlign: 'center', marginTop: 2 },
 });

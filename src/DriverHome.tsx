@@ -86,7 +86,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
     }
   }, [driver?.lat, driver?.lng, current, reached]);
 
-  // The map's one destination: FIRST the office -- even if "Iniciar entrega" was pressed early --
+  // The map's one destination: FIRST the office -- even if "Recogí el pedido" was pressed early --
   // and the client only once the delivery is started AND the office was actually visited. An
   // office that was never geocoded cannot be geofenced, so there the started status decides alone.
   const officePinned = current?.pickupLatitude != null && current?.pickupLongitude != null;
@@ -180,7 +180,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
             Otherwise it is the pickup pool, up the whole time there is ANY available order. */}
         <View style={styles.mapWrap}>
           {current && currentPoint ? (
-            // Keyed by delivery + phase: pressing "Iniciar entrega" swaps the office pin for the
+            // Keyed by delivery + phase: pressing "Recogí el pedido" swaps the office pin for the
             // client's, and the map must rebuild for the new destination.
             <PointsMap
               key={`${current.id}:${phase}`}
