@@ -13,20 +13,26 @@ import { PointsMap } from '../src/PointsMap';
 import { DEFAULT_CENTER, type DeliveryArea } from '../src/mapHtml';
 import { detectCurrentLocation } from '../src/profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
+import { STEP_TITLES, stepsFor, type StepKey } from '../src/checkoutSteps';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
-const STEPS = ['Carrito', 'Ubicación', 'Detalles', 'Nota', 'Resumen'];
 
-// Checkout wizard: 1) review the cart, 2) pick the delivery location on a map, 3) choose the
-// order's details (delivery mode + payment), 4) add a note, 5) review and place the order. The
-// location comes before the details because it decides which branch serves the order.
+// Checkout wizard: 1) review the cart, 2) choose the order's details (delivery mode + payment),
+// 3) pick the delivery location on a map, 4) add a note, 5) review and place the order.
+//
+// The details come before the location so the mode is known before the map: a "retiro en tienda"
+// order has nowhere to be delivered, so it skips the location step entirely and runs in four steps
+// rather than making the customer pin an address the order will never use.
 export default function CartScreen() {
   const router = useRouter();
   const cart = useCart();
   const session = useSessionLocation();
-  const [step, setStep] = useState(1);
+  // The wizard's position is held as the step's KEY, not its number: the sequence has a different
+  // length per delivery mode, so an index would point at a different screen the moment the mode
+  // changed under it.
+  const [stepKey, setStepKey] = useState<StepKey>('cart');
   const [notes, setNotes] = useState('');
   // How the order leaves the store. Pickup skips the envío entirely -- the customer rides, not us.
   const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
@@ -115,6 +121,15 @@ export default function CartScreen() {
 
   // The step exists only when there is a real choice to make.
   const needsOfficeChoice = !officeId && eligible.length > 1;
+
+  // The wizard's shape, which the delivery mode decides (see checkoutSteps). The mode is chosen on
+  // 'details', which comes before the step pickup drops, so the sequence can never change while
+  // standing on one it no longer contains -- and indexOf is floored anyway, so a key that somehow
+  // fell out of the sequence lands back on the cart rather than on nothing.
+  const steps = stepsFor(deliveryMode);
+  const stepIndex = Math.max(0, steps.indexOf(stepKey));
+  const goNext = () => setStepKey(steps[Math.min(steps.length - 1, stepIndex + 1)]);
+  const goBack = () => setStepKey(steps[Math.max(0, stepIndex - 1)]);
 
   // Once a branch is chosen the map shows only its area: the union of every branch's would let the
   // customer place a pin the chosen one cannot reach.
@@ -223,12 +238,12 @@ export default function CartScreen() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header
-        title={needsOfficeChoice ? 'Sucursal' : STEPS[step - 1]}
-        onBack={() => (needsOfficeChoice || step === 1
+        title={needsOfficeChoice ? 'Sucursal' : STEP_TITLES[stepKey]}
+        onBack={() => (needsOfficeChoice || stepIndex === 0
           ? (router.canGoBack() ? router.back() : router.replace('/home'))
-          : setStep(step - 1))}
+          : goBack())}
       />
-      {!needsOfficeChoice ? <Stepper step={step} /> : null}
+      {!needsOfficeChoice ? <Stepper steps={steps} current={stepIndex} /> : null}
 
       {/* Branch selection: shown only when more than one of the merchant's branches covers where the
           order is going. With one there is nothing to decide, and it is chosen automatically. The
@@ -273,7 +288,7 @@ export default function CartScreen() {
         </View>
       )}
 
-      {!needsOfficeChoice && step === 1 && (
+      {!needsOfficeChoice && stepKey === 'cart' && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.merchant}>{cart.merchantName}</Text>
@@ -292,15 +307,16 @@ export default function CartScreen() {
             ))}
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={() => setStep(2)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
           </Footer>
         </>
       )}
 
-      {/* Step 3 -- the order's details: how it leaves the store and how it gets paid. Card is
+      {/* Step 2 -- the order's details: how it leaves the store and how it gets paid. Answered
+          before the map, because "retiro en tienda" removes the location step altogether. Card is
           offered but disabled until it actually works; showing it dead is honest about what is
           coming without letting anyone pick a payment that cannot happen. */}
-      {!needsOfficeChoice && step === 3 && (
+      {!needsOfficeChoice && stepKey === 'details' && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Modo de entrega</Text>
@@ -352,12 +368,14 @@ export default function CartScreen() {
             </View>
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={() => setStep(4)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
           </Footer>
         </>
       )}
 
-      {!needsOfficeChoice && step === 2 && (
+      {/* Step 3 -- where it goes. Delivery only: reached by goNext() from the details, which on
+          pickup lands on the note instead. */}
+      {!needsOfficeChoice && stepKey === 'location' && (
         <View style={styles.mapStep}>
           <View style={styles.locRow}>
             <Text style={styles.hint}>
@@ -408,37 +426,53 @@ export default function CartScreen() {
           <Pressable
             style={[styles.primary, (!address.trim() || !insideArea(coords.lat, coords.lng)) && styles.disabled]}
             disabled={!address.trim() || !insideArea(coords.lat, coords.lng)}
-            onPress={() => setStep(3)}
+            onPress={goNext}
           >
             <Text style={styles.primaryText}>Continuar</Text>
           </Pressable>
         </View>
       )}
 
-      {!needsOfficeChoice && step === 4 && (
+      {!needsOfficeChoice && stepKey === 'note' && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Notas para el comercio</Text>
             <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor={t.textFaint} multiline />
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={() => setStep(5)}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
           </Footer>
         </>
       )}
 
-      {!needsOfficeChoice && step === 5 && (
+      {!needsOfficeChoice && stepKey === 'summary' && (
         <>
-          {/* Map with the selected location on top… */}
+          {/* Map on top: where it is going, or -- on pickup, which never picked a delivery point --
+              where it is collected. Showing the delivery picker there would offer a pin the order
+              does not have, on a step that only reviews. */}
           <View style={styles.reviewMap}>
-            <LocationPicker
-              latitude={coords.lat ?? DEFAULT_CENTER.lat}
-              longitude={coords.lng ?? DEFAULT_CENTER.lng}
-              areas={areas}
-              origin={routeOrigin}
-              onOutside={outsideNotice}
-              onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
-            />
+            {deliveryMode === 'delivery' ? (
+              <LocationPicker
+                latitude={coords.lat ?? DEFAULT_CENTER.lat}
+                longitude={coords.lng ?? DEFAULT_CENTER.lng}
+                areas={areas}
+                origin={routeOrigin}
+                onOutside={outsideNotice}
+                onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
+              />
+            ) : (
+              <PointsMap
+                points={[{
+                  lat: selectedOffice?.latitude ?? null,
+                  lng: selectedOffice?.longitude ?? null,
+                  address: selectedOffice?.address ?? null,
+                  // A lone pin needs no number on it, unlike the numbered branch chooser.
+                  label: '🏪',
+                  title: selectedOffice?.name ?? cart.merchantName ?? 'El comercio',
+                  color: '#0b2a6b',
+                }]}
+              />
+            )}
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
             {/* What was chosen on the details step, echoed so the review really reviews it. */}
@@ -516,15 +550,18 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
   );
 }
 
-function Stepper({ step }: { step: number }) {
+// Driven by the sequence in force, not a fixed list: a pickup order really has four steps, and a
+// stepper still promising five would count down to one that never arrives.
+function Stepper({ steps, current }: { steps: StepKey[]; current: number }) {
   return (
     <View style={styles.stepperRow}>
-      {STEPS.map((label, i) => {
+      {steps.map((key, i) => {
+        const label = STEP_TITLES[key];
         const n = i + 1;
-        const active = n === step;
-        const done = n < step;
+        const active = i === current;
+        const done = i < current;
         return (
-          <View key={label} style={styles.stepItem}>
+          <View key={key} style={styles.stepItem}>
             <View style={[styles.stepDot, (active || done) && styles.stepDotActive]}>
               <Text style={[styles.stepDotText, (active || done) && { color: t.onAccent }]}>{done ? '✓' : n}</Text>
             </View>

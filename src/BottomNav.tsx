@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
 
-export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history';
+export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history' | 'products';
 type Variant = 'client' | 'driver' | 'merchant';
 
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its
@@ -26,10 +26,11 @@ const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: s
     { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/history' },
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],
-  // The merchant's counter view: the queue still to be dealt with, the orders already finished,
-  // and the shared account tab.
+  // The merchant's counter view: the queue still to be dealt with, what they sell, the orders
+  // already finished, and the shared account tab.
   merchant: [
     { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
+    { key: 'products', label: 'Productos', icon: 'box', route: '/merchant-products' },
     { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/merchant-history' },
     { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
   ],

@@ -93,6 +93,10 @@ export default function OrderTrackingScreen() {
   const failed = order.status === 'CANCELLED'
     || deliveryStatus === 'FAILED' || deliveryStatus === 'CANCELLED' || deliveryStatus === 'RETURNED';
   const current = currentPhase(order.status, deliveryStatus);
+  // The hollow "you are here" ring belongs to a journey still moving. Once the last stage is
+  // reached the order IS delivered -- a fact with its own timestamp, not a step still pending --
+  // so that stage fills and checks like every one before it.
+  const journeyComplete = current >= STAGES.length - 1;
   // A timestamp per timeline step, in STAGES order, so each reached stage shows when it happened.
   const phaseStamps = [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
   const headline = failed
@@ -137,7 +141,7 @@ export default function OrderTrackingScreen() {
           <View style={styles.timeline}>
             {STAGES.map((s, i) => {
               const done = i <= current;
-              const active = i === current;
+              const active = i === current && !journeyComplete;
               return (
                 <View key={s.title} style={styles.stageRow}>
                   <View style={styles.stageMarker}>

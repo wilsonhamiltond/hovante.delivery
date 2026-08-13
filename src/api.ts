@@ -1,4 +1,24 @@
+import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
+
+// Puts a picked image into a FormData as an actual FILE, on both hosts.
+//
+// React Native's FormData accepts a { uri, type, name } stand-in and turns it into a file part.
+// The browser's does NOT: it stringifies the object, so the request arrives carrying a text field
+// called "file" holding "[object Object]", ASP.NET cannot bind it to IFormFile, and the upload
+// fails with a 400 that says nothing. On web the uri (a blob:/data: URL) has to be read back into
+// a real Blob first.
+async function appendImage(
+  form: FormData, uri: string, mimeType: string, fileName: string,
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(uri)).blob();
+    form.append('file', blob, fileName);
+    return;
+  }
+  // The cast is because the DOM typings describe Blob | string and know nothing about this shape.
+  form.append('file', { uri, type: mimeType, name: fileName } as unknown as Blob);
+}
 
 // The API wraps every response in { success, message, data }.
 export interface ApiResponse<T> {
@@ -276,9 +296,7 @@ export async function uploadProfileImage(uri: string, mimeType: string, fileName
   if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as unknown as string };
 
   const form = new FormData();
-  // React Native's FormData takes this shape for a file; the cast is because the DOM typings
-  // describe Blob | string and know nothing about it.
-  form.append('file', { uri, type: mimeType, name: fileName } as unknown as Blob);
+  await appendImage(form, uri, mimeType, fileName);
 
   let res: Response;
   try {
@@ -370,8 +388,14 @@ export interface Product {
   description: string | null;
   price: number;
   imagePath: string | null;
+  // The photo as a URL the app can render directly (imagePath is only the storage key). Null when
+  // the item has no photo; optional so an older API simply reads as "none".
+  imageUrl?: string | null;
   companyId: string;
   companyName: string;
+  // Whether the item is on sale. Always true in the marketplace, which lists nothing else; only the
+  // merchant's own catalogue carries false. Optional so an older API simply reads as "on sale".
+  active?: boolean;
   categories: string[];
 }
 
@@ -451,6 +475,67 @@ export function products(query: ProductPageQuery = {}) {
 // How many products a page holds. Exported so the caller can tell a full page (there may be more)
 // from a short one (that was the last).
 export const PRODUCT_PAGE_SIZE = 10;
+
+// A page of the merchant's OWN catalogue, by name, for their Productos tab. Single-tenant: the
+// company comes from the token's claim, so nothing identifies it in the request. Unlike the
+// marketplace read above it keeps items that are not on sale, flagged with active: false.
+export function merchantProducts(skip: number, take: number, search?: string) {
+  const params = new URLSearchParams({ skip: String(skip), take: String(take) });
+  // Matched server-side: the app holds only the pages it has scrolled to, so filtering here would
+  // search the rows already on screen rather than the catalogue.
+  if (search?.trim()) params.set('search', search.trim());
+  return get<Product[]>(`/delivery/products/merchant?${params.toString()}`);
+}
+
+// What the merchant edits from the phone: what the product is called, costs, and whether it is on
+// sale. SKUs, taxes, item types and stock stay with the ERP.
+export interface MerchantProductInput {
+  name: string;
+  description?: string;
+  price: number;
+  active: boolean;
+}
+
+export function createMerchantProduct(input: MerchantProductInput) {
+  return postAuth<Product>('/delivery/products/merchant', input);
+}
+
+export function updateMerchantProduct(id: string, input: MerchantProductInput) {
+  return putAuth<Product>(`/delivery/products/merchant/${id}`, input);
+}
+
+// The server retires (takes off sale) a product that already has orders instead of erasing it, and
+// says so in the message -- so the caller shows the response's message rather than assuming.
+export function deleteMerchantProduct(id: string) {
+  return deleteAuth<boolean>(`/delivery/products/merchant/${id}`);
+}
+
+// The product's photo. Multipart rather than JSON, for the same reason as the profile picture: the
+// body is a FormData and the Content-Type header must be left unset so fetch adds the multipart
+// boundary itself. Returns the stored image's public URL as `data`.
+export async function uploadProductImage(
+  id: string, uri: string, mimeType: string, fileName: string,
+): Promise<ApiResponse<string>> {
+  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as unknown as string };
+
+  const form = new FormData();
+  await appendImage(form, uri, mimeType, fileName);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/delivery/products/merchant/${id}/image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${currentToken}` },
+      body: form,
+    });
+  } catch {
+    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
+  }
+  captureRotatedToken(res);
+  const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
+  if (json) return json;
+  return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
+}
 
 export interface CreateOrderInput {
   items: OrderLineInput[];

@@ -93,6 +93,24 @@ describe('api client', () => {
     api.setAuthToken(null);
   });
 
+  // The Productos tab reads the merchant's own catalogue, which is a different endpoint from the
+  // marketplace one: that one takes a companyId from the caller and hides items not on sale.
+  it('asks the merchant catalogue endpoint for one page, identifying no company', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      headers: { get: () => null },
+      json: async () => ({ success: true, message: 'ok', data: [] }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    api.setAuthToken('merchant-jwt');
+
+    await api.merchantProducts(20, api.PRODUCT_PAGE_SIZE);
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('/delivery/products/merchant?skip=20&take=10');
+    expect(url).not.toContain('companyId');
+    api.setAuthToken(null);
+  });
+
   it('returns a friendly failure when the network is down', async () => {
     globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
 

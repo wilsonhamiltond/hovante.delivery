@@ -1,0 +1,481 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as api from '../src/api';
+import type { Product } from '../src/api';
+import { emojiFor } from '../src/categoryEmoji';
+import { GradientBackground, t } from '../src/theme';
+import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+
+// The merchant's own catalogue as an infinite scroll, and the counter's way to maintain it: add a
+// product, edit what it is called or costs, take it off sale, or remove it. Items NOT on sale are
+// listed too, marked as such -- a shopkeeper needs to see those as much as the ones selling.
+// Everything else about an item (SKU, tax, type, stock) stays in the ERP.
+
+const money = (n: number) => `RD$${n.toFixed(2)}`;
+
+export default function MerchantProductsScreen() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // What is typed, and what has actually been searched for. They differ while the driver is still
+  // typing: the query only settles 350 ms after the last keystroke, so a name is one request
+  // rather than one per letter.
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // The add/edit sheet. `editing` null means the form is creating a new product.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [active, setActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  // The photo. `photoUrl` is what the product already has (or what an upload just returned);
+  // `pickedPhoto` is a local file waiting to be sent, which only happens once the product exists
+  // -- a new one has no id to attach an image to until it is saved.
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [pickedPhoto, setPickedPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
+
+  // Deleting asks first: the row is gone from the counter's list either way, and a mis-tap on a
+  // phone should not be able to take a product off sale silently.
+  const [deleting, setDeleting] = useState<Product | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const loadFirstPage = useCallback(async () => {
+    const res = await api.merchantProducts(0, api.PRODUCT_PAGE_SIZE, query);
+    if (!res.success) { setError(res.message); return; }
+    setError(null);
+    const rows = res.data ?? [];
+    setProducts(rows);
+    // A short page means the catalogue is exhausted; a full one may have more behind it.
+    setHasMore(rows.length === api.PRODUCT_PAGE_SIZE);
+  }, [query]);
+
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    loadFirstPage().finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [loadFirstPage]));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFirstPage();
+    setRefreshing(false);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+    // The same query the page was filled with, or scrolling a search would append the unfiltered
+    // catalogue underneath the matches.
+    const res = await api.merchantProducts(products.length, api.PRODUCT_PAGE_SIZE, query);
+    setLoadingMore(false);
+    if (!res.success) return;
+    const rows = res.data ?? [];
+    // Deduped by id: an item renamed between pages shifts the by-name offsets, and appending a row
+    // the list already shows would crash the keyExtractor.
+    setProducts((prev) => [...prev, ...rows.filter((r) => !prev.some((p) => p.id === r.id))]);
+    setHasMore(rows.length === api.PRODUCT_PAGE_SIZE);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setName(''); setDescription(''); setPrice(''); setActive(true);
+    setPhotoUrl(null); setPickedPhoto(null);
+    setFormError(null); setNotice(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (p: Product) => {
+    setEditing(p);
+    setName(p.name);
+    setDescription(p.description ?? '');
+    setPrice(String(p.price));
+    setActive(p.active !== false);
+    setPhotoUrl(p.imageUrl ?? null); setPickedPhoto(null);
+    setFormError(null); setNotice(null);
+    setFormOpen(true);
+  };
+
+  // Pick a photo from the library. Asked for a square crop and re-encoded before sending: a modern
+  // phone photo is several megabytes, far more than a catalogue thumbnail can show.
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso de fotos', 'Activa el permiso de fotos para agregar una imagen.');
+      return;
+    }
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+    setPickedPhoto(picked.assets[0]);
+    setFormError(null);
+  };
+
+  const save = async () => {
+    // Accepts "1.250,50" as well as "1250.50": a price typed on a Dominican phone should not be
+    // rejected for its separators.
+    const parsed = Number(price.replace(/\./g, '').replace(',', '.'));
+    if (!name.trim()) { setFormError('El nombre es requerido.'); return; }
+    if (!Number.isFinite(parsed) || parsed < 0) { setFormError('Escribe un precio válido.'); return; }
+
+    setSaving(true);
+    setFormError(null);
+    const input = {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      price: parsed,
+      active,
+    };
+    const res = editing
+      ? await api.updateMerchantProduct(editing.id, input)
+      : await api.createMerchantProduct(input);
+    if (!res.success) { setSaving(false); setFormError(res.message); return; }
+
+    // The photo goes up after the product is saved, because a new one has no id to attach it to
+    // until then. A failed image does not undo the save: the product is real either way, so the
+    // form stays open saying only the photo failed.
+    let photoNote = '';
+    if (pickedPhoto && res.data?.id) {
+      const up = await api.uploadProductImage(
+        res.data.id,
+        pickedPhoto.uri,
+        pickedPhoto.mimeType ?? 'image/jpeg',
+        pickedPhoto.fileName ?? 'producto.jpg',
+      );
+      if (!up.success) {
+        setSaving(false);
+        setEditing(res.data);
+        setPickedPhoto(null);
+        setFormError(`El producto se guardó, pero la imagen no: ${up.message}`);
+        await loadFirstPage();
+        return;
+      }
+      photoNote = ' Imagen actualizada.';
+    }
+
+    setSaving(false);
+    setFormOpen(false);
+    setPickedPhoto(null);
+    setNotice(`${res.message || 'Guardado.'}${photoNote}`);
+    await loadFirstPage();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeletingBusy(true);
+    const res = await api.deleteMerchantProduct(deleting.id);
+    setDeletingBusy(false);
+    setDeleting(null);
+    // The server retires a product that already has orders rather than erasing it, and says so --
+    // so its message is shown rather than a blanket "eliminado".
+    setNotice(res.success ? (res.message || 'Producto eliminado.') : res.message);
+    if (res.success) await loadFirstPage();
+  };
+
+  return (
+    <GradientBackground>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Productos</Text>
+          <Text style={styles.subtitle}>Lo que tu comercio vende en la app</Text>
+        </View>
+        <Pressable style={styles.newBtn} onPress={openCreate} accessibilityRole="button">
+          <Text style={styles.newBtnText}>+ Nuevo</Text>
+        </Pressable>
+      </View>
+
+      {/* Searched server-side, so it finds products anywhere in the catalogue -- not only the
+          pages already scrolled to. */}
+      <View style={styles.searchRow}>
+        <Text style={styles.searchIcon}>🔎</Text>
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar por nombre"
+          placeholderTextColor={t.textFaint}
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {search ? (
+          <Pressable onPress={() => setSearch('')} hitSlop={10}>
+            <Text style={styles.searchClear}>✕</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {notice ? (
+        <Pressable onPress={() => setNotice(null)}>
+          <Text style={styles.notice}>{notice}</Text>
+        </Pressable>
+      ) : null}
+
+      {loading ? (
+        <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
+      ) : (
+        <FlatList
+          data={products}
+          keyExtractor={(p) => p.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={error ? <Text style={styles.error}>{error}</Text> : null}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {query
+                ? `Ningún producto coincide con “${query}”.`
+                : 'Tu comercio todavía no tiene productos. Toca “+ Nuevo” para agregar el primero.'}
+            </Text>
+          }
+          ListFooterComponent={
+            loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={t.text} /> : null
+          }
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                {/* No product images yet: imagePath is a storage key and most items have none, so the
+                    thumbnail stands in with the merchant's category icon, as the catalogue does. */}
+                {/* The product's own photo once it has one; the merchant's category icon stands in
+                    for the ones that do not, as the client catalogue does. */}
+                {item.imageUrl ? (
+                  <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+                ) : (
+                  <View style={styles.thumb}>
+                    <Text style={styles.thumbEmoji}>{emojiFor(item.categories[0] ?? item.companyName)}</Text>
+                  </View>
+                )}
+                <View style={styles.body}>
+                  <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
+                  {item.description ? (
+                    <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+                  ) : null}
+                  <View style={styles.footer}>
+                    <Text style={styles.price}>{money(item.price)}</Text>
+                    {/* Only the exception is worn: an item on sale needs no badge saying so. */}
+                    {item.active === false ? (
+                      <View style={styles.chip}><Text style={styles.chipText}>No disponible</Text></View>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+              <View style={styles.cardActions}>
+                <Pressable style={styles.editBtn} onPress={() => openEdit(item)}>
+                  <Text style={styles.editText}>✏️ Editar</Text>
+                </Pressable>
+                <Pressable style={styles.deleteBtn} onPress={() => { setNotice(null); setDeleting(item); }}>
+                  <Text style={styles.deleteText}>🗑️ Eliminar</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        />
+      )}
+
+      {/* Add / edit sheet */}
+      <Modal visible={formOpen} transparent animationType="slide" onRequestClose={() => setFormOpen(false)}>
+        <Pressable style={styles.scrim} onPress={() => setFormOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>{editing ? 'Editar producto' : 'Nuevo producto'}</Text>
+
+            {/* The photo. The whole square is the control -- a small "change" link is a hard target
+                on a phone -- and it previews the pick before it is sent. */}
+            <Pressable style={styles.photoRow} onPress={pickPhoto} accessibilityRole="button">
+              {pickedPhoto || photoUrl ? (
+                <Image source={{ uri: pickedPhoto?.uri ?? photoUrl! }} style={styles.photo} />
+              ) : (
+                <View style={[styles.photo, styles.photoEmpty]}><Text style={styles.photoEmoji}>📷</Text></View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.photoTitle}>
+                  {pickedPhoto || photoUrl ? 'Cambiar foto' : 'Agregar foto'}
+                </Text>
+                <Text style={styles.photoSub}>
+                  {pickedPhoto
+                    ? 'Se subirá al guardar'
+                    : 'Cuadrada, es lo que ven los clientes'}
+                </Text>
+              </View>
+            </Pressable>
+
+            <Text style={styles.label}>Nombre</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Ej: Cerveza Presidente 650ml"
+              placeholderTextColor={t.textFaint}
+            />
+
+            <Text style={styles.label}>Descripción (opcional)</Text>
+            <TextInput
+              style={[styles.input, styles.inputMulti]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Ej: Botella fría, 650 ml"
+              placeholderTextColor={t.textFaint}
+              multiline
+            />
+
+            <Text style={styles.label}>Precio (RD$)</Text>
+            <TextInput
+              style={styles.input}
+              value={price}
+              onChangeText={setPrice}
+              placeholder="0.00"
+              placeholderTextColor={t.textFaint}
+              keyboardType="decimal-pad"
+            />
+
+            <Pressable style={styles.toggleRow} onPress={() => setActive(!active)} accessibilityRole="button">
+              <View style={[styles.checkbox, active && styles.checkboxOn]}>
+                {active ? <Text style={styles.checkboxTick}>✓</Text> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>En venta</Text>
+                <Text style={styles.toggleSub}>
+                  {active ? 'Los clientes pueden pedirlo' : 'No aparece en el mercado'}
+                </Text>
+              </View>
+            </Pressable>
+
+            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+
+            <Pressable style={[styles.primary, saving && styles.disabled]} disabled={saving} onPress={save}>
+              {saving
+                ? <ActivityIndicator color={t.onAccent} />
+                : <Text style={styles.primaryText}>{editing ? 'Guardar cambios' : 'Crear producto'}</Text>}
+            </Pressable>
+            <Pressable onPress={() => setFormOpen(false)} disabled={saving}>
+              <Text style={styles.cancel}>Cancelar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Delete confirmation */}
+      <Modal visible={deleting != null} transparent animationType="fade" onRequestClose={() => setDeleting(null)}>
+        <Pressable style={styles.scrim} onPress={() => setDeleting(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>¿Eliminar producto?</Text>
+            <Text style={styles.confirmText}>
+              {deleting?.name}{'\n'}
+              Si ya tiene pedidos, se retirará de la venta en lugar de borrarse.
+            </Text>
+            <View style={styles.confirmRow}>
+              <Pressable
+                style={[styles.danger, deletingBusy && styles.disabled]}
+                disabled={deletingBusy}
+                onPress={confirmDelete}
+              >
+                {deletingBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.dangerText}>Sí, eliminar</Text>}
+              </Pressable>
+              <Pressable style={styles.neutral} disabled={deletingBusy} onPress={() => setDeleting(null)}>
+                <Text style={styles.neutralText}>No</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <BottomNav active="products" variant="merchant" />
+    </SafeAreaView>
+    </GradientBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+  title: { fontSize: 22, fontWeight: '900', color: t.text },
+  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 2, fontWeight: '600' },
+  newBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
+  newBtnText: { color: t.onAccent, fontWeight: '900', fontSize: 14 },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginBottom: 10,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 4,
+  },
+  searchIcon: { fontSize: 15 },
+  searchInput: { flex: 1, color: t.text, fontSize: 15, paddingVertical: 9 },
+  searchClear: { color: t.textMuted, fontSize: 16, fontWeight: '800', paddingHorizontal: 4 },
+  notice: { color: '#bbf7d0', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingBottom: 8 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  list: { padding: 16, gap: 12, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
+  error: { color: t.danger, fontSize: 14, marginBottom: 8 },
+  empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40, paddingHorizontal: 24, lineHeight: 20 },
+  footerSpinner: { marginVertical: 14 },
+
+  card: {
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 14, padding: 12, gap: 10,
+  },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  thumb: { width: 56, height: 56, borderRadius: 12, backgroundColor: t.cardStrong, justifyContent: 'center', alignItems: 'center' },
+  thumbEmoji: { fontSize: 26 },
+  body: { flex: 1, gap: 2 },
+  name: { fontSize: 15, fontWeight: '800', color: t.text },
+  description: { fontSize: 13, color: t.textMuted },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  price: { fontSize: 16, fontWeight: '900', color: t.text },
+  chip: { backgroundColor: '#64748b', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  chipText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  cardActions: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 10 },
+  editBtn: { flex: 1, backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  editText: { color: t.text, fontWeight: '800', fontSize: 13 },
+  deleteBtn: { flex: 1, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  deleteText: { color: '#fecaca', fontWeight: '800', fontSize: 13 },
+
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#0b2a6b', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    borderWidth: 1, borderColor: t.border, padding: 18, paddingBottom: 28, gap: 8,
+    maxWidth: 520, width: '100%', alignSelf: 'center',
+  },
+  sheetTitle: { fontSize: 18, fontWeight: '900', color: t.text, marginBottom: 4 },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  photo: { width: 68, height: 68, borderRadius: 12, backgroundColor: t.cardStrong },
+  photoEmpty: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.border },
+  photoEmoji: { fontSize: 26 },
+  photoTitle: { fontSize: 15, fontWeight: '800', color: t.text },
+  photoSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },
+  label: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 6 },
+  input: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: t.text },
+  inputMulti: { minHeight: 64, textAlignVertical: 'top' },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: t.accent, borderColor: t.accent },
+  checkboxTick: { color: t.onAccent, fontWeight: '900', fontSize: 14 },
+  toggleTitle: { fontSize: 15, fontWeight: '800', color: t.text },
+  toggleSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 1 },
+  primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
+  cancel: { color: t.textMuted, textAlign: 'center', paddingVertical: 12, fontWeight: '700' },
+  confirmText: { color: t.textMuted, fontSize: 14, lineHeight: 20 },
+  confirmRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  danger: { flex: 1, backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  dangerText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  neutral: { flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  neutralText: { color: t.text, fontSize: 15, fontWeight: '800' },
+  disabled: { opacity: 0.6 },
+});

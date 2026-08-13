@@ -188,7 +188,7 @@ export default function AccountScreen() {
             </View>
 
             <Pressable style={styles.logout} onPress={signOut}>
-              <FontAwesome5 name="sign-out-alt" size={16} solid color={t.text} />
+              <FontAwesome5 name="sign-out-alt" size={16} solid color={t.danger} />
               <Text style={styles.logoutText}>Cerrar sesión</Text>
             </Pressable>
           </ScrollView>
@@ -233,6 +233,9 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, fontSize: 16, color: t.text, fontWeight: '700' },
   rowChevron: { fontSize: 20, fontWeight: '800', color: t.text },
 
-  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 15, borderRadius: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.border },
-  logoutText: { fontSize: 16, color: t.text, fontWeight: '800' },
+  // Danger, the same way the address book marks its delete: the card shape stays, only the ink and
+  // the border turn red. The solid #dc2626 fill is kept for CONFIRMING a destructive action
+  // ("Rechazar", "Cancelar pedido"), and signing out is the entry point, not the confirmation.
+  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 15, borderRadius: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.danger },
+  logoutText: { fontSize: 16, color: t.danger, fontWeight: '800' },
 });
