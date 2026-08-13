@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
@@ -11,6 +11,7 @@ import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
 import { emojiFor } from './categoryEmoji';
+import { orderStatusChip } from './orderStatus';
 
 // The client home: the delivery location, search, and the orders the customer has in flight. The
 // catalogue itself -- business categories and the product grid -- lives in the Explorar tab
@@ -39,14 +40,8 @@ const TOP_FETCH_LIMIT = 50;
 // Delivery statuses that mean the order is finished -- excluded from the "current orders" row.
 const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
 
-// A short status label for the in-progress order chip, mirroring the tracking timeline phases.
-const orderStatusLabel = (o: Order): string => {
-  if (o.deliveryStatus === 'IN_TRANSIT') return 'En camino';
-  if (o.deliveryStatus === 'ASSIGNED') return 'Repartidor asignado';
-  if (o.status === 'READY') return 'Buscando repartidor';
-  if (o.status === 'CONFIRMED') return 'Pedido confirmado';
-  return 'Esperando al comercio';
-};
+// The chip's label and colour come from orderStatus.ts, shared with the orders list and the
+// tracking screen -- see the note there on why this is not four separate ladders any more.
 
 export function ClientHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
@@ -319,7 +314,16 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     <Text style={styles.orderChipArrow}>›</Text>
                   </View>
                   <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? 'Comercio'}</Text>
-                  <Text style={styles.orderChipStatus} numberOfLines={1}>{orderStatusLabel(o)}</Text>
+                  {/* The same badge the orders list and the tracking screen wear, so one order
+                      never reads as two different states in two places. */}
+                  {(() => {
+                    const s = orderStatusChip(o);
+                    return (
+                      <View style={[styles.orderChipBadge, { backgroundColor: s.color }]}>
+                        <Text style={styles.orderChipBadgeText} numberOfLines={1}>{s.label}</Text>
+                      </View>
+                    );
+                  })()}
                   {/* Grand total (products + envío), with the fee named so the number is explained.
                       Orders without a stored fee keep showing the products total alone. */}
                   {o.deliveryFee != null ? (
@@ -358,7 +362,13 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   accessibilityLabel={`Ver ${offer.name}, ${offer.discountPercent}% de descuento`}
                 >
                   <View style={styles.topThumb}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(offer.itemTypeName ?? offer.companyName ?? undefined)}</Text>
+                    {/* The item's own photo once the merchant has set one; the category icon
+                        stands in for the ones that have none. */}
+                    {offer.imageUrl ? (
+                      <Image source={{ uri: offer.imageUrl }} style={styles.topThumbImage} resizeMode="contain" />
+                    ) : (
+                      <Text style={styles.topThumbEmoji}>{emojiFor(offer.itemTypeName ?? offer.companyName ?? undefined)}</Text>
+                    )}
                     {/* Only when the rounding leaves something worth shouting about: a 0% badge
                         on a fixed-price offer that barely undercuts the item reads as a bug. */}
                     {offer.discountPercent > 0 ? (
@@ -414,10 +424,14 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   accessibilityRole="button"
                   accessibilityLabel={`Ver ${item.name}`}
                 >
-                  {/* Same stand-in as the catalogue tiles: imagePath is a storage key and most
-                      items have none, so the category's icon does the work. */}
+                  {/* The item's own photo once the merchant has set one, exactly as the catalogue
+                      tiles do; the category's icon does the work for the ones that have none. */}
                   <View style={styles.topThumb}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(item.itemType?.name ?? item.companyName ?? undefined)}</Text>
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={styles.topThumbImage} resizeMode="contain" />
+                    ) : (
+                      <Text style={styles.topThumbEmoji}>{emojiFor(item.itemType?.name ?? item.companyName ?? undefined)}</Text>
+                    )}
                   </View>
                   <Text style={styles.topName} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.topCompany} numberOfLines={1}>{item.companyName ?? 'Comercio'}</Text>
@@ -677,7 +691,8 @@ const styles = StyleSheet.create({
   orderChipNumber: { fontSize: 13, fontWeight: '800', color: t.textMuted },
   orderChipArrow: { fontSize: 18, fontWeight: '800', color: t.text },
   orderChipMerchant: { fontSize: 15, fontWeight: '800', color: t.text, marginTop: 6 },
-  orderChipStatus: { fontSize: 13, fontWeight: '700', color: t.text, marginTop: 4 },
+  orderChipBadge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginTop: 6, maxWidth: '100%' },
+  orderChipBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   orderChipFee: { fontSize: 11, fontWeight: '700', color: t.textFaint, marginTop: 6 },
   orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 2 },
 
@@ -692,7 +707,10 @@ const styles = StyleSheet.create({
   topThumb: {
     height: 64, borderRadius: 10, backgroundColor: t.cardStrong,
     justifyContent: 'center', alignItems: 'center', marginBottom: 10,
+    // The photo fills the thumb, so the offer badge above keeps its corner.
+    overflow: 'hidden',
   },
+  topThumbImage: { width: '100%', height: '100%' },
   topThumbEmoji: { fontSize: 28 },
   // Corner of the thumbnail, so the discount is read with the picture rather than the price.
   offerBadge: {

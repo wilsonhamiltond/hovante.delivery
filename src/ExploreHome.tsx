@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
@@ -12,6 +12,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
 import { AddToCartButton, ADDED_FEEDBACK_MS } from './AddToCartButton';
 import { emojiFor } from './categoryEmoji';
+import { orderStatusChip } from './orderStatus';
 
 // The "Explorar" tab: the full marketplace -- a header band with the delivery location and search,
 // the business-category row, and every merchant's products (GET /delivery/products) as a
@@ -34,14 +35,8 @@ const CART_BAR_MS = 5000;
 // Delivery statuses that mean the order is finished -- excluded from the "current orders" row.
 const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
 
-// A short status label for the in-progress order chip, mirroring the tracking timeline phases.
-const orderStatusLabel = (o: Order): string => {
-  if (o.deliveryStatus === 'IN_TRANSIT') return 'En camino';
-  if (o.deliveryStatus === 'ASSIGNED') return 'Repartidor asignado';
-  if (o.status === 'READY') return 'Buscando repartidor';
-  if (o.status === 'CONFIRMED') return 'Pedido confirmado';
-  return 'Esperando al comercio';
-};
+// The chip's label and colour come from orderStatus.ts, shared with the home carousel, the orders
+// list and the tracking screen.
 
 // The grid is two across, so an odd number of products would leave the last one stretched over the
 // full width. Padding the data with a null lets that slot render as an empty tile of equal size.
@@ -301,6 +296,30 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
     addedTimers.current = {};
   }, []);
 
+  // Tapping a tile opens the product first and asks before it goes in the cart -- the round + on
+  // the tile stays the one-tap path for someone who already knows what they want.
+  const [preview, setPreview] = useState<Product | null>(null);
+  // The cross-merchant question, asked inside the same sheet rather than through Alert: its
+  // buttons do not render on web, and the sheet is already the surface holding the decision.
+  const [previewConflict, setPreviewConflict] = useState(false);
+
+  const openPreview = (p: Product) => { setPreviewConflict(false); setPreview(p); };
+  const closePreview = () => { setPreview(null); setPreviewConflict(false); };
+
+  const confirmAdd = () => {
+    if (!preview) return;
+    if (cart.tryAdd(preview) === 'conflict') { setPreviewConflict(true); return; }
+    markAdded(preview.id);
+    closePreview();
+  };
+
+  const confirmReplace = () => {
+    if (!preview) return;
+    cart.replaceWith(preview);
+    markAdded(preview.id);
+    closePreview();
+  };
+
   const onAdd = (p: Product) => {
     if (cart.tryAdd(p) === 'conflict') {
       Alert.alert(
@@ -431,12 +450,25 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
           // The padding cell: same width, nothing drawn, so a lone last product is not stretched.
           if (!item) return <View style={styles.tile} />;
           return (
-            <View style={styles.tile}>
-              {/* No product images yet: imagePath is a storage key and most items have none, so
-                  the thumbnail stands in with the merchant's category icon. */}
-              <View style={styles.tileThumb}>
-                <Text style={styles.tileThumbEmoji}>{emojiFor(item.categories[0] ?? item.companyName)}</Text>
-              </View>
+            // The whole tile opens the product; the merchant link and the + button below are
+            // nested pressables, so they still take their own taps rather than the sheet.
+            <Pressable
+              style={styles.tile}
+              onPress={() => openPreview(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ver ${item.name}`}
+            >
+              {/* The item's own photo once the merchant has set one; the merchant's category icon
+                  stands in for the ones that have none. */}
+              {item.imageUrl ? (
+                // contain, not cover: a bottle or a box photographed tall would be cropped to its
+                // middle by a fill, which is exactly the part that identifies nothing.
+                <Image source={{ uri: item.imageUrl }} style={styles.tileThumb} resizeMode="contain" />
+              ) : (
+                <View style={styles.tileThumb}>
+                  <Text style={styles.tileThumbEmoji}>{emojiFor(item.categories[0] ?? item.companyName)}</Text>
+                </View>
+              )}
               <View style={styles.tileBody}>
                 <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
                 <Pressable onPress={() => selectCompany(item.companyId, item.companyName)}>
@@ -451,7 +483,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
                   />
                 </View>
               </View>
-            </View>
+            </Pressable>
           );
         }}
         ListEmptyComponent={
@@ -497,8 +529,16 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
                     <Text style={styles.orderChipArrow}>›</Text>
                   </View>
                   <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? 'Comercio'}</Text>
-                  <Text style={styles.orderChipStatus} numberOfLines={1}>{orderStatusLabel(o)}</Text>
-                  <Text style={styles.orderChipTotal}>{money(o.total)}</Text>
+                  {/* The same badge the home carousel and the tracking screen wear. */}
+                  {(() => {
+                    const s = orderStatusChip(o);
+                    return (
+                      <View style={[styles.orderChipBadge, { backgroundColor: s.color }]}>
+                        <Text style={styles.orderChipBadgeText} numberOfLines={1}>{s.label}</Text>
+                      </View>
+                    );
+                  })()}
+                  <Text style={styles.orderChipTotal}>{money(o.total + (o.deliveryFee ?? 0))}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -534,6 +574,62 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
         }
       />
 
+
+      {/* The tapped product, with the decision it exists to ask: add this to the cart or not. */}
+      <Modal visible={preview != null} transparent animationType="slide" onRequestClose={closePreview}>
+        <Pressable style={styles.sheetBackdrop} onPress={closePreview}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            {preview ? (
+              <>
+                <View style={styles.previewHead}>
+                  {preview.imageUrl ? (
+                    <Image source={{ uri: preview.imageUrl }} style={styles.previewImage} resizeMode="contain" />
+                  ) : (
+                    <View style={[styles.previewImage, styles.previewImageEmpty]}>
+                      <Text style={styles.previewEmoji}>{emojiFor(preview.categories[0] ?? preview.companyName)}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewName}>{preview.name}</Text>
+                    <Text style={styles.previewCompany} numberOfLines={1}>{preview.companyName}</Text>
+                    <Text style={styles.previewPrice}>{money(preview.price)}</Text>
+                  </View>
+                </View>
+
+                {preview.description ? (
+                  <Text style={styles.previewDescription}>{preview.description}</Text>
+                ) : null}
+
+                {/* One order, one merchant: adding across shops empties the cart, so it is asked
+                    here rather than assumed. */}
+                {previewConflict ? (
+                  <>
+                    <Text style={styles.previewConflict}>
+                      Tu carrito tiene productos de {cart.merchantName}. ¿Vaciarlo y agregar de {preview.companyName}?
+                    </Text>
+                    <Pressable style={styles.previewDanger} onPress={confirmReplace}>
+                      <Text style={styles.previewDangerText}>Vaciar y agregar</Text>
+                    </Pressable>
+                    <Pressable onPress={closePreview}>
+                      <Text style={styles.previewCancel}>Cancelar</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Pressable style={styles.previewAdd} onPress={confirmAdd}>
+                      <Text style={styles.previewAddText}>Agregar al carrito · {money(preview.price)}</Text>
+                    </Pressable>
+                    <Pressable onPress={closePreview}>
+                      <Text style={styles.previewCancel}>Cancelar</Text>
+                    </Pressable>
+                  </>
+                )}
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Delivery-address picker: pick which saved address to deliver to, or add a new one. */}
       <Modal visible={addrOpen} transparent animationType="slide" onRequestClose={() => setAddrOpen(false)}>
@@ -630,6 +726,22 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderColor: t.border,
   },
   sheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: t.cardStrong, marginBottom: 14 },
+
+  // The tapped product's confirm sheet.
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  previewImage: { width: 92, height: 92, borderRadius: 12, backgroundColor: t.cardStrong },
+  previewImageEmpty: { alignItems: 'center', justifyContent: 'center' },
+  previewEmoji: { fontSize: 38 },
+  previewName: { fontSize: 17, fontWeight: '900', color: t.text },
+  previewCompany: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 2 },
+  previewPrice: { fontSize: 20, fontWeight: '900', color: t.text, marginTop: 6 },
+  previewDescription: { fontSize: 14, color: t.textMuted, lineHeight: 20, marginTop: 12 },
+  previewConflict: { fontSize: 14, color: t.text, fontWeight: '700', lineHeight: 20, marginTop: 14 },
+  previewAdd: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
+  previewAddText: { color: t.onAccent, fontSize: 16, fontWeight: '900' },
+  previewDanger: { backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
+  previewDangerText: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  previewCancel: { color: t.textMuted, textAlign: 'center', paddingVertical: 12, fontWeight: '700' },
 
   sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 4 },
   sheetTitle: { fontSize: 20, fontWeight: '900', color: t.text },
@@ -751,7 +863,8 @@ const styles = StyleSheet.create({
   orderChipNumber: { fontSize: 13, fontWeight: '800', color: t.textMuted },
   orderChipArrow: { fontSize: 18, fontWeight: '800', color: t.text },
   orderChipMerchant: { fontSize: 15, fontWeight: '800', color: t.text, marginTop: 6 },
-  orderChipStatus: { fontSize: 13, fontWeight: '700', color: t.text, marginTop: 4 },
+  orderChipBadge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginTop: 6, maxWidth: '100%' },
+  orderChipBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 6 },
 
   sectionTitle: { fontSize: 20, fontWeight: '800', color: t.text, paddingHorizontal: 16, marginTop: 26, marginBottom: 12 },

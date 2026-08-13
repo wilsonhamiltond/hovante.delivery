@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import type { Order } from '../../src/api';
 import { statusOf } from '../../src/MerchantOrderCard';
+import { QueueTimeModal } from '../../src/QueueTimeModal';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
@@ -37,6 +38,9 @@ export default function MerchantOrderDetail() {
   const [error, setError] = useState<string | null>(null);
   // The reject flow: an inline "¿seguro?" step rather than Alert (whose buttons do not render on web).
   const [confirmReject, setConfirmReject] = useState(false);
+  // The confirm flow goes through the queue-time modal: it asks how long the order will wait
+  // before preparation starts, and only then calls the API.
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     const res = await api.merchantOrders();
@@ -54,14 +58,22 @@ export default function MerchantOrderDetail() {
   }, [load]));
 
   const act = async (fn: (id: string) => Promise<api.ApiResponse<Order>>) => {
-    if (!order) return;
+    if (!order) return false;
     setBusy(true);
     setError(null);
     const res = await fn(order.id);
     setBusy(false);
     setConfirmReject(false);
-    if (!res.success) { setError(res.message); return; }
+    if (!res.success) { setError(res.message); return false; }
     await load();
+    return true;
+  };
+
+  // Only a successful confirm closes the modal: on failure it stays put with the error inside it,
+  // so the chosen time is not lost.
+  const confirmWithQueue = async (queueMinutes: number) => {
+    const ok = await act((i) => api.confirmMerchantOrder(i, queueMinutes));
+    if (ok) setConfirming(false);
   };
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/home'));
@@ -96,6 +108,16 @@ export default function MerchantOrderDetail() {
           <Text style={styles.placedAt}>{fmtStamp(order.createdAt) ?? ''}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
         </View>
+
+        {/* The promise made at confirm, spelled out under the live chip (which counts it down and
+            flips to "En preparación" when it runs out). */}
+        {order.queueMinutes != null && order.status === 'CONFIRMED' ? (
+          <Text style={styles.queue}>
+            ⏱️ {order.queueMinutes === 0
+              ? 'Se prometió empezar de inmediato'
+              : `Se prometió empezar en ${order.queueMinutes} min`}
+          </Text>
+        ) : null}
 
         {/* The customer: who receives it and how to reach them. */}
         <View style={styles.card}>
@@ -210,7 +232,7 @@ export default function MerchantOrderDetail() {
             street's business and only reads here. */}
         {order.status === 'PENDING' && !confirmReject ? (
           <View style={styles.actions}>
-            <Pressable style={[styles.action, styles.confirm, busy && styles.disabled]} disabled={busy} onPress={() => act(api.confirmMerchantOrder)}>
+            <Pressable style={[styles.action, styles.confirm, busy && styles.disabled]} disabled={busy} onPress={() => { setError(null); setConfirming(true); }}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar pedido</Text>}
             </Pressable>
             <Pressable style={[styles.action, styles.reject, busy && styles.disabled]} disabled={busy} onPress={() => setConfirmReject(true)}>
@@ -239,6 +261,15 @@ export default function MerchantOrderDetail() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      <QueueTimeModal
+        visible={confirming}
+        orderNumber={order.orderNumber}
+        busy={busy}
+        error={error}
+        onConfirm={confirmWithQueue}
+        onClose={() => setConfirming(false)}
+      />
     </SafeAreaView>
     </GradientBackground>
   );
@@ -263,6 +294,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, gap: 12, maxWidth: 520, width: '100%', alignSelf: 'center' },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   placedAt: { fontSize: 13, fontWeight: '700', color: t.textMuted },
+  queue: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: '65%' },
   chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 

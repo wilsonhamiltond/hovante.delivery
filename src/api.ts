@@ -118,6 +118,11 @@ export interface Delivery {
   orderDeliveryFee?: number | null;
   // The first product's photo (public URL), worn by the delivery's pin on the pool map.
   orderImageUrl?: string | null;
+  // The other two faces the map pins wear: the merchant's logo on the office the order is
+  // collected from, and the customer's own picture on the door it goes to. Null when the company
+  // has no logo or the customer never set a photo, and the pin keeps its numbered teardrop.
+  pickupImageUrl?: string | null;
+  customerImageUrl?: string | null;
   // The order's lines -- what is actually in the bag. Empty on deliveries with no marketplace order
   // behind them, for the same reason the two amounts above are null there.
   orderItems?: DeliveryOrderItem[];
@@ -341,6 +346,8 @@ export interface OfferItem {
   name: string;
   description: string | null;
   imagePath: string | null;
+  /** The item's photo as a URL (imagePath is only the storage key). Null when it has none. */
+  imageUrl?: string | null;
   /** The normal price, for the struck-through "before". */
   price: number;
   offerPrice: number;
@@ -368,6 +375,8 @@ export interface TopItem {
   description: string | null;
   price: number;
   imagePath: string | null;
+  /** The item's photo as a URL (imagePath is only the storage key). Null when it has none. */
+  imageUrl?: string | null;
   companyId: string | null;
   companyName: string | null;
   /** Units sold in the last 7 days. Null outside the top-weekly endpoint. */
@@ -409,6 +418,12 @@ export interface Order {
   orderNumber: string;
   merchantCompanyId: string;
   merchantName: string | null;
+  // The merchant's logo (public URL), worn by the branch pin on the merchant's driver-approach
+  // map. Null when the company never uploaded one.
+  merchantImageUrl?: string | null;
+  // Which of the merchant's branches fulfils the order; null when there was no choice to make.
+  // The merchant's driver-approach map points at this branch's pin.
+  officeId?: string | null;
   status: string;
   subtotal: number;
   total: number;
@@ -424,6 +439,12 @@ export interface Order {
   deliveryDistanceM?: number | null;
   // Why the customer cancelled, when they did; shown back on the tracking screen.
   cancelReason?: string | null;
+  // How many minutes the merchant said the order would queue before preparation starts, declared
+  // when they confirmed -- and when that confirm happened, which the wait counts from (see
+  // orderQueue.ts). Optional-null: an older API, an order confirmed from the web (which does not
+  // ask), or one not yet confirmed simply has none.
+  queueMinutes?: number | null;
+  confirmedAt?: string | null;
   createdAt: string;
   items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
   // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
@@ -431,6 +452,9 @@ export interface Order {
   // Who to deliver to -- populated on the merchant view only (null in the customer's own list).
   customerName?: string | null;
   customerPhone?: string | null;
+  // The customer's profile picture (public URL), so a pin on their door shows a face rather than a
+  // number. Merchant view only, and null when they never set one.
+  customerImageUrl?: string | null;
   // The invoice issued for the order ("Facturar" on the web), merchant view only. Null until then.
   documentNumber?: string | null;
   ncf?: string | null;
@@ -584,8 +608,12 @@ export function merchantOrderHistory(skip: number, take: number) {
   return get<Order[]>(`/delivery/orders/merchant/history?skip=${skip}&take=${take}`);
 }
 
-export function confirmMerchantOrder(id: string) {
-  return postAuth<Order>(`/delivery/orders/${id}/confirm`, {});
+// Confirm an order, declaring how many minutes it will queue before preparation starts. The queue
+// time is optional server-side (the web confirms without asking), but the app's confirm flow
+// always collects it in the modal first.
+export function confirmMerchantOrder(id: string, queueMinutes?: number) {
+  return postAuth<Order>(`/delivery/orders/${id}/confirm`,
+    queueMinutes != null ? { queueMinutes } : {});
 }
 
 export function readyMerchantOrder(id: string) {

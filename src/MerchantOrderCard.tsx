@@ -1,6 +1,7 @@
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as api from './api';
 import type { Order } from './api';
+import { queueRemainingMin } from './orderQueue';
 import { t } from './theme';
 
 // One order as the merchant sees it in a list -- shared by the counter's queue (MerchantHome) and
@@ -22,7 +23,15 @@ export function statusOf(o: Order): { label: string; color: string } {
   }
   switch (o.status) {
     case 'PENDING': return { label: 'Nuevo', color: '#d97706' };
-    case 'CONFIRMED': return { label: 'Confirmado', color: '#2563eb' };
+    case 'CONFIRMED': {
+      // The queue phase the merchant declared at confirm, derived from the clock (orderQueue.ts):
+      // EN COLA while the wait runs, EN PREPARACIÓN once it is due -- the stage before "listo para
+      // recoger". The screens showing this chip poll, so it advances on its own.
+      const remaining = queueRemainingMin(o);
+      if (remaining != null && remaining > 0) return { label: `En cola · ${remaining} min`, color: '#0891b2' };
+      if (remaining === 0) return { label: 'En preparación', color: '#7c3aed' };
+      return { label: 'Confirmado', color: '#2563eb' };
+    }
     case 'PREPARING': return { label: 'En preparación', color: '#7c3aed' };
     case 'READY': return { label: 'Listo · buscando repartidor', color: '#7c3aed' };
     case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
@@ -30,13 +39,19 @@ export function statusOf(o: Order): { label: string; color: string } {
   return { label: o.status, color: '#64748b' };
 }
 
-export function MerchantOrderCard({ order, busy = false, onOpen, onAct }: {
+export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfirm, onTrackDriver }: {
   order: Order;
   busy?: boolean;
   onOpen: (id: string) => void;
   // The counter's quick actions. Omitted on the history screen, where every order has already
   // finished and none of the transitions apply.
   onAct?: (id: string, fn: (id: string) => Promise<api.ApiResponse<Order>>) => void;
+  // Accepting is the one action that does not fire straight away: it first asks (in the caller's
+  // modal) how long the order will queue, so the caller opens that instead of calling the API.
+  onConfirm?: (id: string) => void;
+  // Opens the driver-approach map once a courier holds the delivery. Omitted on the history
+  // screen along with the other actions.
+  onTrackDriver?: (id: string) => void;
 }) {
   const s = statusOf(order);
   return (
@@ -70,6 +85,16 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct }: {
         ) : null}
       </View>
 
+      {/* The promise made at confirm, spelled out under the live chip: what was declared, so the
+          counter can hold itself to it even after the countdown has moved on. */}
+      {order.queueMinutes != null && order.status === 'CONFIRMED' ? (
+        <Text style={styles.queue}>
+          ⏱️ {order.queueMinutes === 0
+            ? 'Se prometió empezar de inmediato'
+            : `Se prometió empezar en ${order.queueMinutes} min`}
+        </Text>
+      ) : null}
+
       {/* The counter's actions, mirroring the web: accept or reject a new order, then release it
           to the driver pool once the bag is packed. */}
       {onAct == null ? null : order.status === 'PENDING' ? (
@@ -77,7 +102,8 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct }: {
           <Pressable
             style={[styles.action, styles.confirm, busy && styles.disabled]}
             disabled={busy}
-            onPress={() => onAct(order.id, api.confirmMerchantOrder)}
+            // Through the queue-time modal when the caller offers one; straight through otherwise.
+            onPress={() => (onConfirm ? onConfirm(order.id) : onAct(order.id, api.confirmMerchantOrder))}
           >
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar</Text>}
           </Pressable>
@@ -102,6 +128,17 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct }: {
           </Pressable>
         </View>
       ) : null}
+
+      {/* A courier holds the delivery (claimed the pickup, or already riding): the counter can
+          watch them approach on the map. Deliberately outside the onAct block above -- by then the
+          order sits at READY, whose branch offers nothing. */}
+      {onTrackDriver && (order.deliveryStatus === 'ASSIGNED' || order.deliveryStatus === 'IN_TRANSIT') ? (
+        <View style={styles.actions}>
+          <Pressable style={[styles.action, styles.track]} onPress={() => onTrackDriver(order.id)}>
+            <Text style={styles.actionText}>🛵 Entrega en camino</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -122,11 +159,14 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 },
   total: { fontSize: 17, fontWeight: '900', color: t.text },
   fee: { fontSize: 12, fontWeight: '700', color: t.textMuted },
+  queue: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   actions: { flexDirection: 'row', gap: 10, marginTop: 6 },
   action: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   confirm: { backgroundColor: '#16a34a' },
   ready: { backgroundColor: t.accent },
   reject: { backgroundColor: '#dc2626' },
+  // The IN_TRANSIT chip's sky blue: the button and the status it tracks wear one colour.
+  track: { backgroundColor: '#0ea5e9' },
   actionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   // On the near-white accent button, white ink would vanish.
   readyText: { color: t.onAccent },

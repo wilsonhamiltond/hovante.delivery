@@ -48,3 +48,10 @@ export const GOOGLE_MAPS_API_KEY =
 // Without a key Google renders a dark "for development purposes only" watermark over a dead map, so
 // the map components say so plainly instead.
 export const MAPS_ENABLED = GOOGLE_MAPS_API_KEY.trim().length > 0;
+
+// The Map ID advanced markers are drawn against (Google Cloud Console → Maps → Map management).
+// google.maps.Marker was deprecated in February 2024 in favour of AdvancedMarkerElement, and an
+// advanced marker only renders on a map that carries a Map ID -- it is not derivable from the API
+// key. Unset, the maps keep using the deprecated marker, which still works and still gets bug
+// fixes; set, they switch over. See mapMarkersJs.ts, where both branches live.
+export const GOOGLE_MAPS_MAP_ID = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID ?? '').trim();

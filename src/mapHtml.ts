@@ -1,4 +1,5 @@
 import { GOOGLE_MAPS_API_KEY, MAPS_ENABLED } from './config';
+import { markersJs } from './mapMarkersJs';
 
 // Shared, platform-agnostic pieces for the location-picker map. No React/RN imports here so both the
 // web (iframe) and native (WebView) pickers can use them.
@@ -70,10 +71,12 @@ export function missingKeyHtml(message: string): string {
 }
 
 // The shared <script src> that loads the API. `loading=async` is what Google asks for and silences
-// its console warning; the callback fires once the library is ready.
+// its console warning; the callback fires once the library is ready. `libraries=marker` brings in
+// AdvancedMarkerElement, which replaced the deprecated google.maps.Marker -- see mapMarkersJs.ts.
 function loaderTag(callback: string): string {
   return `<script async src="https://maps.googleapis.com/maps/api/js`
     + `?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
+    + `&libraries=marker`
     + `&loading=async&callback=${callback}"></script>`;
 }
 
@@ -95,6 +98,7 @@ export function locationPickerHtml(
 <body>
 <div id="map"></div>
 <script>
+${markersJs()}
   var lat = ${lat}, lng = ${lng};
   var areas = ${JSON.stringify(areas)};
   var origin = ${JSON.stringify(origin)};
@@ -193,20 +197,18 @@ export function locationPickerHtml(
   }
 
   function initPicker() {
+    markersReady();
     map = new google.maps.Map(document.getElementById('map'), {
       center: { lat: lat, lng: lng },
       zoom: 16,
+      mapId: mapIdOption(),
       // Nothing here navigates elsewhere: this map exists to drop one pin.
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
       clickableIcons: false,
     });
     geocoder = new google.maps.Geocoder();
-    marker = new google.maps.Marker({
-      position: { lat: lat, lng: lng }, map: map, draggable: true,
-      // Above the office dot: the one you can move must never end up hidden under one you cannot.
-      zIndex: 2,
-      title: 'Entregar aquí',
-    });
+    // Above the office dot: the one you can move must never end up hidden under one you cannot.
+    marker = mkDraggablePin(map, { lat: lat, lng: lng }, { title: 'Entregar aquí', zIndex: 2 });
 
     // The served area, outlined so the limit is visible before it is hit rather than only when a
     // tap is refused. Not editable and not clickable -- clicks must reach the map underneath, or
@@ -224,19 +226,11 @@ export function locationPickerHtml(
         bounds.extend({ lat: a.minLatitude, lng: a.minLongitude });
         bounds.extend({ lat: a.maxLatitude, lng: a.maxLongitude });
 
-        // The shop itself. A filled dot rather than a teardrop, so it never reads as a second
-        // draggable pin, and clickable:false so it cannot swallow a tap meant for the map beneath.
+        // The shop itself, as a dot rather than a teardrop so it never reads as a second draggable
+        // pin, and passing taps through so it cannot swallow one meant for the map beneath.
         if (a.latitude != null && a.longitude != null) {
-          new google.maps.Marker({
-            map: map, clickable: false, zIndex: 1,
-            position: { lat: a.latitude, lng: a.longitude },
-            title: a.officeName || 'Comercio',
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 8,
-              fillColor: '#0b2a6b', fillOpacity: 1,
-              strokeColor: '#ffffff', strokeWeight: 3,
-            },
+          mkDot(map, { lat: a.latitude, lng: a.longitude }, {
+            title: a.officeName || 'Comercio', zIndex: 1,
           });
           bounds.extend({ lat: a.latitude, lng: a.longitude });
         }
@@ -253,16 +247,8 @@ export function locationPickerHtml(
         return a.latitude === origin.lat && a.longitude === origin.lng;
       });
       if (!dotted) {
-        new google.maps.Marker({
-          map: map, clickable: false, zIndex: 1,
-          position: { lat: origin.lat, lng: origin.lng },
-          title: origin.title || 'Comercio',
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#0b2a6b', fillOpacity: 1,
-            strokeColor: '#ffffff', strokeWeight: 3,
-          },
+        mkDot(map, { lat: origin.lat, lng: origin.lng }, {
+          title: origin.title || 'Comercio', zIndex: 1,
         });
       }
       // The pin the picker opened on already is a picked location; route to it straight away.
@@ -272,16 +258,16 @@ export function locationPickerHtml(
     map.addListener('click', function (e) {
       var la = e.latLng.lat(), ln = e.latLng.lng();
       if (!inside(la, ln)) { post({ outside: true }); return; }
-      marker.setPosition(e.latLng);
+      marker.setPos({ lat: la, lng: ln });
       pick(la, ln);
       drawRoute({ lat: la, lng: ln });
     });
-    marker.addListener('dragend', function () {
-      var p = marker.getPosition();
-      var la = p.lat(), ln = p.lng();
+    marker.onDragEnd(function () {
+      var p = marker.getPos();
+      var la = p.lat, ln = p.lng;
       if (!inside(la, ln)) {
         // Snap back rather than leave the pin somewhere that cannot be ordered to.
-        marker.setPosition({ lat: lat, lng: lng });
+        marker.setPos({ lat: lat, lng: lng });
         post({ outside: true });
         return;
       }

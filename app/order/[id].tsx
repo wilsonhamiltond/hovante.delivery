@@ -3,9 +3,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
-import type { OrderTracking } from '../../src/api';
+import type { Order, OrderTracking } from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { orderStatusChip } from '../../src/orderStatus';
+import { queueRemainingMin } from '../../src/orderQueue';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
@@ -106,6 +108,29 @@ export default function OrderTrackingScreen() {
   // the driver at the door to confirm receipt.
   const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && !failed;
 
+  // The queue the merchant declared when they accepted: the order waits its turn before they start
+  // preparing it. Until that runs out nobody has cooked, packed or ridden anything, so the customer
+  // can still take it back -- and the wait itself is worth saying out loud rather than leaving them
+  // staring at "confirmado" wondering whether anything is happening.
+  // The tracking payload carries the timestamps beside the order rather than on it, so the order
+  // is completed with them before asking the shared helpers anything.
+  const stated: Order = {
+    ...order,
+    deliveryStatus: order.deliveryStatus ?? deliveryStatus,
+    confirmedAt: order.confirmedAt ?? data.confirmedAt,
+  };
+  const queueMinutesLeft = queueRemainingMin(stated);
+  const inQueue = queueMinutesLeft != null && queueMinutesLeft > 0;
+
+  // Cancellable while nobody has started on it: before the merchant confirms, and for as long as
+  // the queue they declared still runs. The server re-checks both, so a window closing mid-tap is
+  // refused there rather than half-applied here.
+  const canCancel = !failed && (order.status === 'PENDING' || inQueue);
+
+  // Same wording as the orders list and the home cards -- one order should never read as two
+  // different states in two places.
+  const statusChip = orderStatusChip(stated);
+
   // Shows where this order is going, in the app. The map geocodes the address when the order has
   // no pin (older orders placed before the location step captured one).
   const openMap = () => router.push({
@@ -123,8 +148,20 @@ export default function OrderTrackingScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header onBack={() => router.replace('/orders')} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+        <View style={styles.numberRow}>
+          <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+          {/* The current state, said outright. The queue wins while it runs: "confirmado" alone
+              leaves the customer wondering whether anything is actually happening. */}
+          <View style={[styles.statusChip, { backgroundColor: statusChip.color }]}>
+            <Text style={styles.statusChipText}>{statusChip.label}</Text>
+          </View>
+        </View>
         <Text style={[styles.headline, failed && { color: t.danger }]}>{headline}</Text>
+        {inQueue ? (
+          <Text style={styles.queueNote}>
+            El comercio empezará a prepararlo en unos {queueMinutesLeft} min. Puedes cancelarlo mientras tanto.
+          </Text>
+        ) : null}
         {driverName ? <Text style={styles.driver}>Repartidor: {driverName}</Text> : null}
 
         {/* Delivery confirmation code: the customer reads it to the driver at the door. */}
@@ -210,7 +247,7 @@ export default function OrderTrackingScreen() {
         {/* Cancel: only while the merchant has not confirmed (PENDING). Opens the cancel screen,
             which collects the reason before anything happens; the moment the merchant confirms,
             the button disappears on the next poll and the server refuses stragglers anyway. */}
-        {order.status === 'PENDING' && !failed ? (
+        {canCancel ? (
           <Pressable style={styles.cancelBtn} onPress={() => router.push(`/cancel-order/${order.id}`)}>
             <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
           </Pressable>
@@ -242,7 +279,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },
   scroll: { padding: 16 },
+  numberRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   orderNumber: { fontSize: 14, fontWeight: '700', color: t.textMuted },
+  statusChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: '65%' },
+  statusChipText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  queueNote: { fontSize: 14, color: t.textMuted, fontWeight: '600', lineHeight: 20, marginTop: 6 },
   headline: { fontSize: 24, fontWeight: '800', color: t.text, marginTop: 4 },
   driver: { fontSize: 14, color: t.textMuted, marginTop: 6, fontWeight: '600' },
 

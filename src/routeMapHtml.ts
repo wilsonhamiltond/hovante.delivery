@@ -1,9 +1,14 @@
 import { MAPS_ENABLED } from './config';
 import { loaderTag, missingKeyHtml } from './mapHtml';
+import { markersJs } from './mapMarkersJs';
 
 // A read-only two-marker map (pickup + delivery) on Google Maps. No React/RN imports so both the web
 // (iframe) and native (WebView) renderers can share it. A point with no coordinates is
 // forward-geocoded from its address, so a stop that was only ever typed still shows up.
+//
+// Either stop can wear a picture instead of its numbered teardrop (the shop's logo on the office,
+// the customer's photo on the door), circle-cropped by the shared marker layer -- a driver reading
+// the map at a light recognises a logo faster than they read "1" and "2".
 //
 // When both stops resolve, the map draws a driving route between them (office -> order for a
 // driver) along the streets: Google Directions first, and when that cannot answer (key without
@@ -55,6 +60,7 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
 
   const enc = (p: MapPoint) => JSON.stringify({
     lat: p.lat, lng: p.lng, address: p.address ?? null, label: p.label, title: p.title, color: p.color,
+    imageUrl: p.imageUrl ?? null, badge: p.badge ?? null,
   });
 
   return `<!DOCTYPE html>
@@ -67,6 +73,7 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
 <body>
 <div id="map"></div>
 <script>
+${markersJs()}
   var pickup = ${enc(pickup)}, client = ${enc(client)};
 
   // The driver's live dot. The position is pushed in from the app (expo-location) rather than read
@@ -94,18 +101,9 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
     }
 
     if (!driverMarker) {
-      driverMarker = new google.maps.Marker({
-        map: mapRef, position: at, title: 'Tú',
-        // Above both stops: the marker that moves must never end up hidden under one that does not.
-        zIndex: 3,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE, scale: 13,
-          fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3,
-        },
-        label: { text: '🛵', fontSize: '14px' },
-      });
+      driverMarker = mkDriver(mapRef, at);
     } else {
-      driverMarker.setPosition(at);
+      driverMarker.setPos(at);
     }
   }
 
@@ -220,17 +218,6 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
     return Math.sqrt(x * x + y * y) * 111320;
   }
 
-  // A teardrop in the stop's colour with its number in the middle -- the same shape the map had
-  // before, drawn as an SVG path so Google can scale and anchor it properly.
-  function pin(color) {
-    return {
-      path: 'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z',
-      fillColor: color, fillOpacity: 1,
-      strokeColor: '#ffffff', strokeWeight: 2,
-      scale: 1, labelOrigin: new google.maps.Point(0, -30),
-    };
-  }
-
   // Coordinates when we have them; otherwise ask Google where the address is. Resolves to null when
   // there is neither, so a one-sided route still draws the side it knows.
   function resolve(geocoder, loc) {
@@ -252,8 +239,10 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
   }
 
   function initRoute() {
+    markersReady();
     var map = new google.maps.Map(document.getElementById('map'), {
       center: { lat: 18.4861, lng: -69.9312 }, zoom: 12,
+      mapId: mapIdOption(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
       clickableIcons: false,
     });
@@ -262,14 +251,13 @@ export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
     var info = new google.maps.InfoWindow();
 
     function place(point, at) {
-      var marker = new google.maps.Marker({
-        position: at, map: map, icon: pin(point.color),
-        label: { text: point.label, color: '#ffffff', fontWeight: '800', fontSize: '13px' },
-        title: point.title,
+      var marker = mkPin(map, at, {
+        label: point.label, color: point.color, title: point.title,
       });
-      marker.addListener('click', function () {
+      wearPhoto(marker, point);
+      marker.onClick(function () {
         info.setContent(point.title);
-        info.open(map, marker);
+        info.open({ map: map, anchor: marker.raw });
       });
       return marker;
     }

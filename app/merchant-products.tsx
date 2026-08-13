@@ -259,7 +259,8 @@ export default function MerchantProductsScreen() {
                 {/* The product's own photo once it has one; the merchant's category icon stands in
                     for the ones that do not, as the client catalogue does. */}
                 {item.imageUrl ? (
-                  <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+                  // contain, so the whole product is visible rather than a crop of its middle.
+                  <Image source={{ uri: item.imageUrl }} style={styles.thumb} resizeMode="contain" />
                 ) : (
                   <View style={styles.thumb}>
                     <Text style={styles.thumbEmoji}>{emojiFor(item.categories[0] ?? item.companyName)}</Text>
@@ -302,7 +303,8 @@ export default function MerchantProductsScreen() {
                 on a phone -- and it previews the pick before it is sent. */}
             <Pressable style={styles.photoRow} onPress={pickPhoto} accessibilityRole="button">
               {pickedPhoto || photoUrl ? (
-                <Image source={{ uri: pickedPhoto?.uri ?? photoUrl! }} style={styles.photo} />
+                // The preview shows what the card will show, so it fits the same way.
+                <Image source={{ uri: pickedPhoto?.uri ?? photoUrl! }} style={styles.photo} resizeMode="contain" />
               ) : (
                 <View style={[styles.photo, styles.photoEmpty]}><Text style={styles.photoEmoji}>📷</Text></View>
               )}

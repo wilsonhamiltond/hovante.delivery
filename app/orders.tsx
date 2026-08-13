@@ -6,38 +6,18 @@ import * as api from '../src/api';
 import type { Order } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { orderStatusChip } from '../src/orderStatus';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
 // How many history rows each page brings; the list asks for the next page as the end scrolls near.
 const HISTORY_PAGE = 10;
 
-// The order's CURRENT state for the card chip. The delivery status wins once a driver is involved
-// -- order.status stalls at READY after the merchant releases, while the delivery keeps advancing
-// (asignado -> en camino -> entregado), which is what the customer actually wants to read here.
-function currentStatus(o: Order): { label: string; color: string } {
-  if (o.status === 'CANCELLED') return { label: 'Cancelado', color: '#dc2626' };
-  switch (o.deliveryStatus) {
-    case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
-    case 'IN_TRANSIT': return { label: 'En camino', color: '#0ea5e9' };
-    case 'ASSIGNED': return { label: 'Repartidor asignado', color: '#2563eb' };
-    case 'FAILED': return { label: 'Entrega fallida', color: '#dc2626' };
-    case 'RETURNED': return { label: 'Devuelto', color: '#dc2626' };
-    case 'CANCELLED': return { label: 'Cancelado', color: '#dc2626' };
-  }
-  switch (o.status) {
-    case 'PENDING': return { label: 'Pendiente', color: '#d97706' };
-    case 'CONFIRMED': return { label: 'Confirmado', color: '#2563eb' };
-    case 'PREPARING': return { label: 'En preparación', color: '#7c3aed' };
-    case 'READY': return { label: 'Buscando repartidor', color: '#7c3aed' };
-    case 'ON_THE_WAY': return { label: 'En camino', color: '#0ea5e9' };
-    case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
-  }
-  return { label: o.status, color: '#64748b' };
-}
+// The card's chip comes from orderStatus.ts, shared with the home carousel, the Explorar row
+// and the tracking screen, so one order never reads as two different states in two places.
 
 function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
-  const s = currentStatus(order);
+  const s = orderStatusChip(order);
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.cardTop}>

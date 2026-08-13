@@ -93,6 +93,28 @@ describe('api client', () => {
     api.setAuthToken(null);
   });
 
+  // Confirming carries the queue time the modal collected; the no-argument form keeps sending the
+  // empty body older servers were confirmed with.
+  it('sends the queue minutes in the confirm body, or an empty body without them', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      headers: { get: () => null },
+      json: async () => ({ success: true, message: 'ok', data: null }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    api.setAuthToken('merchant-jwt');
+
+    await api.confirmMerchantOrder('o1', 15);
+    await api.confirmMerchantOrder('o2', 0);
+    await api.confirmMerchantOrder('o3');
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/delivery/orders/o1/confirm');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ queueMinutes: 15 });
+    // 0 is a real answer ("empiezo ahora"), not an absence -- it must survive to the body.
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ queueMinutes: 0 });
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({});
+    api.setAuthToken(null);
+  });
+
   // The Productos tab reads the merchant's own catalogue, which is a different endpoint from the
   // marketplace one: that one takes a companyId from the caller and hides items not on sale.
   it('asks the merchant catalogue endpoint for one page, identifying no company', async () => {

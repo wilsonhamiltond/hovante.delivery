@@ -73,8 +73,10 @@ export default function DeliveryMapScreen() {
           <RouteMap
             // The route's origin is the company office itself (its stored coordinates); the
             // address is only the geocoding fallback for offices that predate coordinates.
-            pickup={{ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? 'Recoger', color: '#f59e0b' }}
-            client={{ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, label: '2', title: delivery.recipientName ?? 'Entregar', color: '#16a34a' }}
+            // Each stop wears its own face where there is one -- the shop's logo on the office,
+            // the customer's photo on the door -- and falls back to the numbered teardrop.
+            pickup={{ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? 'Recoger', color: '#f59e0b', imageUrl: delivery.pickupImageUrl }}
+            client={{ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, label: '2', title: delivery.recipientName ?? 'Entregar', color: '#16a34a', imageUrl: delivery.customerImageUrl }}
             driver={driver}
           />
           {/* The legend reads in ride order -- you, then the office, then the client -- with each

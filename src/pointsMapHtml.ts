@@ -1,5 +1,6 @@
 import { MAPS_ENABLED } from './config';
 import { loaderTag, missingKeyHtml } from './mapHtml';
+import { markersJs } from './mapMarkersJs';
 import type { MapPoint } from './routeMapHtml';
 
 // A read-only map of N markers (branch choice, the driver home's pickup pool). Same conventions as
@@ -36,6 +37,7 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
 <body>
 <div id="map"></div>
 <script>
+${markersJs()}
   var points = ${enc};
   var ROUTE_FROM_DRIVER = ${routeFromDriver ? 'true' : 'false'};
 
@@ -64,18 +66,9 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
     }
 
     if (!driverMarker) {
-      driverMarker = new google.maps.Marker({
-        map: mapRef, position: at, title: 'Tú',
-        // Above every order pin: the marker that moves must never hide under one that does not.
-        zIndex: 3,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE, scale: 13,
-          fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3,
-        },
-        label: { text: '🛵', fontSize: '14px' },
-      });
+      driverMarker = mkDriver(mapRef, at);
     } else {
-      driverMarker.setPosition(at);
+      driverMarker.setPos(at);
     }
   }
 
@@ -201,61 +194,6 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
     try { if (window.parent) window.parent.postMessage(s, '*'); } catch (e) {}
   }
 
-  // The same teardrop pin the route map draws, so stops look alike everywhere.
-  function pin(color) {
-    return {
-      path: 'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z',
-      fillColor: color, fillOpacity: 1,
-      strokeColor: '#ffffff', strokeWeight: 2,
-      scale: 1, labelOrigin: new google.maps.Point(0, -30),
-    };
-  }
-
-  // The photo pin: the image circle-cropped onto a canvas with a white ring, sized like a large
-  // touch target, with the order count on its shoulder when several share the spot. Calls back
-  // with null when the image cannot be loaded or the canvas is tainted (a bucket without CORS
-  // headers), so the caller can keep the teardrop.
-  function photoIcon(url, badge, cb) {
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function () {
-      try {
-        var S = 52;
-        var c = document.createElement('canvas'); c.width = S; c.height = S;
-        var x = c.getContext('2d');
-        x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2); x.closePath();
-        x.fillStyle = '#ffffff'; x.fill();
-        x.save();
-        x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); x.clip();
-        // Cover-fit: the shorter side fills the circle, the longer side is cropped.
-        var side = Math.min(img.width, img.height);
-        x.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
-        x.restore();
-        x.lineWidth = 3; x.strokeStyle = '#ffffff';
-        x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); x.stroke();
-        // "There are N here", worn on the shoulder -- one photo alone would hide the rest.
-        if (badge && badge > 1) {
-          var r = 10;
-          x.beginPath(); x.arc(S - r - 1, r + 1, r, 0, Math.PI * 2);
-          x.fillStyle = '#dc2626'; x.fill();
-          x.lineWidth = 2; x.strokeStyle = '#ffffff'; x.stroke();
-          x.fillStyle = '#ffffff'; x.font = '700 12px system-ui, sans-serif';
-          x.textAlign = 'center'; x.textBaseline = 'middle';
-          x.fillText(badge > 9 ? '9+' : String(badge), S - r - 1, r + 2);
-        }
-        cb({
-          url: c.toDataURL(),
-          scaledSize: new google.maps.Size(S, S),
-          anchor: new google.maps.Point(S / 2, S / 2),
-        });
-      } catch (e) {
-        cb(null);
-      }
-    };
-    img.onerror = function () { cb(null); };
-    img.src = url;
-  }
-
   function resolve(geocoder, loc) {
     return new Promise(function (res) {
       if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
@@ -275,8 +213,10 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
   }
 
   function initPoints() {
+    markersReady();
     var map = new google.maps.Map(document.getElementById('map'), {
       center: { lat: 18.4861, lng: -69.9312 }, zoom: 12,
+      mapId: mapIdOption(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
       clickableIcons: false,
     });
@@ -290,22 +230,14 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
     var info = new google.maps.InfoWindow();
 
     function place(point, at) {
-      var marker = new google.maps.Marker({
-        position: at, map: map, icon: pin(point.color),
-        label: { text: point.label, color: '#ffffff', fontWeight: '800', fontSize: '13px' },
-        title: point.title,
+      var marker = mkPin(map, at, {
+        label: point.label, color: point.color, title: point.title,
       });
-      // The photo replaces the teardrop only once it is actually ready; until then (and on any
-      // load failure) the numbered pin stands in, so every point is always visible.
-      if (point.imageUrl) {
-        photoIcon(point.imageUrl, point.badge, function (icon) {
-          if (icon) { marker.setIcon(icon); marker.setLabel(null); }
-        });
-      }
-      marker.addListener('click', function () {
+      wearPhoto(marker, point);
+      marker.onClick(function () {
         if (point.id) { post({ pointId: point.id }); return; }
         info.setContent(point.title);
-        info.open(map, marker);
+        info.open({ map: map, anchor: marker.raw });
       });
     }
 
@@ -325,10 +257,7 @@ export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): stri
       // gets its route now; later fixes keep it fresh through setDriver.
       if (ROUTE_FROM_DRIVER && spots[0]) {
         routeTargetAt = spots[0];
-        if (driverMarker) {
-          var dp = driverMarker.getPosition();
-          maybeRouteFromDriver({ lat: dp.lat(), lng: dp.lng() });
-        }
+        if (driverMarker) maybeRouteFromDriver(driverMarker.getPos());
       }
     });
   }

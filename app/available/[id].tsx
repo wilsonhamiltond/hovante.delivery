@@ -75,9 +75,11 @@ export default function AvailableDeliveryScreen() {
       router.replace('/home');
       return;
     }
-    // It is on their route now, so the route's own screen owns it from here. Replace rather than
-    // push: going "back" to a claimed job sitting in the available pool would be a lie.
-    router.replace(`/delivery/${delivery.id}`);
+    // Home, where the map has already turned into this order's leg: the claim's whole point is the
+    // ride to the office, and the map is what the driver follows. Replace rather than push --
+    // going "back" to a claimed job sitting in the available pool would be a lie -- and the stop's
+    // own detail stays a tap away from the map's pin and from Mi ruta.
+    router.replace('/home');
   };
 
   // Straight to the pool, never router.back(). This screen is only ever reached from the pool, so

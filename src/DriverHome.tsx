@@ -96,14 +96,18 @@ export function DriverHome({ profile }: { profile: Me | null }) {
   // saying they have the bag, so it -- not a geofence -- is what turns the route around.
   const officePinned = current?.pickupLatitude != null && current?.pickupLongitude != null;
   const phase: 'office' | 'client' = current?.status === 'IN_TRANSIT' ? 'client' : 'office';
+  // The pin wears the face of whoever is being ridden to: the shop's logo on the way to collect,
+  // the customer's photo on the way to the door.
   const currentPoint = current ? (phase === 'office'
     ? {
       lat: current.pickupLatitude, lng: current.pickupLongitude, address: current.pickupAddress,
       label: '1', title: current.pickupName ?? 'Recoger', color: '#f59e0b', id: current.id,
+      imageUrl: current.pickupImageUrl,
     }
     : {
       lat: current.latitude, lng: current.longitude, address: current.addressLine,
       label: '2', title: current.recipientName ?? 'Entregar', color: '#16a34a', id: current.id,
+      imageUrl: current.customerImageUrl,
     }) : null;
 
   // "Entrega en camino": offered once the driver is AT the office (the 150 m arrival above).
@@ -148,9 +152,14 @@ export function DriverHome({ profile }: { profile: Me | null }) {
 
   // One pin per spot: a single order shows its own photo; a group wears the first photo plus a
   // count badge (or, with no photo at all, a red teardrop carrying the count).
+  //
+  // These pins stand on merchant offices, so the shop's logo stands in when no order at the spot
+  // has a product photo -- the product still wins, because it says what the job actually IS.
   const poolPoints = useMemo(() => poolGroups.map((g, i) => {
     const many = g.ds.length > 1;
-    const photo = g.ds.find((d) => d.orderImageUrl)?.orderImageUrl ?? null;
+    const photo = g.ds.find((d) => d.orderImageUrl)?.orderImageUrl
+      ?? g.ds.find((d) => d.pickupImageUrl)?.pickupImageUrl
+      ?? null;
     return {
       lat: g.at.lat, lng: g.at.lng, address: null,
       label: many ? String(g.ds.length) : String(i + 1),
@@ -383,7 +392,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                     style={styles.sheetCta}
                     onPress={() => { const id = selected.id; setSelected(null); router.push(`/available/${id}`); }}
                   >
-                    <Text style={styles.sheetCtaText}>Ver y tomar entrega</Text>
+                    <Text style={styles.sheetCtaText}>Ver</Text>
                   </Pressable>
                 </>
               ) : null}
