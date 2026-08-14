@@ -759,6 +759,16 @@ export function reportDriverPosition(latitude: number, longitude: number) {
   return postAuth<boolean>('/delivery/driver/position', { latitude, longitude });
 }
 
+// Push notification targets. The account is taken from the bearer token, so a device can only ever
+// register itself to whoever is signed in on it.
+export function registerDevice(token: string, platform: string) {
+  return postAuth<boolean>('/notifications/register', { token, platform });
+}
+
+export function unregisterDevice(token: string) {
+  return postAuth<boolean>('/notifications/unregister', { token });
+}
+
 // Authenticated POST for the driver's status actions. An optional idempotency key (8.5.9) lets a
 // retried action -- e.g. the offline queue flushing something that actually went through -- be
 // recognised by the server and not applied twice.

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import type { RegisterPayload } from './api';
 import { clearToken, getToken, saveToken } from './storage';
+import { registerForPush, unregisterFromPush } from './pushNotifications';
 
 interface AuthState {
   token: string | null;
@@ -56,6 +57,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Push registration follows the session. Held in a ref rather than state: nothing renders from
+  // it, and sign-out needs to read the latest value without re-running an effect to get it.
+  const pushToken = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!token || profileComplete !== true) return;
+    let active = true;
+    (async () => {
+      const res = await api.me();
+      // Drivers only, for now. Nobody else has anything pushed to them yet, and spending a
+      // customer's one notification-permission prompt on a channel we never use would waste it --
+      // Android only offers it once.
+      if (!active || !res.success || !res.data?.isDriver) return;
+      const registered = await registerForPush();
+      if (active) pushToken.current = registered;
+    })();
+    return () => { active = false; };
+  }, [token, profileComplete]);
+
   const adopt = async (token: string) => {
     api.setAuthToken(token);
     await saveToken(token);
@@ -101,6 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // First, while the bearer token is still set -- unregistering is an authenticated call, and
+    // doing it after would silently no-op and leave this handset receiving the next driver's work.
+    await unregisterFromPush(pushToken.current);
+    pushToken.current = null;
+
     api.setAuthToken(null);
     // Drops the cached profile the tab bar reads its role from, so the next account to sign in
     // cannot inherit this one's bar.
