@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "831248201522",
+    "project_id": "volao-rd",
+    "storage_bucket": "volao-rd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:831248201522:android:aed734406b1f1b4ab7092b",
+        "android_client_info": {
+          "package_name": "com.volao.delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDl8QIc1GzulFbW77YjW16fhYejeCv0kFc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
