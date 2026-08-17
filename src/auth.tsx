@@ -66,10 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       const res = await api.me();
-      // Drivers only, for now. Nobody else has anything pushed to them yet, and spending a
-      // customer's one notification-permission prompt on a channel we never use would waste it --
-      // Android only offers it once.
-      if (!active || !res.success || !res.data?.isDriver) return;
+      // Drivers and merchants: drivers are told about work to pick up, merchants about orders
+      // landing at their counter. Customers are still left out -- nothing is pushed to them yet,
+      // and spending their one notification-permission prompt on a channel we never use would
+      // waste it, since Android only offers it once.
+      if (!active || !res.success) return;
+      if (!res.data?.isDriver && !res.data?.isMerchant) return;
       const registered = await registerForPush();
       if (active) pushToken.current = registered;
     })();

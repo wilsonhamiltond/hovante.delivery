@@ -110,13 +110,22 @@ export async function unregisterFromPush(token: string | null) {
 }
 
 export interface PushTarget {
-  /** 'pool' -> an order anyone may claim; 'assigned' -> one already on this driver's route. */
+  /**
+   * 'pool' -> an order anyone may claim; 'assigned' -> one already on this driver's route;
+   * 'order' -> a new order at the merchant's counter.
+   */
   type?: string;
   deliveryId?: string;
+  orderId?: string;
 }
 
 /** The route a notification's payload points at, or null when it carries nothing routable. */
 export function routeForNotification(data: PushTarget | null | undefined): string | null {
+  // The merchant's new-order notification. Checked first because it carries orderId rather than
+  // deliveryId -- an order's delivery exists from creation but is parked in AWAITING_MERCHANT, so
+  // there is nothing about it a shop could act on yet.
+  if (data?.type === 'order' && data.orderId) return `/merchant-order/${data.orderId}`;
+
   if (!data?.deliveryId) return null;
   // A pool order is not the driver's yet, so it opens the claim screen; an assigned one opens the
   // stop itself. Sending a pool order to /delivery/[id] would show "Entrega no encontrada", since

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Volao",
     "slug": "hovante-delivery",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/ios/AppIcon.appiconset/AppIcon-1024.png",
     "scheme": "hovantedelivery",
@@ -45,7 +45,9 @@
       [
         "expo-notifications",
         {
-          "color": "#1d4ed8"
+          "icon": "./assets/android/notification-icon.png",
+          "color": "#1d4ed8",
+          "defaultChannel": "default"
         }
       ],
       [
