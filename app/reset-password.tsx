@@ -9,7 +9,11 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   // The reset link (hovantedelivery://reset-password?token=...) lands here with the token in params.
   // If opened without one, the person can paste the token from the email instead.
-  const params = useLocalSearchParams<{ token?: string }>();
+  //
+  // `email` arrives instead when this screen was reached by requesting a code rather than by
+  // following the link, and only names the inbox to go and look in.
+  const params = useLocalSearchParams<{ token?: string; email?: string }>();
+  const sentTo = typeof params.email === 'string' ? params.email : null;
   const [token, setToken] = useState(typeof params.token === 'string' ? params.token : '');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -67,7 +71,14 @@ export default function ResetPasswordScreen() {
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Text style={styles.title}>Nueva contraseña</Text>
-          <Text style={styles.subtitle}>Elija una contraseña de al menos 7 caracteres.</Text>
+          <Text style={styles.subtitle}>
+            {/* Deliberately "si existe una cuenta": the request endpoint answers the same whether or
+                not the address is registered, and promising a code outright here would leak which
+                addresses have accounts. */}
+            {sentTo
+              ? `Si existe una cuenta con ${sentTo}, le enviamos un código. Revíselo en su bandeja de entrada y péguelo aquí con su nueva contraseña.`
+              : 'Elija una contraseña de al menos 7 caracteres.'}
+          </Text>
         </View>
 
         {!hasTokenFromLink ? (
