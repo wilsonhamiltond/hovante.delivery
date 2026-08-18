@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../src/auth';
@@ -8,6 +8,7 @@ import type { Me } from '../src/api';
 import { ClientHome } from '../src/ClientHome';
 import { DriverHome } from '../src/DriverHome';
 import { MerchantHome } from '../src/MerchantHome';
+import { LogoSplash } from '../src/LogoSplash';
 import { GradientBackground, t } from '../src/theme';
 
 // Routes the home by role: a merchant (ERP account) gets their orders screen, a driver gets
@@ -17,7 +18,8 @@ export default function HomeScreen() {
   const { token, signOut } = useAuth();
   const [profile, setProfile] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Bumped to ask for the profile again after a failed attempt; see the retry effect below.
+  const [attempt, setAttempt] = useState(0);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -25,22 +27,23 @@ export default function HomeScreen() {
       if (!token) return;
       const res = await api.me();
       if (!active) return;
-      if (!res.success) { setError(res.message); return; }
-      setError(null);
+      if (!res.success) return;
       setProfile(res.data);
     })().finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [token]));
+  }, [token, attempt]));
 
-  if (loading) {
-    return (
-      <GradientBackground>
-        <SafeAreaView style={styles.safe}>
-          <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
-        </SafeAreaView>
-      </GradientBackground>
-    );
-  }
+  // A profile that will not load with the session still held is the network, not the token: an
+  // expired token has already signed the user out by the time it gets here (api's 401 handler), so
+  // there is nothing to tell them about. Retry quietly behind the splash instead, and the app comes
+  // back on its own when the connection does.
+  useEffect(() => {
+    if (loading || profile || !token) return;
+    const id = setTimeout(() => setAttempt((n) => n + 1), 4000);
+    return () => clearTimeout(id);
+  }, [loading, profile, token, attempt]);
+
+  if (loading) return <LogoSplash />;
 
   // Every role signs out from its "Cuenta" tab, so no home needs the handler. The merchant check
   // goes first: an ERP account has no delivery contact, so its driver/client flags are both false
@@ -68,18 +71,10 @@ export default function HomeScreen() {
 
   if (profile && !profile.isDriver) return <ClientHome profile={profile} />;
 
-  // Profile failed to load (e.g. session expired): let the user sign out and back in.
-  return (
-    <GradientBackground>
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.center}>
-        <Text style={styles.title}>No se pudo cargar tu perfil</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable onPress={signOut}><Text style={styles.link}>Cerrar sesión</Text></Pressable>
-      </View>
-    </SafeAreaView>
-    </GradientBackground>
-  );
+  // No profile yet: an expired session is already on its way to /login and a failed request is
+  // being retried above, so there is nothing to ask of the user -- just the logo until one of the
+  // two resolves.
+  return <LogoSplash />;
 }
 
 const styles = StyleSheet.create({

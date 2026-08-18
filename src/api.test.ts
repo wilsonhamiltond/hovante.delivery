@@ -147,6 +147,57 @@ describe('api client', () => {
 // me() when it gains focus. Reading the role from request state alone means rendering the client
 // bar until that request lands, which a merchant sees as their menu changing each time they open
 // Cuenta. These cover the cache that lets a screen answer synchronously instead.
+// A 401 on an authenticated call is the shape a session expiring takes: the app was closed for a
+// while and the stored token is no longer accepted. The client must end the session itself rather
+// than hand the screen an "Error del servidor (401)" to render.
+describe('expired session', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    api.setAuthToken(null);
+    api.setUnauthorizedHandler(null);
+    api.clearCachedMe();
+  });
+
+  it('drops the token and calls the handler when an authenticated read comes back 401', async () => {
+    // A bare 401: no { success, message } envelope to parse, which is exactly what the API returns
+    // for a rejected token.
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      status: 401,
+      headers: { get: () => null },
+      json: async () => { throw new Error('no body'); },
+    }) as unknown as typeof fetch;
+    api.setAuthToken('stale-jwt');
+    const onUnauthorized = jest.fn();
+    api.setUnauthorizedHandler(onUnauthorized);
+
+    const res = await api.me();
+
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(res.success).toBe(false);
+    expect(res.message).toBe(api.SESSION_EXPIRED);
+    // The token is gone, so the next call does not repeat the round trip with a dead credential.
+    expect((await api.me()).message).toBe('Sesión no iniciada.');
+  });
+
+  it('leaves an ordinary failure alone, so a 500 does not sign anyone out', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      status: 500,
+      headers: { get: () => null },
+      json: async () => { throw new Error('no body'); },
+    }) as unknown as typeof fetch;
+    api.setAuthToken('good-jwt');
+    const onUnauthorized = jest.fn();
+    api.setUnauthorizedHandler(onUnauthorized);
+
+    const res = await api.me();
+
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(res.message).toBe('Error del servidor (500).');
+  });
+});
+
 describe('cached profile', () => {
   const originalFetch = globalThis.fetch;
   const mockMe = (data: any) => {

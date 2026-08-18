@@ -52,6 +52,26 @@ function captureRotatedToken(res: Response) {
   }
 }
 
+// A 401 on an authenticated call means the held session is no longer good -- expired, or revoked
+// server-side. No screen can do anything about that, so rather than each one rendering its own
+// failure the client drops the token and tells the app the session is over; the gate in _layout
+// then sends the user back to the welcome screen, which is the only thing that can fix it.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
+export const SESSION_EXPIRED = 'Tu sesión expiró. Vuelve a iniciar sesión.';
+
+// Checked before the body is parsed, because an expired token comes back as a bare 401 with no
+// { success, message } envelope -- which is what used to surface as "Error del servidor (401)".
+function sessionExpired(res: Response): boolean {
+  if (res.status !== 401) return false;
+  currentToken = null;
+  onUnauthorized?.();
+  return true;
+}
+
 // The signed-in account (GET /auth/me). The JWT carries no role, so the app asks.
 export interface Me {
   email: string;
@@ -243,6 +263,7 @@ async function get<T>(path: string): Promise<ApiResponse<T>> {
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
   }
   captureRotatedToken(res);
+  if (sessionExpired(res)) return { success: false, message: SESSION_EXPIRED, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
@@ -314,6 +335,9 @@ export async function uploadProfileImage(uri: string, mimeType: string, fileName
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
   }
   captureRotatedToken(res);
+  if (sessionExpired(res)) {
+    return { success: false, message: SESSION_EXPIRED, data: null as unknown as string };
+  }
   const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
   if (json) return json;
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
@@ -556,6 +580,9 @@ export async function uploadProductImage(
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
   }
   captureRotatedToken(res);
+  if (sessionExpired(res)) {
+    return { success: false, message: SESSION_EXPIRED, data: null as unknown as string };
+  }
   const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
   if (json) return json;
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
@@ -821,6 +848,7 @@ async function sendAuth<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
   }
   captureRotatedToken(res);
+  if (sessionExpired(res)) return { success: false, message: SESSION_EXPIRED, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };

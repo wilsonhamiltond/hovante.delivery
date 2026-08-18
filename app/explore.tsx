@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import type { Me } from '../src/api';
 import { ExploreHome } from '../src/ExploreHome';
-import { GradientBackground, t } from '../src/theme';
+import { LogoSplash } from '../src/LogoSplash';
 
 // The "Explorar" tab: the full marketplace -- category row and product catalogue. It loads the
 // profile the same way /home does, since each tab is its own screen and neither can read the
@@ -16,7 +14,7 @@ import { GradientBackground, t } from '../src/theme';
 // only arrive here by deep link, and is sent to their own home instead of a marketplace they
 // cannot order from.
 export default function ExploreScreen() {
-  const { token, signOut } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
   // ?q= arrives when the home screen's search box was submitted, ?companyId=/?companyName= when a
   // merchant was tapped in its carousel -- either way this tab opens already filtered.
@@ -29,7 +27,8 @@ export default function ExploreScreen() {
   const company = companyId && companyName ? { id: companyId, name: companyName } : null;
   const [profile, setProfile] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Bumped to ask for the profile again after a failed attempt; see the retry effect below.
+  const [attempt, setAttempt] = useState(0);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -37,47 +36,31 @@ export default function ExploreScreen() {
       if (!token) return;
       const res = await api.me();
       if (!active) return;
-      if (!res.success) { setError(res.message); return; }
-      setError(null);
+      if (!res.success) return;
       setProfile(res.data);
     })().finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [token]));
+  }, [token, attempt]));
+
+  // Same quiet retry as /home: a 401 has already ended the session by the time the request comes
+  // back, so anything still failing here is the connection, and it is worth waiting out behind the
+  // splash rather than reporting.
+  useEffect(() => {
+    if (loading || profile || !token) return;
+    const id = setTimeout(() => setAttempt((n) => n + 1), 4000);
+    return () => clearTimeout(id);
+  }, [loading, profile, token, attempt]);
 
   useEffect(() => {
     if (profile?.isDriver) router.replace('/home');
   }, [profile?.isDriver]);
 
-  if (loading || profile?.isDriver) {
-    return (
-      <GradientBackground>
-        <SafeAreaView style={styles.safe}>
-          <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
-        </SafeAreaView>
-      </GradientBackground>
-    );
-  }
+  if (loading || profile?.isDriver) return <LogoSplash />;
 
   if (profile) return <ExploreHome profile={profile} initialSearch={q} initialCompany={company} />;
 
-  // Profile failed to load (e.g. session expired): let the user sign out and back in.
-  return (
-    <GradientBackground>
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.center}>
-        <Text style={styles.title}>No se pudo cargar tu perfil</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable onPress={signOut}><Text style={styles.link}>Cerrar sesión</Text></Pressable>
-      </View>
-    </SafeAreaView>
-    </GradientBackground>
-  );
+  // No profile yet: an expired session is already on its way to /login and a failed request is
+  // being retried above, so there is nothing to ask of the user -- just the logo until one of the
+  // two resolves.
+  return <LogoSplash />;
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: 'transparent' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10 },
-  title: { fontSize: 18, fontWeight: '700', color: t.text },
-  error: { color: t.danger, fontSize: 14, textAlign: 'center' },
-  link: { color: t.text, fontWeight: '700', fontSize: 15, marginTop: 8 },
-});

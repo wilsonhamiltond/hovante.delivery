@@ -61,6 +61,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // it, and sign-out needs to read the latest value without re-running an effect to get it.
   const pushToken = useRef<string | null>(null);
 
+  // Any authenticated call coming back 401 means this session is over -- most often a token that
+  // expired while the app was closed. Ending it here is what turns that into a trip back to the
+  // welcome screen, instead of every screen having to render its own "no se pudo cargar" with a
+  // status code on it.
+  //
+  // Deliberately not signOut(): that first unregisters this device from push, an authenticated
+  // call that the dead token could only 401 on -- re-entering this handler. The device is left
+  // registered and the next sign-in re-registers it.
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => {
+      pushToken.current = null;
+      api.setAuthToken(null);
+      api.clearCachedMe();
+      setToken(null);
+      setProfileComplete(null);
+      clearToken();
+    });
+    return () => api.setUnauthorizedHandler(null);
+  }, []);
+
   useEffect(() => {
     if (!token || profileComplete !== true) return;
     let active = true;
