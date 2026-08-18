@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -111,23 +111,53 @@ export default function MerchantProductsScreen() {
     setFormOpen(true);
   };
 
-  // Pick a photo from the library. Asked for a square crop and re-encoded before sending: a modern
-  // phone photo is several megabytes, far more than a catalogue thumbnail can show.
-  const pickPhoto = async () => {
+  // Asked for a square crop and re-encoded before sending: a modern phone photo is several
+  // megabytes, far more than a catalogue thumbnail can show. Shared by both sources so a photo
+  // taken with the camera arrives in exactly the same shape as one chosen from the library.
+  const photoOptions: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.7,
+  };
+
+  const applyPicked = (picked: ImagePicker.ImagePickerResult) => {
+    if (picked.canceled || !picked.assets?.length) return;
+    setPickedPhoto(picked.assets[0]);
+    setFormError(null);
+  };
+
+  // Take the photo with the camera. This is the common case for a counter adding a product it has
+  // in front of it -- the picture does not exist yet, so sending them to the gallery first meant
+  // leaving the app to take it and coming back.
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso de cámara', 'Activa el permiso de cámara para tomar la foto del producto.');
+      return;
+    }
+    applyPicked(await ImagePicker.launchCameraAsync(photoOptions));
+  };
+
+  const pickFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permiso de fotos', 'Activa el permiso de fotos para agregar una imagen.');
       return;
     }
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (picked.canceled || !picked.assets?.length) return;
-    setPickedPhoto(picked.assets[0]);
-    setFormError(null);
+    applyPicked(await ImagePicker.launchImageLibraryAsync(photoOptions));
+  };
+
+  // Offer both sources. On web there is nothing to choose between: the browser's own file dialog
+  // already exposes the camera on a phone, and Alert has no multi-button UI there -- so the choice
+  // would swallow the tap instead of presenting itself.
+  const pickPhoto = () => {
+    if (Platform.OS === 'web') { void pickFromLibrary(); return; }
+    Alert.alert('Foto del producto', '¿De dónde la tomamos?', [
+      { text: 'Cámara', onPress: () => { void takePhoto(); } },
+      { text: 'Galería', onPress: () => { void pickFromLibrary(); } },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const save = async () => {
@@ -315,7 +345,11 @@ export default function MerchantProductsScreen() {
                 <Text style={styles.photoSub}>
                   {pickedPhoto
                     ? 'Se subirá al guardar'
-                    : 'Cuadrada, es lo que ven los clientes'}
+                    // Naming both sources is what makes the camera discoverable: the control looks
+                    // the same either way, so nothing else tells them taking one is an option.
+                    : Platform.OS === 'web'
+                      ? 'Cuadrada, es lo que ven los clientes'
+                      : 'Cámara o galería · cuadrada, es lo que ven los clientes'}
                 </Text>
               </View>
             </Pressable>

@@ -155,7 +155,7 @@ export default function AccountScreen() {
               ) : null}
               {isDriver ? (
                 <>
-                  <Pressable style={styles.row} onPress={() => Alert.alert('Mi vehículo', 'Disponible próximamente.')}>
+                  <Pressable style={styles.row} onPress={() => router.push('/vehicle')}>
                     <FontAwesome5 name="motorcycle" size={16} solid color={t.text} style={styles.rowIcon} />
                     <Text style={styles.rowText}>Mi vehículo</Text>
                     <Text style={styles.rowChevron}>›</Text>

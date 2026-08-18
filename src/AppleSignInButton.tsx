@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { APPLE_REDIRECT_URI, APPLE_START_URL, parseAppleReturnUrl } from './appleAuth';
+import { EXPO_GO_SOCIAL_MESSAGE, IS_EXPO_GO } from './expoGo';
 import { useAuth } from './auth';
 
 interface Props {
@@ -22,6 +23,14 @@ export function AppleSignInButton({ onError, disabled }: Props) {
   const [busy, setBusy] = useState(false);
 
   const onPress = async () => {
+    // Inside Expo Go the API's return link (hovantedelivery://apple-auth) points at a scheme no
+    // installed app owns, so the browser opens, Apple succeeds, and nothing ever comes back. Say
+    // so up front rather than leaving someone staring at a page that will not close.
+    if (IS_EXPO_GO) {
+      onError?.(EXPO_GO_SOCIAL_MESSAGE);
+      return;
+    }
+
     setBusy(true);
     try {
       const result = await WebBrowser.openAuthSessionAsync(APPLE_START_URL, APPLE_REDIRECT_URI);

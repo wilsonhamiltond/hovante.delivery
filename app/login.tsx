@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
 
           <GoogleSignInButton onError={setError} />
 
-          {false && <AppleSignInButton onError={setError} />}
+          <AppleSignInButton onError={setError} />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

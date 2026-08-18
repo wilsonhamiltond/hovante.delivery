@@ -134,3 +134,70 @@ npx eas-cli submit --platform android --profile production
 
 Needs a Google Play service-account JSON the first time; `eas submit` walks through it. See
 [TESTERS.md](TESTERS.md) for the internal-testing tester list.
+
+## iOS
+
+Same EAS project, same profiles — no Mac needed, the build runs on Expo's macOS workers. What
+differs from Android is signing: Apple requires a paid Developer Program membership
+(Team ID `KR9RTTNT37`) before any certificate can exist, and it decides *how* a build can be
+installed.
+
+**The iOS Maps key.** Same split as Android, different variable:
+
+```bash
+npx eas-cli env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS --value "<ios key>" --visibility sensitive --environment preview --environment production
+```
+
+Restrict that key in Google Cloud Console to iOS apps with the bundle identifier
+`com.volao.delivery`, or it is an open key with your quota behind it.
+
+**Credentials.** Let EAS generate and hold the distribution certificate, the provisioning profile
+and the APNs key on the first build — it signs into App Store Connect, creates all three, and
+stores them. Doing it by hand buys nothing and a lost certificate is a nuisance to rotate.
+
+```bash
+npx eas-cli build --platform ios --profile production
+```
+
+**Why there is no ad-hoc APK equivalent.** An `.ipa` cannot be sideloaded the way an APK can. iOS
+only installs a build whose provisioning profile names the target device, so the `preview` profile
+on iOS needs every tester's device UDID registered first:
+
+```bash
+npx eas-cli device:create
+```
+
+That is worth doing for one or two phones. For anything wider, TestFlight is the path — a
+`production` build submitted to App Store Connect, which needs no UDIDs and holds up to 10,000
+external testers.
+
+## Submitting to App Store Connect
+
+```bash
+npx eas-cli submit --platform ios --profile production
+```
+
+`eas.json` carries only `appleTeamId`; `eas submit` prompts for the Apple ID and the App Store
+Connect app id on the first run and can write them back. The build lands in TestFlight, not on the
+store — releasing it is a separate step in App Store Connect.
+
+Two review requirements the code already has to satisfy:
+
+- **Guideline 4.8** — an app offering third-party sign-in must also offer Sign in with Apple.
+  `app/login.tsx` renders `AppleSignInButton` alongside Google for this reason. That button drives
+  the API's `/auth/apple/start`, so the API's `Apple` configuration section has to be filled in or
+  the endpoint answers `400` and the button visibly fails in review.
+- **Guideline 5.1.1** — every permission prompt needs a purpose string. The `expo-location` and
+  `expo-image-picker` plugin entries in `app.json` supply them; a permission added later without one
+  is an automatic rejection.
+- **Export compliance** — `ios.infoPlist.ITSAppUsesNonExemptEncryption` is `false` in `app.json`,
+  which is what stops App Store Connect asking about encryption on every upload. That answer is
+  accurate only while the app's sole encryption is the OS's: HTTPS to the API, and `expo-secure-store`
+  writing to the Keychain. `expo-crypto` is present as a dependency of `expo-auth-session` but is
+  never imported. Bundling a crypto library, or hand-rolling an algorithm, makes the declaration
+  false and requires filing a year-end self-classification report with the US BIS. It must be a
+  JSON boolean -- the string `"false"` is truthy in a plist and declares the opposite.
+
+`supportsTablet` is `false`. iPad support means App Review runs the app on an iPad and the store
+listing needs iPad screenshots, and the layouts have never been tried at that size. Flip it to
+`true` when someone has actually looked at it there.

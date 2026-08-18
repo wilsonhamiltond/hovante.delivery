@@ -735,6 +735,39 @@ export function deleteMyAddress(id: string) {
   return deleteAuth<boolean>(`/delivery/my-addresses/${id}`);
 }
 
+// The courier's own vehicle ("Mi vehículo"). `data` is null when nothing has been saved yet, which
+// is a success, not an error -- a new driver has no vehicle on record and the screen opens empty.
+export interface Vehicle {
+  id: string;
+  type: string;
+  brand: string | null;
+  model: string | null;
+  year: number | null;
+  color: string | null;
+  plate: string | null;
+}
+
+export function myVehicle() {
+  return get<Vehicle | null>('/delivery/my-vehicle');
+}
+
+// What the driver can change. Only `type` is required; the rest describe a vehicle already
+// identified, and the API rejects a missing plate for anything that is not a bicycle.
+export interface SaveVehiclePayload {
+  type: string;
+  brand?: string | null;
+  model?: string | null;
+  year?: number | null;
+  color?: string | null;
+  plate?: string | null;
+}
+
+// Upsert: a courier has at most one vehicle, so there is no create-versus-update for the app to
+// decide between -- PUT saves the first one and rewrites it afterwards.
+export function saveMyVehicle(payload: SaveVehiclePayload) {
+  return putAuth<Vehicle>('/delivery/my-vehicle', payload);
+}
+
 export function myDeliveries() {
   return get<Delivery[]>('/delivery/mine');
 }
