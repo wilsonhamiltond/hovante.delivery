@@ -148,8 +148,22 @@ installed.
 npx eas-cli env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS --value "<ios key>" --visibility sensitive --environment preview --environment production
 ```
 
-Restrict that key in Google Cloud Console to iOS apps with the bundle identifier
-`com.volao.delivery`, or it is an open key with your quota behind it.
+**Do not give that key an iOS-app restriction.** The maps are not the native Maps SDK -- they are
+the Maps JavaScript API inside a `WebView` (`mapHtml.ts`), and the reverse geocode is a plain
+`fetch` (`profileForm.ts`). Neither sends a bundle identifier, and `LocationPicker` passes
+`source={{ html }}` with no `baseUrl`, so the WebView document is `about:blank` and sends no
+referer either. A bundle-id restriction and a referrer restriction both reject every request the
+app makes.
+
+What can be locked down instead:
+
+- **API restrictions** -- limit the key to *Maps JavaScript API* and *Geocoding API*, nothing else.
+- **A daily quota cap** per API, so a leaked key cannot run up a bill.
+
+Application restriction stays *None*. That is a real exposure, and the mitigation is the quota cap,
+not a restriction that would break the app. Giving the WebView a `baseUrl` (e.g.
+`https://volao.com.do`) would make an HTTP-referrer restriction possible -- worth doing, but it is a
+code change across all three map components, not a console setting.
 
 **Credentials.** Let EAS generate and hold the distribution certificate, the provisioning profile
 and the APNs key on the first build — it signs into App Store Connect, creates all three, and
