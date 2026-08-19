@@ -70,11 +70,32 @@ export function missingKeyHtml(message: string): string {
 </html>`;
 }
 
+// The address the map documents claim to be served from, and the one Google sees.
+//
+// A WebView handed raw HTML has no URL of its own -- the document is about:blank -- and Google
+// reports that as the requesting page. It matches no referrer restriction, so a key that carries
+// one is refused and the map comes up as "Oops! Something went wrong". Passing this as the
+// WebView's baseUrl gives the document a real origin, which is a referrer a key CAN be restricted
+// to. It is never fetched: nothing here loads a relative URL.
+export const MAP_BASE_URL = 'https://volao.com.do';
+
 // The shared <script src> that loads the API. `loading=async` is what Google asks for and silences
 // its console warning; the callback fires once the library is ready. `libraries=marker` brings in
 // AdvancedMarkerElement, which replaced the deprecated google.maps.Marker -- see mapMarkersJs.ts.
+//
+// gm_authFailure is Google's own hook for "your key was refused" -- a wrong key, a restriction the
+// request does not match, an API not enabled, billing off. Without it the map is replaced by a grey
+// box telling the user to open a JavaScript console, which nobody holding a phone can do, so the
+// failure is posted out to the host instead and the screen says what happened.
 function loaderTag(callback: string): string {
-  return `<script async src="https://maps.googleapis.com/maps/api/js`
+  return `<script>
+  window.gm_authFailure = function () {
+    var s = JSON.stringify({ mapAuthError: true });
+    try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s); } catch (e) {}
+    try { if (window.parent) window.parent.postMessage(s, '*'); } catch (e) {}
+  };
+</script>`
+    + `<script async src="https://maps.googleapis.com/maps/api/js`
     + `?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
     + `&libraries=marker`
     + `&loading=async&callback=${callback}"></script>`;

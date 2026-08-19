@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { MapAuthError } from './MapAuthError';
 import { locationPickerHtml, type LocationPickerProps, type PickedLocation } from './mapHtml';
 
 // Web build: renders the Google map in a real <iframe> (this file only loads on web, where the tree
@@ -12,11 +13,13 @@ export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, 
   onPickRef.current = onPick;
   const onOutsideRef = useRef(onOutside);
   onOutsideRef.current = onOutside;
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       try {
-        const d = (typeof e.data === 'string' ? JSON.parse(e.data) : e.data) as PickedLocation & { outside?: boolean };
+        const d = (typeof e.data === 'string' ? JSON.parse(e.data) : e.data) as PickedLocation & { outside?: boolean; mapAuthError?: boolean };
+        if (d?.mapAuthError) { setRefused(true); return; }
         if (d?.outside) { onOutsideRef.current?.(); return; }
         if (d && typeof d.lat === 'number' && typeof d.lng === 'number') onPickRef.current(d);
       } catch { /* ignore non-JSON messages */ }
@@ -28,6 +31,7 @@ export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, 
   return (
     <View style={styles.wrap}>
       <iframe srcDoc={html} title="Seleccionar ubicación" style={{ border: 0, width: '100%', height: '100%' }} />
+      {refused ? <MapAuthError /> : null}
     </View>
   );
 }

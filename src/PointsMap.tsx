@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { pointsMapHtml } from './pointsMapHtml';
+import { MAP_BASE_URL } from './mapHtml';
+import { MapAuthError } from './MapAuthError';
 import { setDriverJs, type DriverPosition, type MapPoint } from './routeMapHtml';
 
 export interface PointsMapProps {
@@ -22,6 +24,7 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
   // The last position, so a document that reloads can be caught up without waiting for the driver
   // to move again.
   const last = useRef(driver ?? null);
+  const [refused, setRefused] = useState(false);
 
   const push = useCallback((at: DriverPosition) => {
     // The trailing `true` keeps iOS from warning about the injected script's return value.
@@ -39,16 +42,19 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
       <WebView
         ref={webview}
         originWhitelist={['*']}
-        source={{ html }}
+        // baseUrl: without one the document is about:blank, which matches no key restriction.
+        source={{ html, baseUrl: MAP_BASE_URL }}
         style={{ flex: 1, backgroundColor: 'transparent' }}
         onLoadEnd={() => { if (last.current) push(last.current); }}
         onMessage={(e) => {
           try {
-            const d = JSON.parse(e.nativeEvent.data) as { pointId?: string };
+            const d = JSON.parse(e.nativeEvent.data) as { pointId?: string; mapAuthError?: boolean };
+            if (d?.mapAuthError) { setRefused(true); return; }
             if (d?.pointId) onPointPress?.(d.pointId);
           } catch { /* ignore */ }
         }}
       />
+      {refused ? <MapAuthError /> : null}
     </View>
   );
 }

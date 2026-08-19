@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { MapAuthError } from './MapAuthError';
 import { pointsMapHtml } from './pointsMapHtml';
 import type { DriverPosition } from './routeMapHtml';
 import type { PointsMapProps } from './PointsMap';
@@ -14,6 +15,7 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
   // Ref so the listener subscribes once and still calls the current callback.
   const onPressRef = useRef(onPointPress);
   onPressRef.current = onPointPress;
+  const [refused, setRefused] = useState(false);
 
   // postMessage rather than reaching into contentWindow: the document listens for the same message
   // whichever host sent it, and this keeps working if the map is ever served from its own origin.
@@ -30,7 +32,8 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       try {
-        const d = (typeof e.data === 'string' ? JSON.parse(e.data) : e.data) as { pointId?: string };
+        const d = (typeof e.data === 'string' ? JSON.parse(e.data) : e.data) as { pointId?: string; mapAuthError?: boolean };
+        if (d?.mapAuthError) { setRefused(true); return; }
         if (d?.pointId) onPressRef.current?.(d.pointId);
       } catch { /* ignore non-JSON messages */ }
     };
@@ -47,6 +50,7 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
         style={{ border: 0, width: '100%', height: '100%' }}
         onLoad={() => { if (last.current) push(last.current); }}
       />
+      {refused ? <MapAuthError /> : null}
     </View>
   );
 }
