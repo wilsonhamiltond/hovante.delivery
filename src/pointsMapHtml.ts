@@ -173,10 +173,18 @@ ${markersJs()}
     // themselves; re-framing every update would fight them panning as they ride. Current-order
     // mode skips this: frameLeg above already owns the framing there.
     if (!ROUTE_FROM_DRIVER && !driverFramed) {
-      var b = mapRef.getBounds();
-      if (b) {
+      // Nothing pinned -- the driver home with an empty pool. The driver IS the subject here, so
+      // centre on them rather than leaving the city-wide default framing they are a speck in.
+      if (!points.length) {
         driverFramed = true;
-        if (!b.contains(at)) { b.extend(at); mapRef.fitBounds(b, 50); }
+        mapRef.setCenter(at);
+        mapRef.setZoom(15);
+      } else {
+        var b = mapRef.getBounds();
+        if (b) {
+          driverFramed = true;
+          if (!b.contains(at)) { b.extend(at); mapRef.fitBounds(b, 50); }
+        }
       }
     }
   };

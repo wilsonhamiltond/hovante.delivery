@@ -9,6 +9,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.volao.delivery",
+      "usesAppleSignIn": true,
       "supportsTablet": true,
       "icon": "./assets/ios/AppIcon.appiconset/AppIcon-1024.png",
       "infoPlist": {

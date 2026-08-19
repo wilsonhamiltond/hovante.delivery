@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as api from './api';
 import * as outbox from './outbox';
 import type { Delivery, Me } from './api';
@@ -33,6 +34,23 @@ export function DriverHome({ profile }: { profile: Me | null }) {
   const driver = useDriverPosition();
   // And reported upstream (throttled) so the merchant sees where their order is.
   useDriverPositionReporter(driver);
+
+  // A push saying an order landed in the pool is the fastest signal there is, so act on it the
+  // moment it arrives instead of waiting out the poll interval. This is the ARRIVAL listener --
+  // tapping a notification is handled in app/_layout.tsx, which navigates instead.
+  //
+  // Only 'pool' matters here: an 'assigned' push is about work already in hand, and reloading the
+  // pool for it would be noise. Verified against the SDK 54 API -- addNotificationReceivedListener
+  // returns an EventSubscription removed with .remove().
+  const refreshPool = nearby.refresh;
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      const data = n.request?.content?.data as { type?: string } | undefined;
+      if (data?.type === 'pool') refreshPool();
+    });
+    return () => sub.remove();
+  }, [refreshPool]);
 
   // The driver's own deliveries, deciding which face the home wears: an active one turns the map
   // into the current order's leg; none leaves it as the pickup pool.
@@ -246,13 +264,18 @@ export function DriverHome({ profile }: { profile: Me | null }) {
               onPointPress={onPinPress}
             />
           ) : (
-            <View style={styles.emptyWrap}>
-              <View style={styles.emptyBadge}><Text style={styles.emptyEmoji}>🗺️</Text></View>
-              <Text style={styles.emptyTitle}>Sin entregas disponibles</Text>
-              <Text style={styles.emptySubtitle}>
-                El mapa se llenará con pedidos listos para tomar. Vuelve a mirar en un momento.
-              </Text>
-            </View>
+            // Empty pool, but the map stays up. A blank panel tells a waiting driver nothing --
+            // not where they are, not whether the app is even alive. With no pins the map centres
+            // on the bike itself (see pointsMapHtml's setDriver), and the pins arrive on their own:
+            // the pool polls every POOL_POLL_MS, and a push jumps that queue.
+            <>
+              <PointsMap points={[]} driver={driver} />
+              <View style={styles.emptyChip} pointerEvents="none">
+                <Text style={styles.emptyChipText}>
+                  Buscando pedidos cerca de ti · la lista se actualiza sola
+                </Text>
+              </View>
+            </>
           )}
         </View>
 
@@ -428,18 +451,15 @@ const styles = StyleSheet.create({
   },
   startRideDisabled: { opacity: 0.7 },
   startRideText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  emptyBadge: {
-    width: 104, height: 104, borderRadius: 52,
-    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-    alignItems: 'center', justifyContent: 'center',
+  // Floating over the map rather than replacing it, so "nothing available" never costs the driver
+  // the one thing the screen is for.
+  emptyChip: {
+    position: 'absolute', left: 16, right: 16, bottom: 16,
+    backgroundColor: 'rgba(11,42,107,0.92)', borderWidth: 1, borderColor: t.border,
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center',
   },
-  emptyEmoji: { fontSize: 44 },
-  emptyTitle: { fontSize: 19, fontWeight: '900', color: t.text, marginTop: 18 },
-  emptySubtitle: {
-    fontSize: 14, color: t.textMuted, textAlign: 'center', lineHeight: 20,
-    marginTop: 6, maxWidth: 280,
-  },
+  emptyChipText: { color: t.textMuted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+
 
   // The pin's details sheet.
   sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },

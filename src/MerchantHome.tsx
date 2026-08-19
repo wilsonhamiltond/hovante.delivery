@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as api from './api';
 import type { Me, Order } from './api';
 import { GradientBackground, t } from './theme';
@@ -40,6 +41,23 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
     const timer = setInterval(load, 15000);
     return () => { alive = false; clearInterval(timer); };
   }, [load]));
+
+  // The 15s poll above is the floor. A push telling the counter an order just landed is the
+  // fastest signal there is, so reload the moment one arrives rather than waiting out the timer --
+  // a shopkeeper watching the screen should see the order appear with the sound, not after it.
+  //
+  // 'order' is the merchant's own push type (see routeForNotification in pushNotifications.ts);
+  // the driver's 'pool'/'assigned' pushes are not this screen's business. Verified against the
+  // SDK 54 API: addNotificationReceivedListener returns an EventSubscription removed with
+  // .remove(), and fires whenever a notification arrives while the app is running.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      const data = n.request?.content?.data as { type?: string } | undefined;
+      if (data?.type === 'order') void load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -116,9 +134,17 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
             <View style={styles.headerBlock}>
               {error ? <Text style={styles.error}>{error}</Text> : null}
               {orders.length === 0 ? (
-                <Text style={styles.empty}>
-                  Nada pendiente en el mostrador. Los pedidos ya terminados están en Historial.
-                </Text>
+                <View style={styles.emptyWrap}>
+                  <View style={styles.emptyBadge}><Text style={styles.emptyEmoji}>🛎️</Text></View>
+                  <Text style={styles.emptyTitle}>Todo al día</Text>
+                  <Text style={styles.emptySubtitle}>
+                    No hay pedidos esperando en el mostrador. Los nuevos aparecen aquí solos, sin
+                    recargar ni volver a entrar.
+                  </Text>
+                  <Text style={styles.emptyHint}>
+                    Los pedidos ya terminados están en Historial.
+                  </Text>
+                </View>
               ) : (
                 <>
                   {working.length > 0 ? (
@@ -164,5 +190,23 @@ const styles = StyleSheet.create({
   headerBlock: { gap: 12 },
   sectionTitle: { fontSize: 15, fontWeight: '900', color: t.textMuted, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 4 },
   error: { color: t.danger, fontSize: 14, marginBottom: 8 },
-  empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40, paddingHorizontal: 24 },
+
+  // An idle counter is the state this screen sits in most of the day, so it is worth more than one
+  // muted sentence: the shop is told plainly that nothing is wrong and that it need not touch
+  // anything to see the next order.
+  emptyWrap: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 56 },
+  emptyBadge: {
+    width: 104, height: 104, borderRadius: 52,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontSize: 19, fontWeight: '900', color: t.text, marginTop: 18 },
+  emptySubtitle: {
+    fontSize: 14, color: t.textMuted, textAlign: 'center', lineHeight: 20,
+    marginTop: 6, maxWidth: 300,
+  },
+  emptyHint: {
+    fontSize: 13, color: t.textFaint, textAlign: 'center', marginTop: 14,
+  },
 });
