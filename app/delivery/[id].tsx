@@ -215,6 +215,13 @@ export default function DeliveryDetail() {
               keyboardType="number-pad"
               maxLength={4}
               textAlign="center"
+              // Enter (web) or the keyboard's action key (native) is the "Confirmar entrega"
+              // button below, under the same guards: 4 digits typed and nothing already running.
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (busy || code.length !== 4) return;
+                runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }));
+              }}
             />
             <Pressable style={[styles.action, styles.success, code.length !== 4 && styles.disabled]} disabled={busy || code.length !== 4} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }))}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar entrega</Text>}

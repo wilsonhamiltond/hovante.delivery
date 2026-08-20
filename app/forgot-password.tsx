@@ -54,6 +54,10 @@ export default function ForgotPasswordScreen() {
           value={email}
           onChangeText={setEmail}
           editable={!submitting}
+          // Enter (web) or the keyboard's action key (native) is the "Enviar código" button: same
+          // handler, same validation, so an empty field gets the inline error.
+          returnKeyType="send"
+          onSubmitEditing={onSubmit}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}

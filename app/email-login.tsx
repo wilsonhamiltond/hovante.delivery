@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,8 @@ export default function EmailLoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // For the email field's "next": submitting the first field walks to the second.
+  const passwordRef = useRef<TextInput>(null);
 
   const onSubmit = async () => {
     setError(null);
@@ -48,6 +50,12 @@ export default function EmailLoginScreen() {
             value={email}
             onChangeText={setEmail}
             editable={!submitting}
+            // Enter (web) or the keyboard's action key (native) moves on to the password instead
+            // of just closing the keyboard. submitBehavior="submit" keeps the keyboard up through
+            // the hop so it does not flicker down and back.
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
           />
           <TextInput
             style={styles.input}
@@ -57,6 +65,11 @@ export default function EmailLoginScreen() {
             value={password}
             onChangeText={setPassword}
             editable={!submitting}
+            ref={passwordRef}
+            // Enter here IS the login button: same handler, same validation, so a half-filled
+            // form gets the inline error rather than nothing happening.
+            returnKeyType="go"
+            onSubmitEditing={onSubmit}
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}

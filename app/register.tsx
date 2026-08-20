@@ -199,7 +199,11 @@ export default function RegisterScreen() {
             <Text style={styles.lead}>Empecemos por tu correo. Te enviaremos un código para verificarlo.</Text>
             <Text style={styles.label}>Correo electrónico</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="tucorreo@ejemplo.com"
-              autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail} />
+              autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail}
+              // Enter (web) or the keyboard's action key (native) is the "Enviar código" button
+              // below: same handler, same validation. Guarded like the button, so a double
+              // submit while the code is already being mailed does nothing.
+              returnKeyType="send" onSubmitEditing={() => { if (!submitting) next(); }} />
           </ScrollView>
         )}
 

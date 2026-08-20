@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useCart } from '../src/cart';
+import { emojiFor } from '../src/categoryEmoji';
 import * as api from '../src/api';
 import { formatEta, useRouteEta } from '../src/eta';
 import { deliveryFeeRd } from '../src/deliveryFee';
@@ -294,6 +295,15 @@ export default function CartScreen() {
             <Text style={styles.merchant}>{cart.merchantName}</Text>
             {cart.lines.map((l) => (
               <View key={l.product.id} style={styles.line}>
+                {/* The item's own photo when the merchant set one; the category icon stands in
+                    for the ones that have none -- the same convention as the marketplace tiles. */}
+                <View style={styles.lineThumb}>
+                  {l.product.imageUrl ? (
+                    <Image source={{ uri: l.product.imageUrl }} style={styles.lineThumbImage} resizeMode="contain" />
+                  ) : (
+                    <Text style={styles.lineThumbEmoji}>{emojiFor(l.product.categories?.[0] ?? l.product.companyName)}</Text>
+                  )}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.lineName} numberOfLines={1}>{l.product.name}</Text>
                   <Text style={styles.linePrice}>{money(l.product.price)}</Text>
@@ -618,7 +628,10 @@ const styles = StyleSheet.create({
 
   scroll: { padding: 16 },
   merchant: { fontSize: 18, fontWeight: '800', color: t.text, marginBottom: 12 },
-  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, marginBottom: 10 },
+  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, marginBottom: 10, gap: 12 },
+  lineThumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: t.cardStrong, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  lineThumbImage: { width: '100%', height: '100%' },
+  lineThumbEmoji: { fontSize: 22 },
   lineName: { fontSize: 15, fontWeight: '700', color: t.text },
   linePrice: { fontSize: 14, fontWeight: '800', color: t.text, marginTop: 4 },
   qtyCtrl: { flexDirection: 'row', alignItems: 'center', gap: 12 },

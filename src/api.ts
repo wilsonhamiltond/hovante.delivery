@@ -238,6 +238,13 @@ export function resetPassword(token: string, newPassword: string) {
   return post<null>('/auth/reset-password', { token, newPassword });
 }
 
+// The typed path to the same endpoint: the 6-digit code from the reset email plus the address it
+// went to. Used when the person came here by requesting a code (so the app knows the email); the
+// deep link keeps using the token above.
+export function resetPasswordWithCode(email: string, code: string, newPassword: string) {
+  return post<null>('/auth/reset-password', { email, code, newPassword });
+}
+
 // Changing the password from inside the app, where the account is already signed in. The current
 // password is required and checked server-side -- the token alone is not treated as proof here,
 // because it lives on the phone and outlives any one session.

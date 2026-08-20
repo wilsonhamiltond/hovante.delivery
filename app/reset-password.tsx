@@ -60,8 +60,12 @@ export default function ResetPasswordScreen() {
 
   const onSubmit = async () => {
     setError(null);
-    if (!token.trim()) {
-      setError('Falta el código del enlace de restablecimiento.');
+    // Two ways in, two proofs: the deep link carries the long token; arriving by requesting a
+    // code carries the email, and the person types the 6 digits the mail showed -- the same
+    // gesture as the sign-up verification step.
+    const typedCode = token.trim();
+    if (sentTo ? typedCode.length !== 6 : !typedCode) {
+      setError(sentTo ? 'Escribe el código de 6 dígitos del correo.' : 'Falta el código del enlace de restablecimiento.');
       return;
     }
     if (password.length < 7) {
@@ -73,7 +77,9 @@ export default function ResetPasswordScreen() {
       return;
     }
     setSubmitting(true);
-    const res = await api.resetPassword(token.trim(), password);
+    const res = sentTo && !hasTokenFromLink
+      ? await api.resetPasswordWithCode(sentTo, typedCode, password)
+      : await api.resetPassword(typedCode, password);
     setSubmitting(false);
     if (!res.success) {
       setError(res.message);
@@ -111,21 +117,39 @@ export default function ResetPasswordScreen() {
                 not the address is registered, and promising a code outright here would leak which
                 addresses have accounts. */}
             {sentTo
-              ? `Si existe una cuenta con ${sentTo}, le enviamos un código. Revíselo en su bandeja de entrada y péguelo aquí con su nueva contraseña.`
+              ? `Si existe una cuenta con ${sentTo}, le enviamos un código de 6 dígitos. Escríbalo aquí con su nueva contraseña.`
               : 'Elija una contraseña de al menos 7 caracteres.'}
           </Text>
         </View>
 
         {!hasTokenFromLink ? (
-          <TextInput
-            style={styles.input}
-            placeholder="Código del enlace"
-            placeholderTextColor={t.textFaint}
-            autoCapitalize="none"
-            value={token}
-            onChangeText={setToken}
-            editable={!submitting}
-          />
+          sentTo ? (
+            // The typed path: the same centred 6-digit box as the sign-up verification step, so
+            // the gesture is one the person has already performed once.
+            <TextInput
+              style={[styles.input, styles.codeInput]}
+              placeholder="••••••"
+              placeholderTextColor={t.textFaint}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              value={token}
+              onChangeText={(v) => setToken(v.replace(/[^0-9]/g, '').slice(0, 6))}
+              editable={!submitting}
+            />
+          ) : (
+            // No email in hand (opened from "Ya tengo un código" or a bare deep link): accept
+            // whatever the mail carried, pasted whole.
+            <TextInput
+              style={styles.input}
+              placeholder="Código del enlace"
+              placeholderTextColor={t.textFaint}
+              autoCapitalize="none"
+              value={token}
+              onChangeText={setToken}
+              editable={!submitting}
+            />
+          )
         ) : null}
 
         <TextInput
@@ -186,6 +210,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '900', color: t.text },
   subtitle: { fontSize: 15, color: t.textMuted, marginTop: 4, lineHeight: 21 },
   input: { borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, backgroundColor: t.card, color: t.text },
+  codeInput: { fontSize: 24, fontWeight: '800', letterSpacing: 12 },
   error: { color: t.danger, fontSize: 14 },
   notice: { color: t.textMuted, fontSize: 14, lineHeight: 20 },
   resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginTop: 8 },
