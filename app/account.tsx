@@ -163,6 +163,17 @@ export default function AccountScreen() {
                   <View style={styles.rowDivider} />
                 </>
               ) : null}
+              {/* Merchants only: when the business opens each day of the week. */}
+              {profile?.isMerchant ? (
+                <>
+                  <Pressable style={styles.row} onPress={() => router.push('/business-hours')}>
+                    <FontAwesome5 name="clock" size={16} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>Horario</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                </>
+              ) : null}
               {/* Shown to both roles -- a driver's account is as worth protecting as a customer's --
                   but hidden for an account created through Google, Facebook or Apple: it has no
                   password of its own to change, so the row would only lead to a dead end.

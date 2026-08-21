@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
@@ -41,6 +41,8 @@ export default function MerchantOrderDetail() {
   // The confirm flow goes through the queue-time modal: it asks how long the order will wait
   // before preparation starts, and only then calls the API.
   const [confirming, setConfirming] = useState(false);
+  // The customer's tracking-screen code, typed at the counter to hand a pickup order over.
+  const [deliverCode, setDeliverCode] = useState('');
 
   const load = useCallback(async () => {
     const res = await api.merchantOrders();
@@ -108,6 +110,11 @@ export default function MerchantOrderDetail() {
           <Text style={styles.placedAt}>{fmtStamp(order.createdAt) ?? ''}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
         </View>
+
+        {/* A pickup order, said before anything else on the screen: no rider is coming for it. */}
+        {order.pickupAtStore ? (
+          <Text style={styles.queue}>🏪 Retiro en tienda · el cliente pasa a recogerlo</Text>
+        ) : null}
 
         {/* The promise made at confirm, spelled out under the live chip (which counts it down and
             flips to "En preparación" when it runs out). */}
@@ -260,6 +267,34 @@ export default function MerchantOrderDetail() {
             {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>Listo para recoger</Text>}
           </Pressable>
         ) : null}
+
+        {/* The handover, for a pickup order that is ready: the customer shows the code from their
+            tracking screen and the counter types it here. The server refuses a wrong one, so a
+            stranger cannot walk off with someone else's bag. */}
+        {order.status === 'READY' && order.pickupAtStore ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>Entregar al cliente</Text>
+            <Text style={styles.deliverHint}>
+              Pídele al cliente el código de entrega de su pantalla de seguimiento.
+            </Text>
+            <TextInput
+              style={styles.codeInput}
+              value={deliverCode}
+              onChangeText={setDeliverCode}
+              placeholder="• • • •"
+              placeholderTextColor={t.textFaint}
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+            <Pressable
+              style={[styles.action, styles.confirm, (busy || deliverCode.trim().length < 4) && styles.disabled]}
+              disabled={busy || deliverCode.trim().length < 4}
+              onPress={() => act((i) => api.deliverMerchantOrder(i, deliverCode.trim()))}
+            >
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Entregar pedido</Text>}
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
 
       <QueueTimeModal
@@ -335,5 +370,12 @@ const styles = StyleSheet.create({
   // On the near-white accent button, white ink would vanish.
   readyText: { color: t.onAccent },
   rejectAsk: { color: t.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  deliverHint: { color: t.textMuted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  // Roomy digits, spaced like the code card the customer is reading from.
+  codeInput: {
+    backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, marginTop: 10, marginBottom: 10,
+    fontSize: 22, fontWeight: '900', color: t.text, letterSpacing: 8, textAlign: 'center',
+  },
   disabled: { opacity: 0.6 },
 });

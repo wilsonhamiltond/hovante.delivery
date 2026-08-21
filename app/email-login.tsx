@@ -82,7 +82,7 @@ export default function EmailLoginScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>¿No tienes cuenta? </Text>
-            <Link href="/register" style={styles.link}>Regístrate</Link>
+            <Link href="/login" style={styles.link}>Regístrate</Link>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>

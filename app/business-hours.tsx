@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as api from '../src/api';
+import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
+import { NoticeDialog, type Notice } from '../src/NoticeDialog';
+import { TimeField } from '../src/TimeField';
+import { GradientBackground, t } from '../src/theme';
+
+// Monday first, the way a Dominican week is read -- but each day keeps its .NET DayOfWeek number
+// (0 = domingo), which is what the API stores.
+const WEEK = [
+  { day: 1, name: 'Lunes' },
+  { day: 2, name: 'Martes' },
+  { day: 3, name: 'Miércoles' },
+  { day: 4, name: 'Jueves' },
+  { day: 5, name: 'Viernes' },
+  { day: 6, name: 'Sábado' },
+  { day: 0, name: 'Domingo' },
+];
+
+// A sensible first fill for a day just switched on, so the merchant edits two times rather than
+// typing both from nothing.
+const DEFAULT_OPEN = '09:00';
+const DEFAULT_CLOSE = '18:00';
+
+interface DayState { open: boolean; from: string; to: string }
+
+// "9:00" and "09:00" both count; anything else is a typo worth naming. Returns minutes since
+// midnight so the open/close comparison is one subtraction, or null when invalid.
+const toMinutes = (v: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+};
+
+// The merchant's weekly opening hours, reached from "Mi cuenta". One row per day: switch it on and
+// give the opening and closing hour. Saved as a whole week in one press -- a day switched off is
+// simply not sent, which the API reads as closed.
+export default function BusinessHoursScreen() {
+  const router = useRouter();
+  const [days, setDays] = useState<Record<number, DayState>>(() =>
+    Object.fromEntries(WEEK.map((w) => [w.day, { open: false, from: DEFAULT_OPEN, to: DEFAULT_CLOSE }])));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/account'));
+
+  useEffect(() => {
+    let alive = true;
+    api.merchantBusinessHours().then((res) => {
+      if (!alive) return;
+      if (!res.success) { setError(res.message); return; }
+      setDays((prev) => {
+        const next = { ...prev };
+        for (const h of res.data ?? []) {
+          next[h.dayOfWeek] = { open: true, from: h.openTime, to: h.closeTime };
+        }
+        return next;
+      });
+    }).finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
+  const setDay = (day: number, patch: Partial<DayState>) =>
+    setDays((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
+
+  const save = async () => {
+    // Checked in display order, so the message points at the first day to fix.
+    const hours: api.BusinessHour[] = [];
+    for (const w of WEEK) {
+      const d = days[w.day];
+      if (!d.open) continue;
+      const from = toMinutes(d.from);
+      const to = toMinutes(d.to);
+      if (from == null || to == null) {
+        return setNotice({ tone: 'error', message: `${w.name}: elige una hora válida.` });
+      }
+      if (to <= from) {
+        return setNotice({ tone: 'error', message: `${w.name}: la hora de cierre debe ser después de la de apertura.` });
+      }
+      hours.push({ dayOfWeek: w.day, openTime: d.from.trim(), closeTime: d.to.trim() });
+    }
+
+    setSaving(true);
+    const res = await api.saveMerchantBusinessHours(hours);
+    setSaving(false);
+    setNotice(res.success
+      ? { tone: 'success', message: res.message || 'Horario guardado.' }
+      : { tone: 'error', message: res.message });
+  };
+
+  // Leaving on success matches the edit-profile screen; an error stays put with everything typed.
+  const dismiss = () => {
+    const wasSuccess = notice?.tone === 'success';
+    setNotice(null);
+    if (wasSuccess) back();
+  };
+
+  return (
+    <GradientBackground>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.header}>
+          <BackButton onPress={back} />
+          <Text style={styles.title}>Horario</Text>
+          <View style={{ width: BACK_BUTTON_WIDTH }} />
+        </View>
+
+        {loading ? (
+          <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
+        ) : (
+          <View style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+              <Text style={styles.hint}>
+                Marca los días que tu comercio abre y elige la hora de apertura y de cierre.
+              </Text>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              {WEEK.map((w) => {
+                const d = days[w.day];
+                return (
+                  <View key={w.day} style={styles.dayCard}>
+                    <Pressable style={styles.dayHead} onPress={() => setDay(w.day, { open: !d.open })} accessibilityRole="button">
+                      <View style={[styles.checkbox, d.open && styles.checkboxOn]}>
+                        {d.open ? <Text style={styles.checkboxTick}>✓</Text> : null}
+                      </View>
+                      <Text style={styles.dayName}>{w.name}</Text>
+                      <Text style={styles.dayState}>{d.open ? '' : 'Cerrado'}</Text>
+                    </Pressable>
+                    {d.open ? (
+                      <View style={styles.hoursRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.label}>Abre</Text>
+                          <TimeField
+                            value={d.from}
+                            title={`${w.name} · Abre`}
+                            onChange={(v) => setDay(w.day, { from: v })}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.label}>Cierra</Text>
+                          <TimeField
+                            value={d.to}
+                            title={`${w.name} · Cierra`}
+                            onChange={(v) => setDay(w.day, { to: v })}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.footer}>
+              <Pressable style={[styles.primary, saving && styles.disabled]} onPress={save} disabled={saving}>
+                {saving
+                  ? <ActivityIndicator color={t.onAccent} />
+                  : <Text style={styles.primaryText}>Guardar horario</Text>}
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        <NoticeDialog notice={notice} onClose={dismiss} />
+      </SafeAreaView>
+    </GradientBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 },
+  title: { fontSize: 18, fontWeight: '900', color: t.text },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  body: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
+  hint: { color: t.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 4 },
+  error: { color: t.danger, fontSize: 14 },
+
+  dayCard: {
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 12, gap: 10,
+  },
+  dayHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: t.accent, borderColor: t.accent },
+  checkboxTick: { color: t.onAccent, fontWeight: '900', fontSize: 14 },
+  dayName: { flex: 1, fontSize: 15, fontWeight: '800', color: t.text },
+  dayState: { fontSize: 13, fontWeight: '700', color: t.textFaint },
+  hoursRow: { flexDirection: 'row', gap: 10 },
+  label: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginBottom: 4 },
+
+  footer: { paddingHorizontal: 16, paddingBottom: 8 },
+  primary: {
+    backgroundColor: t.accent, borderRadius: 14, minHeight: 52,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '900' },
+  disabled: { opacity: 0.6 },
+});

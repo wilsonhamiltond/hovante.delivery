@@ -33,7 +33,10 @@ export function statusOf(o: Order): { label: string; color: string } {
       return { label: 'Confirmado', color: '#2563eb' };
     }
     case 'PREPARING': return { label: 'En preparación', color: '#7c3aed' };
-    case 'READY': return { label: 'Listo · buscando repartidor', color: '#7c3aed' };
+    // A retiro en tienda waits for its customer, not for a rider.
+    case 'READY': return o.pickupAtStore
+      ? { label: 'Listo · esperando al cliente', color: '#16a34a' }
+      : { label: 'Listo · buscando repartidor', color: '#7c3aed' };
     case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
   }
   return { label: o.status, color: '#64748b' };
@@ -72,6 +75,11 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
         </View>
       ) : null}
       {order.address ? <Text style={styles.address} numberOfLines={2}>📍 {order.address}</Text> : null}
+      {/* Said on every pickup order, whatever its stage: the counter must know from the first
+          glance that no rider is coming for this bag. */}
+      {order.pickupAtStore ? (
+        <Text style={styles.address}>🏪 Retiro en tienda · el cliente pasa a recogerlo</Text>
+      ) : null}
 
       <Text style={styles.items} numberOfLines={3}>
         {order.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}
@@ -125,6 +133,16 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
             {/* The accent is near-white, so this button's ink is onAccent, not the white the red
                 and green buttons use -- white on white was an invisible button. */}
             {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>Listo para recoger</Text>}
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* A pickup order at READY waits for its customer, and the handover (code and all) lives on
+          the order's detail screen -- so the card's action is simply the way there. */}
+      {onAct != null && order.pickupAtStore && order.status === 'READY' ? (
+        <View style={styles.actions}>
+          <Pressable style={[styles.action, styles.confirm]} onPress={() => onOpen(order.id)}>
+            <Text style={styles.actionText}>🏪 Entregar al cliente</Text>
           </Pressable>
         </View>
       ) : null}

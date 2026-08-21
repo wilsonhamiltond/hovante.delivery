@@ -80,7 +80,7 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>¿La recordó? </Text>
-          <Link href="/login" style={styles.link}>Iniciar sesión</Link>
+          <Link href="/email-login" style={styles.link}>Iniciar sesión</Link>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

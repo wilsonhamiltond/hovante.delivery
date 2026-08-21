@@ -18,6 +18,10 @@ import { GradientBackground, t } from '../src/theme';
 // -- sign-in, the sign-up verification code and every social provider link all resolve against it --
 // so changing it here would quietly break the ways back into the account. The address is not here
 // either; it has its own screen, and editing a surname must not disturb where orders go.
+//
+// A merchant gets one business row too: "Cerrado hoy", an exceptional one-day closure with an
+// optional note. It saves with the same button as the rest of the form, and the flag expires with
+// the Dominican day on the server -- nobody has to come back tomorrow to uncheck it.
 export default function EditProfileScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -28,6 +32,13 @@ export default function EditProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+
+  // "Cerrado hoy" (merchants only). `closure` is what the server last confirmed -- and doubles as
+  // the "loaded" flag, so the section cannot render unchecked and then flip on its own under a tap.
+  const [isMerchant, setIsMerchant] = useState(false);
+  const [closure, setClosure] = useState<api.MerchantClosure | null>(null);
+  const [closedToday, setClosedToday] = useState(false);
+  const [closureNote, setClosureNote] = useState('');
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/account'));
 
@@ -43,6 +54,15 @@ export default function EditProfileScreen() {
       const parsed = parsePhone(me.phone ?? '');
       setPhone(parsed.national);
       setPhoneCountry(parsed.country);
+      if (me.isMerchant) {
+        setIsMerchant(true);
+        api.merchantClosure().then((cr) => {
+          if (!active || !cr.success || !cr.data) return;
+          setClosure(cr.data);
+          setClosedToday(cr.data.closedToday);
+          setClosureNote(cr.data.note ?? '');
+        });
+      }
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -58,9 +78,31 @@ export default function EditProfileScreen() {
 
     setSubmitting(true);
     const res = await api.updateProfile({ name: person.name, lastName: person.lastName, phone: toE164(phone, phoneCountry) });
-    setSubmitting(false);
+    if (!res.success) {
+      setSubmitting(false);
+      return setNotice({ tone: 'error', message: res.message });
+    }
 
-    if (!res.success) return setNotice({ tone: 'error', message: res.message });
+    // The merchant's "Cerrado hoy", only when it actually changed. A failure here does not undo
+    // the personal data above -- that saved -- so the error says exactly which half did not.
+    const closureDirty = closure != null
+      && (closedToday !== closure.closedToday
+        || (closedToday && closureNote.trim() !== (closure.note ?? '')));
+    if (closureDirty) {
+      const cr = await api.saveMerchantClosure({
+        closedToday,
+        note: closedToday && closureNote.trim() ? closureNote.trim() : undefined,
+      });
+      setSubmitting(false);
+      if (!cr.success || !cr.data) {
+        return setNotice({ tone: 'error', message: `Tus datos se guardaron, pero el cierre de hoy no: ${cr.message}` });
+      }
+      setClosure(cr.data);
+      // The closure endpoint's message already says which way it went ("queda cerrado por hoy").
+      return setNotice({ tone: 'success', message: `Tus datos fueron actualizados. ${cr.message}` });
+    }
+
+    setSubmitting(false);
     setNotice({ tone: 'success', message: 'Tus datos fueron actualizados.' });
   };
 
@@ -113,6 +155,40 @@ export default function EditProfileScreen() {
                 national={phone}
                 onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
               />
+
+              {/* Merchants only, and only once the saved flag has arrived. */}
+              {isMerchant && closure != null ? (
+                <>
+                  <Text style={[styles.label, styles.labelSpaced]}>Mi comercio</Text>
+                  <Pressable
+                    style={styles.closureRow}
+                    onPress={() => setClosedToday(!closedToday)}
+                    accessibilityRole="button"
+                    accessibilityState={{ checked: closedToday }}
+                  >
+                    <View style={[styles.checkbox, closedToday && styles.checkboxOn]}>
+                      {closedToday ? <Text style={styles.checkboxTick}>✓</Text> : null}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.closureTitle}>Cerrado hoy</Text>
+                      <Text style={styles.closureSub}>
+                        {closedToday
+                          ? 'Tus productos no aparecen en el mercado hoy; mañana abres normal.'
+                          : 'Márcalo para no vender solo por hoy, sin tocar tu horario.'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {closedToday ? (
+                    <TextInput
+                      style={[styles.input, styles.closureInput]}
+                      value={closureNote}
+                      onChangeText={setClosureNote}
+                      placeholder="Nota (opcional). Ej: Cerrado por inventario"
+                      placeholderTextColor={t.textFaint}
+                    />
+                  ) : null}
+                </>
+              ) : null}
             </ScrollView>
 
             <View style={styles.footer}>
@@ -151,6 +227,17 @@ const styles = StyleSheet.create({
   },
   lockedText: { flex: 1, color: t.textMuted, fontSize: 15 },
   hint: { color: t.textFaint, fontSize: 12, marginTop: 6 },
+  closureRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: t.accent, borderColor: t.accent },
+  checkboxTick: { color: t.onAccent, fontWeight: '900', fontSize: 14 },
+  closureTitle: { fontSize: 15, fontWeight: '800', color: t.text },
+  closureSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2, lineHeight: 17 },
+  closureInput: { marginTop: 10 },
   footer: { paddingHorizontal: 16, paddingBottom: 8 },
   primary: {
     backgroundColor: t.accent, borderRadius: 14, minHeight: 52,

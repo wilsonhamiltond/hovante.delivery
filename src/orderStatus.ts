@@ -38,7 +38,10 @@ export function orderStatusChip(o: Order, now: number = Date.now()): OrderStatus
     case 'PENDING': return { label: 'Esperando al comercio', color: '#d97706' };
     case 'CONFIRMED': return { label: 'Confirmado', color: '#2563eb' };
     case 'PREPARING': return { label: 'En preparación', color: '#7c3aed' };
-    case 'READY': return { label: 'Buscando repartidor', color: '#7c3aed' };
+    // On a retiro en tienda nobody is searched for: the order waits for its OWN customer.
+    case 'READY': return o.pickupAtStore
+      ? { label: 'Listo para recoger', color: '#16a34a' }
+      : { label: 'Buscando repartidor', color: '#7c3aed' };
     case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
   }
   return { label: o.status, color: '#64748b' };

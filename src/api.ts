@@ -456,6 +456,10 @@ export interface Order {
   // The merchant's driver-approach map points at this branch's pin.
   officeId?: string | null;
   status: string;
+  // "Retiro en tienda": the customer collects at the branch, no courier involved. The tracking
+  // drops the driver stages and the merchant hands over against the code instead of waiting for
+  // a rider. Optional-null: an older API simply never says it.
+  pickupAtStore?: boolean;
   subtotal: number;
   total: number;
   notes: string | null;
@@ -595,6 +599,54 @@ export async function uploadProductImage(
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
 }
 
+// One locale's rendering of a product (en/fr); Spanish is the item's own name/description. The
+// same shape goes both ways: the list returns saved rows, the save upserts one by its locale.
+export interface ProductTranslation {
+  locale: string;
+  name: string;
+  description?: string | null;
+}
+
+export function merchantProductTranslations(id: string) {
+  return get<ProductTranslation[]>(`/delivery/products/merchant/${id}/translations`);
+}
+
+export function saveMerchantProductTranslation(id: string, input: ProductTranslation) {
+  return putAuth<ProductTranslation>(`/delivery/products/merchant/${id}/translations`, input);
+}
+
+// One weekday's opening window of the merchant's business, times as "HH:mm". Days the business
+// does not open are simply absent; the save replaces the whole week in one call.
+export interface BusinessHour {
+  // .NET's DayOfWeek convention: 0 = domingo .. 6 = sábado.
+  dayOfWeek: number;
+  openTime: string;
+  closeTime: string;
+}
+
+export function merchantBusinessHours() {
+  return get<BusinessHour[]>('/delivery/business-hours/merchant');
+}
+
+export function saveMerchantBusinessHours(hours: BusinessHour[]) {
+  return putAuth<string>('/delivery/business-hours/merchant', hours);
+}
+
+// "Cerrado hoy": whether the merchant is exceptionally closed for the current day, with an
+// optional note saying why. The flag expires with the day -- tomorrow the business reopens alone.
+export interface MerchantClosure {
+  closedToday: boolean;
+  note?: string | null;
+}
+
+export function merchantClosure() {
+  return get<MerchantClosure>('/delivery/business-closure/merchant');
+}
+
+export function saveMerchantClosure(input: MerchantClosure) {
+  return putAuth<MerchantClosure>('/delivery/business-closure/merchant', input);
+}
+
 export interface CreateOrderInput {
   items: OrderLineInput[];
   notes?: string;
@@ -607,9 +659,9 @@ export interface CreateOrderInput {
   // The street-route distance (metres) the checkout measured office -> delivery point. The server
   // recomputes the fee from it with its own tariff, floored at the straight-line distance.
   deliveryDistanceM?: number;
-  // How the order leaves the store and how it gets paid. Sent for forward compatibility -- the
-  // server does not store them yet, but an app that already asks does not need another release
-  // when it does.
+  // How the order leaves the store: "pickup" makes it a retiro en tienda -- no fee, no courier,
+  // handed over at the counter against the code. The server honours it now; paymentType is still
+  // forward compatibility (cash is the only method that works today).
   deliveryMode?: 'delivery' | 'pickup';
   paymentType?: 'cash' | 'card';
 }
@@ -656,6 +708,12 @@ export function readyMerchantOrder(id: string) {
 
 export function rejectMerchantOrder(id: string) {
   return postAuth<Order>(`/delivery/orders/${id}/reject`, {});
+}
+
+// The counter handing a pickup ("retiro en tienda") order to its customer: the code is what the
+// customer shows from their tracking screen, and the server refuses the handover without it.
+export function deliverMerchantOrder(id: string, code: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/deliver`, { code });
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).

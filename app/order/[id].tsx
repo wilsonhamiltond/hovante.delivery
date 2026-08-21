@@ -32,6 +32,21 @@ const HEADLINE_BY_PHASE = [
   '¡Pedido entregado! 🎉',
 ];
 
+// A retiro en tienda has no street half: the customer IS the courier, so the journey is the
+// counter's alone -- placed, confirmed, ready, handed over.
+const PICKUP_STAGES = [
+  { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
+  { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
+  { title: 'Listo para recoger', sub: 'Pasa a buscarlo al comercio' },
+  { title: 'Entregado', sub: 'Disfruta tu pedido' },
+];
+const PICKUP_HEADLINES = [
+  'Esperando confirmación del comercio…',
+  'Pedido confirmado',
+  '¡Listo! Pasa a recogerlo 🏪',
+  '¡Pedido entregado! 🎉',
+];
+
 // A short "12 jul, 03:45 p. m." style stamp for a status change; null when the step isn't reached.
 const fmtStamp = (iso?: string | null): string | null =>
   iso ? new Date(iso).toLocaleString('es-DO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
@@ -42,6 +57,15 @@ function currentPhase(orderStatus: string, deliveryStatus: string | null): numbe
   if (deliveryStatus === 'DELIVERED') return 5;
   if (deliveryStatus === 'IN_TRANSIT') return 4;
   if (deliveryStatus === 'ASSIGNED') return 3;
+  if (orderStatus === 'READY') return 2;
+  if (orderStatus === 'CONFIRMED') return 1;
+  return 0;
+}
+
+// The pickup journey's phase (indexes PICKUP_STAGES). The order status alone drives it -- its
+// delivery is never released to a driver, only completed by the counter's handover.
+function currentPickupPhase(orderStatus: string, deliveryStatus: string | null): number {
+  if (orderStatus === 'DELIVERED' || deliveryStatus === 'DELIVERED') return 3;
   if (orderStatus === 'READY') return 2;
   if (orderStatus === 'CONFIRMED') return 1;
   return 0;
@@ -92,21 +116,29 @@ export default function OrderTrackingScreen() {
   }
 
   const { order, deliveryStatus, driverName, deliveryCode } = data;
+  // A retiro en tienda walks a shorter timeline: no driver stages, and the code is shown at the
+  // counter rather than read to a rider at the door.
+  const pickup = !!order.pickupAtStore;
+  const stages = pickup ? PICKUP_STAGES : STAGES;
   const failed = order.status === 'CANCELLED'
     || deliveryStatus === 'FAILED' || deliveryStatus === 'CANCELLED' || deliveryStatus === 'RETURNED';
-  const current = currentPhase(order.status, deliveryStatus);
+  const current = pickup
+    ? currentPickupPhase(order.status, deliveryStatus)
+    : currentPhase(order.status, deliveryStatus);
   // The hollow "you are here" ring belongs to a journey still moving. Once the last stage is
   // reached the order IS delivered -- a fact with its own timestamp, not a step still pending --
   // so that stage fills and checks like every one before it.
-  const journeyComplete = current >= STAGES.length - 1;
-  // A timestamp per timeline step, in STAGES order, so each reached stage shows when it happened.
-  const phaseStamps = [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
+  const journeyComplete = current >= stages.length - 1;
+  // A timestamp per timeline step, in the journey's own order, so each stage shows when it happened.
+  const phaseStamps = pickup
+    ? [data.placedAt, data.confirmedAt, data.readyAt, data.deliveredAt]
+    : [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
   const headline = failed
     ? (order.status === 'CANCELLED' ? 'Pedido cancelado' : deliveryStatus === 'FAILED' ? 'Entrega fallida' : 'Pedido devuelto')
-    : HEADLINE_BY_PHASE[current];
+    : (pickup ? PICKUP_HEADLINES : HEADLINE_BY_PHASE)[current];
   // Show the confirmation code until the order is delivered (or terminal): the customer reads it to
-  // the driver at the door to confirm receipt.
-  const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && !failed;
+  // the driver at the door -- or shows it at the counter -- to confirm receipt.
+  const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && order.status !== 'DELIVERED' && !failed;
 
   // The queue the merchant declared when they accepted: the order waits its turn before they start
   // preparing it. Until that runs out nobody has cooked, packed or ridden anything, so the customer
@@ -169,14 +201,18 @@ export default function OrderTrackingScreen() {
           <View style={styles.codeCard}>
             <Text style={styles.codeLabel}>Código de entrega</Text>
             <Text style={styles.codeValue}>{deliveryCode}</Text>
-            <Text style={styles.codeHint}>Dáselo al repartidor al recibir tu pedido</Text>
+            <Text style={styles.codeHint}>
+              {pickup
+                ? 'Muéstralo en el comercio al recoger tu pedido'
+                : 'Dáselo al repartidor al recibir tu pedido'}
+            </Text>
           </View>
         ) : null}
 
         {/* Status timeline */}
         {!failed ? (
           <View style={styles.timeline}>
-            {STAGES.map((s, i) => {
+            {stages.map((s, i) => {
               const done = i <= current;
               const active = i === current && !journeyComplete;
               return (
@@ -185,7 +221,7 @@ export default function OrderTrackingScreen() {
                     <View style={[styles.dot, done && styles.dotDone, active && styles.dotActive]}>
                       {done && !active ? <Text style={styles.dotCheck}>✓</Text> : null}
                     </View>
-                    {i < STAGES.length - 1 ? <View style={[styles.rail, i < current && styles.railDone]} /> : null}
+                    {i < stages.length - 1 ? <View style={[styles.rail, i < current && styles.railDone]} /> : null}
                   </View>
                   <View style={styles.stageText}>
                     <View style={styles.stageTitleRow}>
@@ -204,10 +240,14 @@ export default function OrderTrackingScreen() {
         <View style={styles.card}>
           <Text style={styles.label}>Comercio</Text>
           <Text style={styles.value}>{order.merchantName}</Text>
-          <Text style={styles.label}>Entregar en</Text>
+          <Text style={styles.label}>{pickup ? 'Retirar en' : 'Entregar en'}</Text>
           <View style={styles.addressRow}>
-            <Text style={[styles.value, { flex: 1 }]}>{order.address ?? 'Sin dirección'}</Text>
-            {order.address || order.latitude != null ? (
+            <Text style={[styles.value, { flex: 1 }]}>
+              {pickup
+                ? `🏪 ${order.merchantName ?? 'El comercio'}`
+                : (order.address ?? 'Sin dirección')}
+            </Text>
+            {!pickup && (order.address || order.latitude != null) ? (
               <Pressable style={styles.mapBtn} onPress={openMap} accessibilityRole="button">
                 <Text style={styles.mapBtnText}>🗺️ Mapa</Text>
               </Pressable>
