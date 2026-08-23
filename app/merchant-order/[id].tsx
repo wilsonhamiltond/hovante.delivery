@@ -6,6 +6,7 @@ import * as api from '../../src/api';
 import type { Order } from '../../src/api';
 import { statusOf } from '../../src/MerchantOrderCard';
 import { QueueTimeModal } from '../../src/QueueTimeModal';
+import { InvoiceModal } from '../../src/InvoiceModal';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
@@ -43,6 +44,8 @@ export default function MerchantOrderDetail() {
   const [confirming, setConfirming] = useState(false);
   // The customer's tracking-screen code, typed at the counter to hand a pickup order over.
   const [deliverCode, setDeliverCode] = useState('');
+  // The invoice sheet, opened by tapping the invoice number on its card.
+  const [showInvoice, setShowInvoice] = useState(false);
 
   const load = useCallback(async () => {
     const res = await api.merchantOrders();
@@ -220,12 +223,16 @@ export default function MerchantOrderDetail() {
           <View style={styles.subRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(grandTotal)}</Text></View>
         </View>
 
-        {/* The invoice, once "Facturar" was pressed on the web. */}
+        {/* The invoice, issued when the order went "listo" (or "Facturar" on the web). Tapping it
+            opens the invoice itself, with printing. */}
         {order.documentNumber ? (
-          <View style={styles.card}>
+          <Pressable style={styles.card} onPress={() => setShowInvoice(true)} accessibilityRole="button">
             <Text style={styles.label}>Factura</Text>
-            <Text style={styles.invoice}>{order.documentNumber}{order.ncf ? ` · NCF ${order.ncf}` : ''}</Text>
-          </View>
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoice}>{order.documentNumber}{order.ncf ? ` · NCF ${order.ncf}` : ''}</Text>
+              <Text style={styles.invoiceOpen}>Ver ›</Text>
+            </View>
+          </Pressable>
         ) : null}
 
         {order.status === 'CANCELLED' && order.cancelReason ? (
@@ -305,6 +312,12 @@ export default function MerchantOrderDetail() {
         onConfirm={confirmWithQueue}
         onClose={() => setConfirming(false)}
       />
+
+      <InvoiceModal
+        orderId={order.id}
+        visible={showInvoice}
+        onClose={() => setShowInvoice(false)}
+      />
     </SafeAreaView>
     </GradientBackground>
   );
@@ -357,6 +370,8 @@ const styles = StyleSheet.create({
   subValue: { fontSize: 14, fontWeight: '700', color: t.text },
   totalValue: { fontSize: 18, fontWeight: '900', color: t.text },
   invoice: { fontSize: 15, fontWeight: '700', color: t.text },
+  invoiceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  invoiceOpen: { fontSize: 14, fontWeight: '800', color: t.textMuted },
   cancelReason: { color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },
 

@@ -490,7 +490,9 @@ export interface Order {
   // The customer's profile picture (public URL), so a pin on their door shows a face rather than a
   // number. Merchant view only, and null when they never set one.
   customerImageUrl?: string | null;
-  // The invoice issued for the order ("Facturar" on the web), merchant view only. Null until then.
+  // The invoice issued for the order (automatic on "listo", or "Facturar" on the web), merchant
+  // view only. Null until then. The id is what the invoice view is fetched with.
+  documentId?: string | null;
   documentNumber?: string | null;
   ncf?: string | null;
   // The driver who took the delivery (merchant view; null until one claims it).
@@ -714,6 +716,66 @@ export function rejectMerchantOrder(id: string) {
 // customer shows from their tracking screen, and the server refuses the handover without it.
 export function deliverMerchantOrder(id: string, code: string) {
   return postAuth<Order>(`/delivery/orders/${id}/deliver`, { code });
+}
+
+// The invoice issued for one of the merchant's orders, shaped for display and printing: company
+// header, fiscal identifiers, customer, lines and totals in one payload. Fails while the order
+// has no invoice yet.
+export interface OrderInvoiceLine {
+  description: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountPct: number;
+  taxPct: number;
+  total: number;
+}
+
+export interface OrderInvoiceTax {
+  name: string | null;
+  rate: number;
+  amount: number;
+  // A retention subtracts from the total; shown negative.
+  isRetention: boolean;
+}
+
+export interface OrderInvoice {
+  orderId: string;
+  orderNumber: string;
+  documentId: string;
+  companyName: string | null;
+  companyRnc: string | null;
+  companyLogoUrl: string | null;
+  documentTypeName: string | null;
+  docNumber: string | null;
+  ncf: string | null;
+  ncfTypeName: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  customerName: string | null;
+  customerDocument: string | null;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  // The customer's account email -- the only address "enviar por correo" can go to; without one
+  // the send button is disabled.
+  customerEmail: string | null;
+  currencyCode: string | null;
+  currencySymbol: string | null;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes: string | null;
+  items: OrderInvoiceLine[];
+  taxes: OrderInvoiceTax[];
+}
+
+export function merchantOrderInvoice(id: string) {
+  return get<OrderInvoice>(`/delivery/orders/${id}/invoice`);
+}
+
+// Mail the invoice to the customer's account email -- the server accepts no other recipient.
+// It answers with the address it actually sent to.
+export function emailMerchantOrderInvoice(id: string) {
+  return postAuth<string>(`/delivery/orders/${id}/invoice/email`, {});
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).
