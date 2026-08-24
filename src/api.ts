@@ -248,6 +248,14 @@ export function resetPasswordWithCode(email: string, code: string, newPassword: 
 // Changing the password from inside the app, where the account is already signed in. The current
 // password is required and checked server-side -- the token alone is not treated as proof here,
 // because it lives on the phone and outlives any one session.
+// Deletes the signed-in account (App Store 5.1.1(v): an account created in the app must be
+// deletable in the app). The server erases the personal data and disables the login; the screen
+// then signs out locally. The bearer token is the proof of identity -- a social account has no
+// password to re-ask for, so the screen carries its own explicit confirmation instead.
+export function deleteAccount() {
+  return postAuth<string>('/auth/delete-account', {});
+}
+
 export function changePassword(currentPassword: string, password: string) {
   return postAuth<string>('/auth/change-password', {
     currentPassword,

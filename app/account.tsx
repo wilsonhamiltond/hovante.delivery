@@ -196,6 +196,16 @@ export default function AccountScreen() {
                 <Text style={styles.rowText}>Ayuda</Text>
                 <Text style={styles.rowChevron}>›</Text>
               </Pressable>
+              <View style={styles.rowDivider} />
+              {/* Account deletion (App Store 5.1.1(v)): in the same card as every other account
+                  action so it is findable, in danger ink so it is not mistaken for one of them.
+                  The row only opens the screen that explains and confirms -- nothing is deleted
+                  from here. */}
+              <Pressable style={styles.row} onPress={() => router.push('/delete-account')}>
+                <FontAwesome5 name="user-slash" size={14} solid color={t.danger} style={styles.rowIcon} />
+                <Text style={[styles.rowText, styles.rowTextDanger]}>Eliminar cuenta</Text>
+                <Text style={[styles.rowChevron, styles.rowTextDanger]}>›</Text>
+              </Pressable>
             </View>
 
             <Pressable style={styles.logout} onPress={signOut}>
@@ -242,6 +252,7 @@ const styles = StyleSheet.create({
   rowDivider: { height: 1, backgroundColor: t.border, marginVertical: 12 },
   rowIcon: { width: 22, textAlign: 'center' },
   rowText: { flex: 1, fontSize: 16, color: t.text, fontWeight: '700' },
+  rowTextDanger: { color: t.danger },
   rowChevron: { fontSize: 20, fontWeight: '800', color: t.text },
 
   // Danger, the same way the address book marks its delete: the card shape stays, only the ink and
