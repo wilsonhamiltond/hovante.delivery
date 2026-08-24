@@ -47,3 +47,7 @@ yarn-error.*
 .env.local
 # bundletool is a 31 MB Google release binary, fetched on demand (see BUILD.md), never committed.
 scripts/bundletool*.jar
+
+# EAS-downloaded signing credentials (keystore passwords) -- never commit.
+credentials.json
+credentials/
