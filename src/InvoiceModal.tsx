@@ -21,18 +21,12 @@ export function InvoiceModal({ orderId, visible, onClose }: {
   const [invoice, setInvoice] = useState<OrderInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
-  // The mail flow: one button, one recipient (the customer's own email -- the server accepts no
-  // other). Once the server confirms, the confirmation replaces the button.
-  const [sending, setSending] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible || !orderId) return;
     let alive = true;
     setInvoice(null);
     setError(null);
-    setSending(false);
-    setSentTo(null);
     api.merchantOrderInvoice(orderId).then((res) => {
       if (!alive) return;
       if (res.success) setInvoice(res.data);
@@ -51,16 +45,6 @@ export function InvoiceModal({ orderId, visible, onClose }: {
     } finally {
       setPrinting(false);
     }
-  };
-
-  const send = async () => {
-    if (!orderId || !invoice) return;
-    setSending(true);
-    setError(null);
-    const res = await api.emailMerchantOrderInvoice(orderId);
-    setSending(false);
-    if (res.success) setSentTo(res.data ?? invoice.customerEmail);
-    else setError(res.message);
   };
 
   const symbol = invoice?.currencySymbol || 'RD$';
@@ -141,25 +125,15 @@ export function InvoiceModal({ orderId, visible, onClose }: {
               : <Text style={styles.primaryText}>🖨️  Imprimir</Text>}
           </Pressable>
 
-          {sentTo ? (
-            <Text style={styles.sent}>✓ Factura enviada a {sentTo}</Text>
-          ) : invoice && !invoice.customerEmail ? (
-            <Text style={styles.noEmail}>El cliente no tiene correo registrado.</Text>
-          ) : (
-            <Pressable
-              style={[styles.secondary, (!invoice || sending) && styles.disabled]}
-              disabled={!invoice || sending}
-              onPress={send}
-            >
-              {sending
-                ? <ActivityIndicator color={t.text} />
-                : (
-                  <Text style={styles.secondaryText}>
-                    ✉️  Enviar por correo{invoice?.customerEmail ? ` a ${invoice.customerEmail}` : ''}
-                  </Text>
-                )}
-            </Pressable>
-          )}
+          {/* No send button on purpose: the server mails the invoice to the customer's own email
+              automatically when the order is delivered (counter handover or driver). */}
+          {invoice ? (
+            <Text style={styles.noEmail}>
+              {invoice.customerEmail
+                ? `La factura se envía a ${invoice.customerEmail} al entregar el pedido.`
+                : 'El cliente no tiene correo registrado; la factura no se enviará por correo.'}
+            </Text>
+          ) : null}
 
           <Pressable onPress={onClose}>
             <Text style={styles.cancel}>Cerrar</Text>
@@ -200,9 +174,6 @@ const styles = StyleSheet.create({
 
   primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
   primaryText: { color: t.onAccent, fontSize: 15, fontWeight: '800' },
-  secondary: { borderWidth: 1, borderColor: t.border, backgroundColor: t.card, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  secondaryText: { color: t.text, fontSize: 15, fontWeight: '800' },
-  sent: { color: t.success, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 6 },
   noEmail: { color: t.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 6 },
   cancel: { color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 10 },
   disabled: { opacity: 0.6 },

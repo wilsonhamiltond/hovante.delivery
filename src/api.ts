@@ -763,8 +763,8 @@ export interface OrderInvoice {
   customerDocument: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
-  // The customer's account email -- the only address "enviar por correo" can go to; without one
-  // the send button is disabled.
+  // The customer's account email -- where the server mails the invoice automatically when the
+  // order is delivered. Null when the account has none (nothing is sent).
   customerEmail: string | null;
   currencyCode: string | null;
   currencySymbol: string | null;
@@ -778,12 +778,6 @@ export interface OrderInvoice {
 
 export function merchantOrderInvoice(id: string) {
   return get<OrderInvoice>(`/delivery/orders/${id}/invoice`);
-}
-
-// Mail the invoice to the customer's account email -- the server accepts no other recipient.
-// It answers with the address it actually sent to.
-export function emailMerchantOrderInvoice(id: string) {
-  return postAuth<string>(`/delivery/orders/${id}/invoice/email`, {});
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).

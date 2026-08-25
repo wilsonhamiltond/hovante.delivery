@@ -9,7 +9,7 @@ import { GradientBackground, t } from '../src/theme';
 // Real support channels: the same address and number the site's legal pages publish
 // (volao.web: contact, terms, privacy). WhatsApp wants the number with the +1 country code.
 const SUPPORT_EMAIL = 'support@volao.com.do';
-const SUPPORT_PHONE = '8494613046';
+const SUPPORT_PHONE = '+1 (809) 693-8546';
 
 // The questions, grouped and gated by role. Everyone reaches this screen from the same Cuenta row,
 // so a driver is not made to scroll a customer's payment questions to find their own -- and a
