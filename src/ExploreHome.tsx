@@ -46,10 +46,14 @@ type GridCell = Product | null;
 // that box no longer lists anything itself, so submitting it opens this tab already filtered.
 // `initialCompany` does the same for a merchant tapped in the home carousel -- it opens the grid
 // already narrowed to that shop, exactly as tapping a tile's merchant name does.
-export function ExploreHome({ profile, initialSearch, initialCompany }: {
+// `initialPreview` is a product carried over from the home's "lo más pedido" card: the grid opens
+// on its merchant with that product's preview dialog already up, so the person confirms the add
+// here -- the same ask-first flow as tapping a tile, nothing lands in the cart on its own.
+export function ExploreHome({ profile, initialSearch, initialCompany, initialPreview }: {
   profile: Me | null;
   initialSearch?: string;
   initialCompany?: { id: string; name: string } | null;
+  initialPreview?: Product | null;
 }) {
   const router = useRouter();
   const cart = useCart();
@@ -340,6 +344,17 @@ export function ExploreHome({ profile, initialSearch, initialCompany }: {
     }
     markAdded(p.id);
   };
+
+  // The product a "lo más pedido" card sent along: its preview dialog opens exactly once per
+  // product -- the person adds (or dismisses) from there, the same ask-first path as tapping a
+  // tile, conflict question included. Keyed by id, not a boolean: tapping a second card
+  // re-navigates into this same mounted tab with a new product, and that one must open too.
+  const handledInitialPreview = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialPreview || handledInitialPreview.current === initialPreview.id) return;
+    handledInitialPreview.current = initialPreview.id;
+    openPreview(initialPreview);
+  }, [initialPreview?.id]);
 
   return (
     <GradientBackground>

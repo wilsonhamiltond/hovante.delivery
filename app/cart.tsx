@@ -35,6 +35,9 @@ export default function CartScreen() {
   // changed under it.
   const [stepKey, setStepKey] = useState<StepKey>('cart');
   const [notes, setNotes] = useState('');
+  // Cash orders: the bill the customer will pay with ("¿con cuánto pagarás?"), so the merchant or
+  // driver brings the right change. Kept as text while typing; empty means exact payment.
+  const [payWith, setPayWith] = useState('');
   // How the order leaves the store. Pickup skips the envío entirely -- the customer rides, not us.
   const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
   // How it gets paid. Card is shown but not yet available, so cash is both the default and the
@@ -120,6 +123,13 @@ export default function CartScreen() {
   // Pickup charges no envío at all: the customer collects the order themselves.
   const deliveryFee = deliveryMode === 'delivery' && eta ? deliveryFeeRd(eta.distanceM) : null;
 
+  // The cash question's arithmetic. Valid when empty (exact payment) or covering the total; the
+  // change previews live so the customer sees what the courier will owe them before ordering.
+  const grandTotal = cart.total + (deliveryFee ?? 0);
+  const payWithNum = payWith.trim() === '' ? null : Number(payWith.trim());
+  const payWithValid = payWithNum == null || (Number.isFinite(payWithNum) && payWithNum >= grandTotal);
+  const changeDue = payWithNum != null && payWithValid ? payWithNum - grandTotal : null;
+
   // The step exists only when there is a real choice to make.
   const needsOfficeChoice = !officeId && eligible.length > 1;
 
@@ -195,6 +205,11 @@ export default function CartScreen() {
       deliveryDistanceM: deliveryMode === 'delivery' && eta ? Math.round(eta.distanceM) : undefined,
       deliveryMode,
       paymentType,
+      // Only a real overpayment travels: exact/empty stays undefined, and the server re-checks
+      // the amount against ITS total anyway.
+      cashPayWith: paymentType === 'cash' && payWithNum != null && payWithValid && payWithNum > 0
+        ? payWithNum
+        : undefined,
     });
     setSubmitting(false);
     if (!res.success) { Alert.alert('No se pudo crear el pedido', res.message); return; }
@@ -448,9 +463,38 @@ export default function CartScreen() {
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>Notas para el comercio</Text>
             <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor={t.textFaint} multiline />
+
+            {/* Cash only: with what bill will they pay, so whoever hands the order over brings the
+                change. Empty is fine -- it reads as exact payment. */}
+            {paymentType === 'cash' ? (
+              <>
+                <Text style={styles.label}>¿Con cuánto vas a pagar?</Text>
+                <TextInput
+                  style={styles.payWithInput}
+                  value={payWith}
+                  onChangeText={setPayWith}
+                  placeholder={`Ej: 1000 · total ${money(grandTotal)} · vacío si pagas exacto`}
+                  placeholderTextColor={t.textFaint}
+                  keyboardType="numeric"
+                />
+                {payWithNum != null && !payWithValid ? (
+                  <Text style={styles.payWithError}>
+                    Debe cubrir el total del pedido ({money(grandTotal)}).
+                  </Text>
+                ) : changeDue != null && changeDue > 0 ? (
+                  <Text style={styles.payWithChange}>Tu devuelta: {money(changeDue)}</Text>
+                ) : null}
+              </>
+            ) : null}
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable
+              style={[styles.primary, !payWithValid && styles.disabled]}
+              onPress={goNext}
+              disabled={!payWithValid}
+            >
+              <Text style={styles.primaryText}>Continuar</Text>
+            </Pressable>
           </Footer>
         </>
       )}
@@ -491,6 +535,9 @@ export default function CartScreen() {
               <Text style={styles.pin}>{deliveryMode === 'delivery' ? '🛵' : '🏪'}</Text>
               <Text style={styles.addrText}>
                 {deliveryMode === 'delivery' ? 'Delivery' : 'Retiro en tienda'} · Pago en efectivo
+                {changeDue != null && changeDue > 0
+                  ? ` · Pagas con ${money(payWithNum!)} · devuelta ${money(changeDue)}`
+                  : ''}
               </Text>
             </View>
 
@@ -703,6 +750,12 @@ const styles = StyleSheet.create({
   addrText: { fontSize: 15, color: t.text, fontWeight: '600' },
   etaText: { fontSize: 13, color: t.textMuted, fontWeight: '700', marginTop: 6 },
   notes: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, minHeight: 70, fontSize: 15, color: t.text, textAlignVertical: 'top' },
+  // The cash question: a one-line numeric box (the notes style is a tall multiline), with live
+  // feedback below -- red when the amount cannot cover the order, green when it resolves into a
+  // concrete devuelta.
+  payWithInput: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: t.text },
+  payWithError: { color: t.danger, fontSize: 13, fontWeight: '700', marginTop: 6 },
+  payWithChange: { color: t.success, fontSize: 14, fontWeight: '800', marginTop: 6 },
 
   // Step 4 (review)
   reviewMap: { height: 200, marginHorizontal: 16, marginTop: 14, borderRadius: 12, overflow: 'hidden' },

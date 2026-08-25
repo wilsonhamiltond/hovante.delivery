@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -8,6 +8,8 @@ import type { AddressHistory } from '../src/api';
 import { useSessionLocation } from '../src/sessionLocation';
 import { GradientBackground, t } from '../src/theme';
 import { BackButton } from '../src/BackButton';
+import { NoticeDialog, type Notice } from '../src/NoticeDialog';
+import { ConfirmDialog } from '../src/ConfirmDialog';
 
 const fmtDate = (iso: string): string => {
   const d = new Date(iso);
@@ -24,6 +26,13 @@ export default function AddressesScreen() {
   const [loading, setLoading] = useState(true);
   // Which row is mid-action, so only its own button shows a spinner.
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The address whose delete is awaiting its "¿seguro?" answer in the popup. A ConfirmDialog
+  // rather than Alert: Alert's buttons do not render on web, so an Alert-based confirm made the
+  // Eliminar button do nothing there.
+  const [pendingDelete, setPendingDelete] = useState<AddressHistory | null>(null);
+  // API failures land in the themed dialog the sign-up wizard uses -- Alert has the same web
+  // problem for messages as for confirms.
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -42,7 +51,7 @@ export default function AddressesScreen() {
     const res = await api.setDefaultAddress(item.id);
     if (!res.success) {
       setBusyId(null);
-      Alert.alert('Dirección', res.message);
+      setNotice({ tone: 'error', message: res.message });
       return;
     }
     // Refetched rather than flipping the flag locally: the server also reorders the list so the
@@ -71,27 +80,20 @@ export default function AddressesScreen() {
     });
   };
 
-  // Deleting is asked about first: it is a small button next to two others, and the address book is
-  // not something the customer can restore from the app.
-  const confirmDelete = (item: AddressHistory) => {
-    if (!item.id) return;
-    Alert.alert(
-      'Eliminar dirección',
-      `¿Eliminar "${item.address}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => remove(item) },
-      ],
-    );
-  };
+  // Rows are keyed by id when saved and by their text when order-derived (those have no id) --
+  // the same disambiguation the list's keyExtractor makes.
+  const keyOf = (item: AddressHistory) => item.id ?? item.address;
 
   const remove = async (item: AddressHistory) => {
-    if (!item.id) return;
-    setBusyId(item.id);
-    const res = await api.deleteMyAddress(item.id);
+    setPendingDelete(null);
+    setBusyId(keyOf(item));
+    // A saved address is deleted by id; a past-order one has no id, so it is hidden by its text.
+    const res = item.id
+      ? await api.deleteMyAddress(item.id)
+      : await api.hideMyAddress(item.address);
     if (!res.success) {
       setBusyId(null);
-      Alert.alert('Dirección', res.message);
+      setNotice({ tone: 'error', message: res.message });
       return;
     }
     // Refetched rather than filtered locally: removing the default one promotes another on the
@@ -165,14 +167,25 @@ export default function AddressesScreen() {
                     : item.label ?? 'Guardada'}
                 </Text>
 
-                {/* Actions exist only for a saved address -- one seen only on a past order is text
-                    on that order, with no id to edit, delete, or point the default at. */}
-                {item.id ? (
-                  <View style={styles.actions}>
-                    {busyId === item.id ? (
-                      <ActivityIndicator size="small" color={t.text} style={styles.actionsSpinner} />
-                    ) : (
-                      <>
+                {/* A saved address can be promoted, edited and deleted. A past-order one is text
+                    on old orders with no row to edit or point the default at -- but it can still
+                    be removed from this list, so Eliminar is the one action it gets. */}
+                <View style={styles.actions}>
+                  {busyId === keyOf(item) ? (
+                    <ActivityIndicator size="small" color={t.text} style={styles.actionsSpinner} />
+                  ) : !item.id ? (
+                    <Pressable
+                      style={[styles.actionBtn, styles.deleteBtn, busyId != null && styles.actionBtnBusy]}
+                      onPress={() => setPendingDelete(item)}
+                      disabled={busyId != null}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Eliminar ${item.address}`}
+                    >
+                      <FontAwesome5 name="trash" size={11} color={t.danger} />
+                      <Text style={[styles.actionBtnText, styles.deleteBtnText]}>Eliminar</Text>
+                    </Pressable>
+                  ) : (
+                    <>
                         {!item.isDefault ? (
                           <Pressable
                             style={[styles.actionBtn, busyId != null && styles.actionBtnBusy]}
@@ -202,7 +215,7 @@ export default function AddressesScreen() {
                         {!item.isDefault ? (
                           <Pressable
                             style={[styles.actionBtn, styles.deleteBtn, busyId != null && styles.actionBtnBusy]}
-                            onPress={() => confirmDelete(item)}
+                            onPress={() => setPendingDelete(item)}
                             disabled={busyId != null}
                             accessibilityRole="button"
                             accessibilityLabel={`Eliminar ${item.address}`}
@@ -212,14 +225,26 @@ export default function AddressesScreen() {
                           </Pressable>
                         ) : null}
                       </>
-                    )}
-                  </View>
-                ) : null}
+                  )}
+                </View>
               </View>
             </View>
           )}
         />
       )}
+
+      {/* Deleting is asked about first: the address book is not something the customer can
+          restore from the app. */}
+      <ConfirmDialog
+        visible={pendingDelete != null}
+        title="Eliminar dirección"
+        message={`¿Eliminar "${pendingDelete?.address ?? ''}"?`}
+        confirmLabel="Sí, eliminar"
+        onConfirm={() => { if (pendingDelete) remove(pendingDelete); }}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <NoticeDialog notice={notice} onClose={() => setNotice(null)} />
     </SafeAreaView>
     </GradientBackground>
   );

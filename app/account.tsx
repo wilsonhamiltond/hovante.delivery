@@ -172,6 +172,13 @@ export default function AccountScreen() {
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
+                  {/* The merchant's fleet: linked drivers and the public-orders switch. */}
+                  <Pressable style={styles.row} onPress={() => router.push('/merchant-drivers')}>
+                    <FontAwesome5 name="motorcycle" size={15} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>Repartidores</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
                 </>
               ) : null}
               {/* Shown to both roles -- a driver's account is as worth protecting as a customer's --

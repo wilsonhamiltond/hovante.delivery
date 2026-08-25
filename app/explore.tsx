@@ -18,13 +18,22 @@ export default function ExploreScreen() {
   const router = useRouter();
   // ?q= arrives when the home screen's search box was submitted, ?companyId=/?companyName= when a
   // merchant was tapped in its carousel -- either way this tab opens already filtered.
-  const { q, companyId, companyName } = useLocalSearchParams<{
+  // ?previewItem= carries a product (JSON) from the "lo más pedido" cards: the tab opens on that
+  // merchant with the product's add dialog already up, so the person confirms the add there.
+  const { q, companyId, companyName, previewItem } = useLocalSearchParams<{
     q?: string;
     companyId?: string;
     companyName?: string;
+    previewItem?: string;
   }>();
   // An id is what the catalogue actually filters by, so a merchant with neither is no filter at all.
   const company = companyId && companyName ? { id: companyId, name: companyName } : null;
+  // Malformed JSON (a hand-typed deep link) is simply no dialog, not a crash.
+  let initialPreview: api.Product | null = null;
+  if (previewItem) {
+    try { initialPreview = JSON.parse(previewItem) as api.Product; } catch { initialPreview = null; }
+    if (initialPreview && (!initialPreview.id || !initialPreview.companyId)) initialPreview = null;
+  }
   const [profile, setProfile] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   // Bumped to ask for the profile again after a failed attempt; see the retry effect below.
@@ -57,7 +66,7 @@ export default function ExploreScreen() {
 
   if (loading || profile?.isDriver) return <LogoSplash />;
 
-  if (profile) return <ExploreHome profile={profile} initialSearch={q} initialCompany={company} />;
+  if (profile) return <ExploreHome profile={profile} initialSearch={q} initialCompany={company} initialPreview={initialPreview} />;
 
   // No profile yet: an expired session is already on its way to /login and a failed request is
   // being retried above, so there is nothing to ask of the user -- just the logo until one of the

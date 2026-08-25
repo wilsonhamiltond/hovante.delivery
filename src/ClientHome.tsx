@@ -83,21 +83,32 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   }, []);
   useFocusEffect(useCallback(() => { loadOrders(); }, [loadOrders]));
 
-  // Fetched once per mount rather than on every focus: the week's ranking does not move while
-  // someone taps between tabs, and re-ordering the carousel under them would be worse than stale.
+  // Where this customer would have an order delivered right now -- the same precedence as the
+  // catalog (ExploreHome): the session pin ("mi ubicación actual"), then an address just picked
+  // from the dropdown, then the account's saved coordinates. Both carousels filter by it, so the
+  // home never advertises a merchant whose quadrant excludes the customer.
+  const deliverLat = session.location ? session.location.latitude
+    : chosen ? chosen.latitude
+    : profile?.latitude ?? null;
+  const deliverLng = session.location ? session.location.longitude
+    : chosen ? chosen.longitude
+    : profile?.longitude ?? null;
+
+  // Refetched when the delivery point moves (not on every focus): the week's ranking does not
+  // change while someone taps between tabs, but switching address changes which merchants apply.
   useEffect(() => {
-    api.topWeekly(TOP_FETCH_LIMIT).then((res) => {
+    api.topWeekly(TOP_FETCH_LIMIT, deliverLat, deliverLng).then((res) => {
       if (res.success) setTopItems(res.data ?? []);
     });
-  }, []);
+  }, [deliverLat, deliverLng]);
 
   // Refetched on focus, unlike the week's ranking: an offer can start or expire at any minute, and
   // a card promising a price that has just lapsed is worse than one arriving a moment late.
   useFocusEffect(useCallback(() => {
-    api.latestOffers(TOP_CAROUSEL_SIZE).then((res) => {
+    api.latestOffers(TOP_CAROUSEL_SIZE, deliverLat, deliverLng).then((res) => {
       if (res.success) setOffers(res.data ?? []);
     });
-  }, []));
+  }, [deliverLat, deliverLng]));
 
   // The merchants behind those sales, best first. Summed here rather than fetched: the API ranks
   // items, not companies, so this is the same week's numbers grouped a second way.
@@ -401,10 +412,11 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           </View>
         ) : null}
 
-        {/* Lo más pedido: a horizontal carousel of the week's best sellers. Tapping a card opens
-            Explorar filtered to that product -- adding straight to the cart from here would drag
-            the whole one-order-one-merchant conflict flow back onto a screen that no longer sells
-            anything. Hidden entirely when the week has no sales rather than showing an empty rail. */}
+        {/* Lo más pedido: a horizontal carousel of the week's best sellers. Tapping a card jumps
+            into Explorar narrowed to that merchant with the product's add dialog already open --
+            nothing goes in the cart until the person confirms there, the same ask-first flow as
+            tapping a tile (and Explorar owns the "¿cambiar de comercio?" question). Hidden
+            entirely when the week has no sales rather than showing an empty rail. */}
         {topItems.length > 0 ? (
           <View style={styles.ordersSection}>
             <Text style={styles.ordersTitle}>Lo más pedido</Text>
@@ -420,9 +432,29 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                 <Pressable
                   key={item.id}
                   style={styles.topCard}
-                  onPress={() => router.push({ pathname: '/explore', params: { q: item.name } })}
+                  onPress={() => {
+                    // The card's item restated as a catalogue Product, so Explorar can open its
+                    // add dialog without hunting for it in the grid pages.
+                    const previewItem = JSON.stringify({
+                      id: item.id,
+                      name: item.name,
+                      description: item.description ?? null,
+                      price: item.price,
+                      imagePath: item.imagePath ?? null,
+                      imageUrl: item.imageUrl ?? null,
+                      companyId: item.companyId ?? '',
+                      companyName: item.companyName ?? 'Comercio',
+                      categories: [],
+                    });
+                    router.push({
+                      pathname: '/explore',
+                      params: item.companyId && item.companyName
+                        ? { companyId: item.companyId, companyName: item.companyName, previewItem }
+                        : { q: item.name, previewItem },
+                    });
+                  }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Ver ${item.name}`}
+                  accessibilityLabel={`Ver ${item.name} en ${item.companyName ?? 'el comercio'}`}
                 >
                   {/* The item's own photo once the merchant has set one, exactly as the catalogue
                       tiles do; the category's icon does the work for the ones that have none. */}

@@ -4,21 +4,20 @@ import { GRADIENT, t } from './theme';
 
 interface Props {
   visible: boolean;
+  /** Short heading, e.g. "Eliminar dirección". */
   title: string;
+  /** The question, naming what is about to be destroyed. */
   message: string;
-  // What the destructive button says ("Eliminar", "Cancelar pedido"). Never a bare "Sí": the
-  // button restates the action so a hurried tap still reads what it is about to do.
+  /** Label of the destructive button, e.g. "Sí, eliminar". */
   confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-// NoticeDialog's destructive sibling: the same card, but asking rather than telling, so it carries
-// two buttons where NoticeDialog has one. Exists because React Native's Alert.alert renders
-// nothing on web -- a confirmation the platform can silently drop is not a confirmation.
-//
-// The safe exit is everywhere: the backdrop, Android's back button, and the outlined "Cancelar"
-// all decline. Only the one solid red button confirms.
+// A themed "¿seguro?" popup for destructive actions, modeled on NoticeDialog -- same backdrop,
+// card and ring icon, but with two buttons. Exists because RN's Alert cannot do this on web (its
+// buttons never render there), and the red confirm keeps the convention that solid red is the
+// press that actually destroys.
 export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm, onCancel }: Props) {
   return (
     <Modal
@@ -26,13 +25,14 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm
       transparent
       animationType="fade"
       onRequestClose={onCancel}
+      // Android's back button cancels, same as tapping outside.
       statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onCancel}>
         {/* Swallows the press so tapping the card itself does not dismiss it. */}
         <Pressable style={styles.card} onPress={() => {}}>
           <View style={styles.iconWrap}>
-            <FontAwesome5 name="exclamation-triangle" size={20} color={t.danger} />
+            <FontAwesome5 name="trash" size={20} color={t.danger} />
           </View>
 
           <Text style={styles.title}>{title}</Text>
@@ -46,13 +46,8 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm
           >
             <Text style={styles.confirmText}>{confirmLabel}</Text>
           </Pressable>
-          <Pressable
-            style={styles.cancel}
-            onPress={onCancel}
-            accessibilityRole="button"
-            accessibilityLabel="Cancelar"
-          >
-            <Text style={styles.cancelText}>Cancelar</Text>
+          <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancelar">
+            <Text style={styles.cancel}>Cancelar</Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -76,15 +71,12 @@ const styles = StyleSheet.create({
   },
   title: { color: t.text, fontSize: 18, fontWeight: '900', textAlign: 'center' },
   message: { color: t.textMuted, fontSize: 15, lineHeight: 21, textAlign: 'center' },
-  // The solid red fill the app reserves for confirming a destructive action.
+  // Solid red: the convention everywhere else (rechazar, cancelar pedido) for the press that
+  // actually destroys.
   confirm: {
-    alignSelf: 'stretch', marginTop: 10, backgroundColor: t.danger,
+    alignSelf: 'stretch', marginTop: 10, backgroundColor: '#dc2626',
     borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
-  confirmText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
-  cancel: {
-    alignSelf: 'stretch', backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-    borderRadius: 12, paddingVertical: 14, alignItems: 'center',
-  },
-  cancelText: { color: t.text, fontSize: 16, fontWeight: '800' },
+  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  cancel: { color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
 });

@@ -221,6 +221,14 @@ export default function MerchantOrderDetail() {
             <View style={styles.subRow}><Text style={styles.totalLabel}>Envío</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
           ) : null}
           <View style={styles.subRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(grandTotal)}</Text></View>
+          {/* Cash orders that declared a bill: what the customer pays with, and the change to have
+              ready before anyone knocks on their door. */}
+          {order.payWithAmount != null ? (
+            <>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>Paga con</Text><Text style={styles.subValue}>{money(order.payWithAmount)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>Devuelta</Text><Text style={styles.changeValue}>{money(order.payWithAmount - grandTotal)}</Text></View>
+            </>
+          ) : null}
         </View>
 
         {/* The invoice, issued when the order went "listo" (or "Facturar" on the web). Tapping it
@@ -369,6 +377,8 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 14, fontWeight: '700', color: t.textMuted },
   subValue: { fontSize: 14, fontWeight: '700', color: t.text },
   totalValue: { fontSize: 18, fontWeight: '900', color: t.text },
+  // The change to hand back on a cash order -- green, because it is money leaving the counter.
+  changeValue: { fontSize: 15, fontWeight: '800', color: t.success },
   invoice: { fontSize: 15, fontWeight: '700', color: t.text },
   invoiceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   invoiceOpen: { fontSize: 14, fontWeight: '800', color: t.textMuted },

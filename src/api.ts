@@ -401,8 +401,15 @@ export interface OfferItem {
 }
 
 // The offers running right now, newest first. Not tenant-scoped: a customer shops every merchant.
-export function latestOffers(limit = 10) {
-  return get<OfferItem[]>(`/itemOffer/latest?limit=${limit}`);
+// The point is where the customer would have it delivered (selected address / current location):
+// with it, quadrant-restricted merchants' offers only show when the point is inside a quadrant.
+export function latestOffers(limit = 10, latitude?: number | null, longitude?: number | null) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (latitude != null && longitude != null) {
+    params.set('latitude', String(latitude));
+    params.set('longitude', String(longitude));
+  }
+  return get<OfferItem[]>(`/itemOffer/latest?${params.toString()}`);
 }
 
 // An entry in the home screen's "lo más pedido" carousel. This is the ERP's item shape, not the
@@ -424,9 +431,14 @@ export interface TopItem {
 }
 
 // The most-ordered items of the last 7 days, most popular first. Behind auth, unlike the identical
-// /public/top-weekly the marketing site uses.
-export function topWeekly(limit = 10) {
-  return get<TopItem[]>(`/delivery/top-weekly?limit=${limit}`);
+// /public/top-weekly the marketing site uses. Same optional delivery point as latestOffers.
+export function topWeekly(limit = 10, latitude?: number | null, longitude?: number | null) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (latitude != null && longitude != null) {
+    params.set('latitude', String(latitude));
+    params.set('longitude', String(longitude));
+  }
+  return get<TopItem[]>(`/delivery/top-weekly?${params.toString()}`);
 }
 
 // A marketplace product (an item from any merchant company).
@@ -480,6 +492,9 @@ export interface Order {
   // the screens then show the products total alone.
   deliveryFee?: number | null;
   deliveryDistanceM?: number | null;
+  // Cash orders: the bill the customer said they would pay with; the change owed is this minus
+  // (total + deliveryFee). Null/absent = exact payment or an older order.
+  payWithAmount?: number | null;
   // Why the customer cancelled, when they did; shown back on the tracking screen.
   cancelReason?: string | null;
   // How many minutes the merchant said the order would queue before preparation starts, declared
@@ -674,6 +689,9 @@ export interface CreateOrderInput {
   // forward compatibility (cash is the only method that works today).
   deliveryMode?: 'delivery' | 'pickup';
   paymentType?: 'cash' | 'card';
+  // Cash orders: the bill the customer will pay with, so the merchant/driver brings the change.
+  // Omitted = exact payment. The server rejects a value below the order's total.
+  cashPayWith?: number;
 }
 
 // Place an order. The server rejects lines from more than one merchant; the app blocks it too.
@@ -778,6 +796,48 @@ export interface OrderInvoice {
 
 export function merchantOrderInvoice(id: string) {
   return get<OrderInvoice>(`/delivery/orders/${id}/invoice`);
+}
+
+// --- The merchant's fleet ("Repartidores") and delivery settings --------------------------------
+//
+// A merchant links drivers to its company. A linked driver only sees that fleet's deliveries; a
+// driver with no fleet works the public pool -- merchants whose allowPublicOrders flag is on.
+
+export interface MerchantDriver {
+  driverUserId: string;
+  name: string | null;
+  phone: string | null;
+  document: string | null;
+  // In search results: already on this merchant's team. The linked list is all true.
+  linked: boolean;
+}
+
+export interface MerchantDeliverySettings {
+  allowPublicOrders: boolean;
+}
+
+export function merchantDeliverySettings() {
+  return get<MerchantDeliverySettings>('/delivery/merchant-settings');
+}
+
+export function saveMerchantDeliverySettings(input: MerchantDeliverySettings) {
+  return putAuth<MerchantDeliverySettings>('/delivery/merchant-settings', input);
+}
+
+export function merchantDrivers() {
+  return get<MerchantDriver[]>('/delivery/merchant-drivers');
+}
+
+export function searchMerchantDrivers(q: string) {
+  return get<MerchantDriver[]>(`/delivery/merchant-drivers/search?q=${encodeURIComponent(q)}`);
+}
+
+export function linkMerchantDriver(driverUserId: string) {
+  return postAuth<MerchantDriver>('/delivery/merchant-drivers', { driverUserId });
+}
+
+export function unlinkMerchantDriver(driverUserId: string) {
+  return deleteAuth<boolean>(`/delivery/merchant-drivers/${driverUserId}`);
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).
@@ -889,6 +949,12 @@ export function updateMyAddress(id: string, payload: SaveAddressPayload) {
 // address book is never left without one.
 export function deleteMyAddress(id: string) {
   return deleteAuth<boolean>(`/delivery/my-addresses/${id}`);
+}
+
+// Removes a past-order address (no saved row, so no id) from the list, identified by its text.
+// The orders keep their snapshot; only the list forgets it.
+export function hideMyAddress(address: string) {
+  return postAuth<boolean>('/delivery/my-addresses/hide', { address });
 }
 
 // The courier's own vehicle ("Mi vehículo"). `data` is null when nothing has been saved yet, which
