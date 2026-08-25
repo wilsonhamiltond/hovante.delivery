@@ -53,7 +53,8 @@
         {
           "icon": "./assets/android/notification-icon.png",
           "color": "#1d4ed8",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "mode": "production"
         }
       ],
       [

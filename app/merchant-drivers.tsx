@@ -99,7 +99,7 @@ export default function MerchantDriversScreen() {
   };
 
   const driverLine = (d: MerchantDriver) =>
-    [d.phone, d.document].filter(Boolean).join(' · ') || 'Repartidor';
+    [d.phone, d.email, d.document].filter(Boolean).join(' · ') || 'Repartidor';
 
   return (
     <GradientBackground>
@@ -142,7 +142,7 @@ export default function MerchantDriversScreen() {
           <Text style={styles.sectionTitle}>Tu equipo</Text>
           {team.length === 0 ? (
             <Text style={styles.empty}>
-              Aún no tienes repartidores en tu equipo. Búscalos abajo por nombre, teléfono o cédula.
+              Aún no tienes repartidores en tu equipo. Búscalos abajo por nombre, teléfono, correo o cédula.
             </Text>
           ) : team.map((d) => (
             <View key={d.driverUserId} style={styles.card}>
@@ -176,7 +176,7 @@ export default function MerchantDriversScreen() {
               style={styles.input}
               value={query}
               onChangeText={setQuery}
-              placeholder="Nombre, teléfono o cédula"
+              placeholder="Nombre, teléfono, correo o cédula"
               placeholderTextColor={t.textFaint}
               autoCapitalize="none"
               autoCorrect={false}

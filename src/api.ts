@@ -808,6 +808,9 @@ export interface MerchantDriver {
   name: string | null;
   phone: string | null;
   document: string | null;
+  // The driver's login email -- searchable and shown on the card, since it is often the one
+  // thing the merchant actually knows about them.
+  email: string | null;
   // In search results: already on this merchant's team. The linked list is all true.
   linked: boolean;
 }
