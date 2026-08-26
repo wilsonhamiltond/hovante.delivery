@@ -9,12 +9,12 @@ import { GRADIENT, t } from './theme';
 // a context rather than a per-screen dialog, so every gated tap asks the same question the same
 // way -- and cancelling simply closes it, leaving the guest browsing where they were.
 //
-// Same backdrop/card/ring-icon language as ConfirmDialog and NoticeDialog. Two ways forward map to
-// the two screens that already exist: "Iniciar sesión" opens the welcome screen (all the sign-in
-// options: Google, Apple, correo), "Crear cuenta" jumps straight into the register wizard.
+// Same backdrop/card/ring-icon language as ConfirmDialog and NoticeDialog. "Iniciar sesión" opens
+// the welcome screen, which already offers every way in -- Google, Apple, correo, and the register
+// wizard -- so the popup does not need a register button of its own.
 
 interface AuthPromptState {
-  /** Show the popup. The guest decides there: sign in, create an account, or cancel. */
+  /** Show the popup. The guest decides there: sign in or cancel. */
   promptLogin: () => void;
 }
 
@@ -25,7 +25,7 @@ export function AuthPromptProvider({ children }: { children: React.ReactNode }) 
   const router = useRouter();
 
   const close = () => setVisible(false);
-  const go = (path: '/login' | '/register') => {
+  const go = (path: '/login') => {
     setVisible(false);
     router.push(path);
   };
@@ -100,10 +100,5 @@ const styles = StyleSheet.create({
     borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
   primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
-  secondary: {
-    alignSelf: 'stretch', borderWidth: 1, borderColor: t.border, backgroundColor: t.card,
-    borderRadius: 12, paddingVertical: 14, alignItems: 'center',
-  },
-  secondaryText: { color: t.text, fontSize: 16, fontWeight: '800' },
   cancel: { color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
 });
