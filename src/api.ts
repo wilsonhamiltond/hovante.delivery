@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
+import { pointInPolygon } from './geo';
 
 // Puts a picked image into a FormData as an actual FILE, on both hosts.
 //
@@ -65,8 +66,10 @@ export const SESSION_EXPIRED = 'Tu sesión expiró. Vuelve a iniciar sesión.';
 
 // Checked before the body is parsed, because an expired token comes back as a bare 401 with no
 // { success, message } envelope -- which is what used to surface as "Error del servidor (401)".
+// Only a 401 on a request that CARRIED a token ends the session: a guest (no token held) reaching
+// an account-only endpoint gets the same status, and there is no session to end for them.
 function sessionExpired(res: Response): boolean {
-  if (res.status !== 401) return false;
+  if (res.status !== 401 || !currentToken) return false;
   currentToken = null;
   onUnauthorized?.();
   return true;
@@ -204,6 +207,14 @@ async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
 }
 
+// Sign in with Apple, NATIVE flow: the system sheet (expo-apple-authentication) already proved who
+// the person is and handed back an identity token; the API verifies it against Apple's keys and
+// returns our JWT as `data`. `name` is the sheet's full name, which Apple only supplies the first
+// time this person authorises the app -- omit it when the credential carries none.
+export function loginWithAppleNative(identityToken: string, name?: string) {
+  return post<string>('/auth/apple', { identityToken, name });
+}
+
 // Both endpoints return the JWT as `data` on success.
 export function login(email: string, password: string) {
   return post<string>('/auth/login', { email, password });
@@ -266,13 +277,15 @@ export function changePassword(currentPassword: string, password: string) {
   });
 }
 
-// Authenticated GET: uses the held token (set on login/restore, updated by sliding refresh).
+// GET, with the held token when there is one (set on login/restore, updated by sliding refresh).
+// Sent without one too: guests browse the marketplace before signing in, and the browse endpoints
+// accept anonymous calls. An account-only endpoint answers a guest with a 401, which comes back as
+// a plain failure rather than ending a session that does not exist.
 async function get<T>(path: string): Promise<ApiResponse<T>> {
-  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as T };
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { Authorization: `Bearer ${currentToken}` },
+      headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : undefined,
     });
   } catch {
     return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
@@ -425,6 +438,9 @@ export interface TopItem {
   imageUrl?: string | null;
   companyId: string | null;
   companyName: string | null;
+  /** The merchant's logo as a URL, for the "comercios más pedidos" cards. Null when none is set,
+   *  and optional so an older API simply reads as "no logo". */
+  companyLogoUrl?: string | null;
   /** Units sold in the last 7 days. Null outside the top-weekly endpoint. */
   orderedCount: number | null;
   itemType?: { name?: string | null } | null;
@@ -903,16 +919,25 @@ export interface MerchantOffice {
   maxLatitude: number | null;
   minLongitude: number | null;
   maxLongitude: number | null;
+  // The exact delivery area as [lat, lng] vertices, when the merchant drew one. The rectangle
+  // above is then its bounding box (kept for older apps); the polygon has the final word.
+  // Optional-null: an older API, or an office with only the rectangle, simply has none.
+  polygon?: [number, number][] | null;
 }
 
 export function merchantOffices(companyId: string) {
   return get<MerchantOffice[]>(`/delivery/companies/${companyId}/offices`);
 }
 
-// Whether a branch can take an order to a point: no quadrant means anywhere, otherwise the point
-// must fall inside it. Inclusive on every edge, matching the server and the map picker -- if they
-// disagreed, the app could offer a branch the server then refuses.
+// Whether a branch can take an order to a point: no area means anywhere; a polygon (when drawn)
+// is the exact test; otherwise the rectangle. Inclusive on every edge, matching the server
+// (DeliveryAreas.OfficeCovers) and the map picker -- if they disagreed, the app could offer a
+// branch the server then refuses.
 export function officeCovers(o: MerchantOffice, lat: number | null, lng: number | null): boolean {
+  if (o.polygon && o.polygon.length >= 3) {
+    if (lat == null || lng == null) return false;
+    return pointInPolygon(o.polygon, lat, lng);
+  }
   if (o.minLatitude == null || o.maxLatitude == null
       || o.minLongitude == null || o.maxLongitude == null) return true;
   if (lat == null || lng == null) return false;

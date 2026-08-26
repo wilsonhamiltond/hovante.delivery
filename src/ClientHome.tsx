@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
 import type { Me, Order } from './api';
+import { useAuthPrompt } from './AuthPrompt';
 import { useCart } from './cart';
 import { detectCurrentLocation } from './profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
@@ -11,7 +12,9 @@ import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
 import { emojiFor } from './categoryEmoji';
+import { LogoSplash } from './LogoSplash';
 import { orderStatusChip } from './orderStatus';
+import { Skeleton } from './Skeleton';
 
 // The client home: the delivery location, search, and the orders the customer has in flight. The
 // catalogue itself -- business categories and the product grid -- lives in the Explorar tab
@@ -45,6 +48,7 @@ const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
 
 export function ClientHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
+  const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
   // Whether the GPS lookup behind the header button is in flight.
@@ -70,17 +74,35 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   // until the profile refetch lands (see deliverLat below).
   const [chosen, setChosen] = useState<{ label: string | null; address: string | null; latitude: number | null; longitude: number | null } | null>(null);
 
+  // Boot sequencing: the Volao splash holds only until the delivery point is resolved -- the one
+  // answer everything below is filtered by. The rails then render immediately as SKELETONS and fill
+  // in as each first load answers, so the home appears fast without assembling itself out of blank
+  // sections. Each flag flips once and stays flipped: later refetches (regained focus, a switched
+  // address) update in place without bringing the placeholders back.
+  //
+  // locationReady starts true whenever the delivery point is already answered (a signed-in profile
+  // carries the saved address; a session pin survives tab switches) -- only a fresh guest has to
+  // wait for the detection effect below. ordersLoaded starts true for guests, whose orders rail
+  // never loads at all.
+  const [locationReady, setLocationReady] = useState(profile != null || session.location != null);
+  const [ordersLoaded, setOrdersLoaded] = useState(profile == null);
+  const [topLoaded, setTopLoaded] = useState(false);
+
   // The customer's in-progress orders -- now the body of this screen. Refetched whenever the home
   // regains focus (after placing an order or coming back from tracking), so their state stays live.
   const loadOrders = useCallback(() => {
+    // A guest has no orders to load -- the endpoint is account-based and would only answer 401.
+    if (!profile) return;
     api.myOrders().then((res) => {
       if (res.success) {
         setOrders((res.data ?? []).filter(
           (o) => o.status !== 'CANCELLED' && !DONE_STATUSES.includes(o.deliveryStatus ?? ''),
         ));
       }
-    });
-  }, []);
+      // Settled either way: a failed load must release the splash, not hold it hostage.
+    }).finally(() => setOrdersLoaded(true));
+    // `!profile` above makes this depend on whether someone is signed in, not just on mount.
+  }, [profile == null]);
   useFocusEffect(useCallback(() => { loadOrders(); }, [loadOrders]));
 
   // Where this customer would have an order delivered right now -- the same precedence as the
@@ -96,31 +118,37 @@ export function ClientHome({ profile }: { profile: Me | null }) {
 
   // Refetched when the delivery point moves (not on every focus): the week's ranking does not
   // change while someone taps between tabs, but switching address changes which merchants apply.
+  // Held until the delivery point is settled, so the boot fetches once with the real point instead
+  // of unfiltered-then-again -- and the splash releases on an answer that is already right.
   useEffect(() => {
+    if (!locationReady) return;
     api.topWeekly(TOP_FETCH_LIMIT, deliverLat, deliverLng).then((res) => {
       if (res.success) setTopItems(res.data ?? []);
-    });
-  }, [deliverLat, deliverLng]);
+    }).finally(() => setTopLoaded(true));
+  }, [deliverLat, deliverLng, locationReady]);
 
   // Refetched on focus, unlike the week's ranking: an offer can start or expire at any minute, and
   // a card promising a price that has just lapsed is worse than one arriving a moment late.
   useFocusEffect(useCallback(() => {
+    if (!locationReady) return;
     api.latestOffers(TOP_CAROUSEL_SIZE, deliverLat, deliverLng).then((res) => {
       if (res.success) setOffers(res.data ?? []);
     });
-  }, [deliverLat, deliverLng]));
+  }, [deliverLat, deliverLng, locationReady]));
 
   // The merchants behind those sales, best first. Summed here rather than fetched: the API ranks
   // items, not companies, so this is the same week's numbers grouped a second way.
   const topCompanies = useMemo(() => {
-    const byCompany = new Map<string, { id: string | null; name: string; sold: number }>();
+    const byCompany = new Map<string, { id: string | null; name: string; logoUrl: string | null; sold: number }>();
     for (const item of topItems) {
       const name = item.companyName ?? 'Comercio';
       // Fall back to the name as the key: an item with no companyId still belongs to a merchant,
       // and dropping it would understate that merchant's total.
       const key = item.companyId ?? name;
-      const row = byCompany.get(key) ?? { id: item.companyId, name, sold: 0 };
+      const row = byCompany.get(key) ?? { id: item.companyId, name, logoUrl: null, sold: 0 };
       row.sold += item.orderedCount ?? 0;
+      // Every row of one merchant carries the same logo; ?? just keeps the first non-null seen.
+      row.logoUrl = row.logoUrl ?? item.companyLogoUrl ?? null;
       byCompany.set(key, row);
     }
     return [...byCompany.values()].sort((a, b) => b.sold - a.sold).slice(0, TOP_CAROUSEL_SIZE);
@@ -138,6 +166,33 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   // Once the parent refetches the profile (on focus, e.g. back from adding an address), that is the
   // truth again -- drop the local echo so a newer default cannot be masked by a stale pick.
   useEffect(() => { setChosen(null); }, [profile?.address, profile?.addressLabel]);
+
+  // A guest starts with the pin already on the phone: with no account there is no saved address to
+  // fall back on, so without this the catalogue opens unfiltered and the header shows "Agrega tu
+  // dirección" to someone who cannot save one. Only while nothing else answers "where to?" -- and
+  // silently on failure or denial: browsing simply stays unfiltered, and the header's location
+  // button still asks again by hand (with its own words for what went wrong).
+  useEffect(() => {
+    if (profile || session.location) { setLocationReady(true); return; }
+    let active = true;
+    setLocating(true);
+    const detection = detectCurrentLocation().then((result) => {
+      if (!active || !result.ok) return;
+      session.setLocation({
+        address: result.location.address ?? 'Tu ubicación actual',
+        latitude: result.location.lat,
+        longitude: result.location.lng,
+      });
+    });
+    // The splash waits for the detection, but only so long: a GPS fix that will not come must not
+    // hold the whole home hostage. Past the cap the screen boots unfiltered, and a fix landing
+    // late still applies through session.setLocation above -- the rails refilter in place.
+    const cap = new Promise<void>((resolve) => setTimeout(resolve, 6000));
+    Promise.race([detection, cap]).then(() => {
+      if (active) { setLocating(false); setLocationReady(true); }
+    });
+    return () => { active = false; };
+  }, []);
 
   // Hands the query to Explorar, which is where the catalogue lives now.
   const submitSearch = () => {
@@ -182,6 +237,8 @@ export function ClientHome({ profile }: { profile: Me | null }) {
 
   const openAddresses = () => {
     setAddrOpen(true);
+    // Guests keep the sheet (it also offers "mi ubicación actual") but have no saved list to load.
+    if (!profile) return;
     api.myAddresses().then((res) => { if (res.success) setAddresses(res.data ?? []); });
   };
 
@@ -214,7 +271,18 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     setAddrOpen(false);
   };
 
-  const addAddress = () => { setAddrOpen(false); router.push('/address-new'); };
+  const addAddress = () => {
+    setAddrOpen(false);
+    // The address book is account-based: a guest gets the sign-in popup instead of a form whose
+    // save could only fail.
+    if (!profile) { promptLogin(); return; }
+    router.push('/address-new');
+  };
+
+  // The boot gate: the splash holds only while the delivery point resolves (same LogoSplash that
+  // home.tsx shows while the profile loads, so the open reads as one wait). From there the rails
+  // paint as skeletons and fill in -- see the loading branches in each section below.
+  if (!locationReady) return <LogoSplash />;
 
   return (
     <GradientBackground>
@@ -311,10 +379,25 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hello}>¡Hola, {greeting}! 👋</Text>
+        <Text style={styles.hello}>{greeting ? `¡Hola, ${greeting}! 👋` : '¡Hola! 👋'}</Text>
 
-        {/* Current orders; tap one to track it. */}
-        {orders.length > 0 ? (
+        {/* Current orders; tap one to track it. Skeleton chips while the first load is out, so
+            the section holds its place instead of flashing "no tienes pedidos" at someone whose
+            orders are still on the wire. */}
+        {profile && !ordersLoaded ? (
+          <View style={styles.ordersSection}>
+            <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
+            <View style={styles.skeletonRow}>
+              {[0, 1].map((i) => (
+                <View key={i} style={styles.orderChip}>
+                  <Skeleton style={styles.skeletonLineShort} />
+                  <Skeleton style={styles.skeletonLine} />
+                  <Skeleton style={styles.skeletonBadge} />
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : orders.length > 0 ? (
           <View style={styles.ordersSection}>
             <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ordersRow}>
@@ -345,9 +428,18 @@ export function ClientHome({ profile }: { profile: Me | null }) {
               ))}
             </ScrollView>
           </View>
-        ) : (
+        ) : profile ? (
           // Without the grid this screen would otherwise be a greeting on an empty page.
           <Text style={styles.empty}>No tienes pedidos en curso.</Text>
+        ) : (
+          // A guest: say how to become able to order, instead of "no orders" about an account
+          // that does not exist. The tap asks with the popup, so cancelling stays right here.
+          <Pressable onPress={promptLogin} accessibilityRole="button">
+            <Text style={styles.empty}>
+              Estás explorando como invitado.{' '}
+              <Text style={styles.emptyLink}>Inicia sesión</Text> para hacer pedidos.
+            </Text>
+          </Pressable>
         )}
 
         {/* Últimas ofertas: the offers running right now, newest first. Sits above the best
@@ -416,8 +508,22 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             into Explorar narrowed to that merchant with the product's add dialog already open --
             nothing goes in the cart until the person confirms there, the same ask-first flow as
             tapping a tile (and Explorar owns the "¿cambiar de comercio?" question). Hidden
-            entirely when the week has no sales rather than showing an empty rail. */}
-        {topItems.length > 0 ? (
+            entirely when the week has no sales rather than showing an empty rail. Skeleton cards
+            while the first load is out, so the rail holds its place instead of appearing late. */}
+        {!topLoaded ? (
+          <View style={styles.ordersSection}>
+            <Text style={styles.ordersTitle}>Lo más pedido</Text>
+            <View style={styles.skeletonRow}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={styles.topCard}>
+                  <Skeleton style={styles.skeletonThumb} />
+                  <Skeleton style={styles.skeletonLine} />
+                  <Skeleton style={styles.skeletonLineShort} />
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : topItems.length > 0 ? (
           <View style={styles.ordersSection}>
             <Text style={styles.ordersTitle}>Lo más pedido</Text>
             <ScrollView
@@ -482,7 +588,22 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         {/* Los comercios más pedidos: the same week's sales grouped by merchant. Tapping one opens
             Explorar showing only that merchant's catalogue, which is the same state the grid enters
             when a product tile's merchant name is tapped. */}
-        {topCompanies.length > 0 ? (
+        {!topLoaded ? (
+          // Same fetch as "lo más pedido" (the companies are that response grouped a second way),
+          // so it shares the flag -- and the same hold-its-place reasoning.
+          <View style={styles.ordersSection}>
+            <Text style={styles.ordersTitle}>Comercios más pedidos</Text>
+            <View style={styles.skeletonRow}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={styles.topCard}>
+                  <Skeleton style={styles.skeletonAvatar} />
+                  <Skeleton style={styles.skeletonLine} />
+                  <Skeleton style={styles.skeletonLineShort} />
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : topCompanies.length > 0 ? (
           <View style={styles.ordersSection}>
             <Text style={styles.ordersTitle}>Comercios más pedidos</Text>
             <ScrollView
@@ -504,7 +625,13 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   accessibilityLabel={`Ver productos de ${company.name}`}
                 >
                   <View style={styles.companyAvatar}>
-                    <Text style={styles.topThumbEmoji}>{emojiFor(company.name)}</Text>
+                    {company.logoUrl ? (
+                      // cover, not contain: a round badge with letterboxing reads as a broken
+                      // image, and logos are near-square uploads anyway.
+                      <Image source={{ uri: company.logoUrl }} style={styles.companyAvatarImage} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.topThumbEmoji}>{emojiFor(company.name)}</Text>
+                    )}
                   </View>
                   <Text style={styles.topName} numberOfLines={2}>{company.name}</Text>
                   {company.sold > 0 ? (
@@ -729,6 +856,7 @@ const styles = StyleSheet.create({
   orderChipTotal: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 2 },
 
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, marginTop: 12 },
+  emptyLink: { color: t.text, fontWeight: '800' },
 
   // Narrower than an order chip: a card and a bit of the next one show at once, which is what says
   // "this scrolls" without an arrow or a row of dots.
@@ -758,7 +886,18 @@ const styles = StyleSheet.create({
   companyAvatar: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: t.cardStrong,
     justifyContent: 'center', alignItems: 'center', marginBottom: 10, alignSelf: 'center',
+    // The logo fills the circle, so it has to be clipped to it.
+    overflow: 'hidden',
   },
+  companyAvatarImage: { width: '100%', height: '100%' },
+  // Skeleton stand-ins, sized like the real cards' contents so nothing jumps when data lands. A
+  // plain row (not a ScrollView): placeholders are never more than a screenful.
+  skeletonRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, overflow: 'hidden' },
+  skeletonThumb: { height: 64, borderRadius: 10, marginBottom: 10 },
+  skeletonAvatar: { width: 56, height: 56, borderRadius: 28, alignSelf: 'center', marginBottom: 10 },
+  skeletonLine: { height: 12, borderRadius: 6, marginBottom: 8 },
+  skeletonLineShort: { height: 12, borderRadius: 6, marginBottom: 8, width: '60%' },
+  skeletonBadge: { height: 20, borderRadius: 10, width: '50%', marginTop: 4 },
   topName: { fontSize: 14, fontWeight: '800', color: t.text },
   topCompany: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 3 },
   topFooter: { marginTop: 8 },

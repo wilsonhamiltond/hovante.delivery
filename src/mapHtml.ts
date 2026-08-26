@@ -15,14 +15,17 @@ export interface PickedLocation {
   address?: string | null;
 }
 
-// A merchant's delivery quadrant, as drawn on the office. The picker outlines these and refuses a
+// A merchant's delivery area, as drawn on the office. The picker outlines these and refuses a
 // pin outside them.
 export interface DeliveryArea {
   minLatitude: number;
   maxLatitude: number;
   minLongitude: number;
   maxLongitude: number;
-  /** The branch the rectangle belongs to, marked on the map. */
+  /** The exact area as [lat, lng] vertices, when the office drew a polygon. The rectangle above
+   * is then its bounding box; the polygon is what gets outlined and tested. */
+  polygon?: [number, number][] | null;
+  /** The branch the area belongs to, marked on the map. */
   officeName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -188,13 +191,29 @@ ${markersJs()}
   }
 
   // Inclusive on every edge: a pin dropped exactly on the boundary is inside the area the merchant
-  // drew, and the server's catalogue filter uses >= / <= too -- disagreeing would let someone place
-  // a pin the merchant is then told it cannot serve.
+  // drew, and the server's catalogue filter is inclusive too -- disagreeing would let someone place
+  // a pin the merchant is then told it cannot serve. The polygon test mirrors src/geo.ts and the
+  // API's DeliveryAreas.cs (ray casting, even-odd, boundary inside) -- change the three together.
+  function inPolygon(ring, la, ln) {
+    var EPS = 1e-9, inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1];
+      var cross = (xj - xi) * (la - yi) - (yj - yi) * (ln - xi);
+      if (Math.abs(cross) <= EPS
+          && ln >= Math.min(xi, xj) - EPS && ln <= Math.max(xi, xj) + EPS
+          && la >= Math.min(yi, yj) - EPS && la <= Math.max(yi, yj) + EPS) return true;
+      if (((yi > la) !== (yj > la)) && ln < (xj - xi) * (la - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
   function inside(la, ln) {
     if (!areas.length) return true;
     for (var i = 0; i < areas.length; i++) {
       var a = areas[i];
-      if (la >= a.minLatitude && la <= a.maxLatitude &&
+      if (a.polygon && a.polygon.length >= 3) {
+        if (inPolygon(a.polygon, la, ln)) return true;
+      } else if (la >= a.minLatitude && la <= a.maxLatitude &&
           ln >= a.minLongitude && ln <= a.maxLongitude) return true;
     }
     return false;
@@ -238,14 +257,26 @@ ${markersJs()}
       var bounds = new google.maps.LatLngBounds();
       for (var i = 0; i < areas.length; i++) {
         var a = areas[i];
-        new google.maps.Rectangle({
-          map: map, clickable: false,
-          bounds: { south: a.minLatitude, north: a.maxLatitude, west: a.minLongitude, east: a.maxLongitude },
-          strokeColor: '#2563eb', strokeOpacity: 0.9, strokeWeight: 2,
-          fillColor: '#2563eb', fillOpacity: 0.10,
-        });
-        bounds.extend({ lat: a.minLatitude, lng: a.minLongitude });
-        bounds.extend({ lat: a.maxLatitude, lng: a.maxLongitude });
+        // The exact shape when a polygon was drawn, the rectangle otherwise -- outlining the box
+        // around a polygon would promise coverage the exact test then refuses.
+        if (a.polygon && a.polygon.length >= 3) {
+          var path = a.polygon.map(function (v) { return { lat: v[0], lng: v[1] }; });
+          new google.maps.Polygon({
+            map: map, clickable: false, paths: path,
+            strokeColor: '#2563eb', strokeOpacity: 0.9, strokeWeight: 2,
+            fillColor: '#2563eb', fillOpacity: 0.10,
+          });
+          for (var p = 0; p < path.length; p++) bounds.extend(path[p]);
+        } else {
+          new google.maps.Rectangle({
+            map: map, clickable: false,
+            bounds: { south: a.minLatitude, north: a.maxLatitude, west: a.minLongitude, east: a.maxLongitude },
+            strokeColor: '#2563eb', strokeOpacity: 0.9, strokeWeight: 2,
+            fillColor: '#2563eb', fillOpacity: 0.10,
+          });
+          bounds.extend({ lat: a.minLatitude, lng: a.minLongitude });
+          bounds.extend({ lat: a.maxLatitude, lng: a.maxLongitude });
+        }
 
         // The shop itself, as a dot rather than a teardrop so it never reads as a second draggable
         // pin, and passing taps through so it cannot swallow one meant for the map beneath.

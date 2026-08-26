@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../src/auth';
+import { AuthPromptProvider } from '../src/AuthPrompt';
 import { CartProvider } from '../src/cart';
 import { SessionLocationProvider } from '../src/sessionLocation';
 import {
@@ -22,6 +23,13 @@ const AUTH_ROUTES = [
   'login', 'email-login', 'register', 'forgot-password', 'reset-password',
   'facebook-auth', 'google-auth', 'apple-auth',
 ];
+
+// What a GUEST may see: the marketplace itself. App Review guideline 5.1.1 -- browsing is not an
+// account-based feature, so it must not sit behind the login. Everything else (orders, addresses,
+// account, checkout's final step) still requires signing in: navigating there without a token
+// lands on /login below. The cart is browsable too -- it lives on the device; only PLACING the
+// order is account-based, and the cart screen gates that step itself.
+const GUEST_ROUTES = ['home', 'explore', 'cart'];
 
 function RootNavigator() {
   const { token, loading, profileComplete } = useAuth();
@@ -71,8 +79,13 @@ function RootNavigator() {
     if (loading) return;
     const onAuthScreen = AUTH_ROUTES.includes(segments[0] as string);
     const onCompleteProfile = segments[0] === 'complete-profile';
+    // No segments yet is the root index, which immediately redirects to /home -- a guest route --
+    // so it counts as one rather than flashing the login screen on the way there. Checked via the
+    // first segment, not .length: expo-router types segments as a non-empty tuple, so a length
+    // comparison with 0 is a type error even though the empty case is real at the root.
+    const onGuestRoute = !segments[0] || GUEST_ROUTES.includes(segments[0] as string);
 
-    if (!token && !onAuthScreen) {
+    if (!token && !onAuthScreen && !onGuestRoute) {
       router.replace('/login');
       return;
     }
@@ -100,7 +113,9 @@ export default function RootLayout() {
       <AuthProvider>
         <SessionLocationProvider>
         <CartProvider>
+        <AuthPromptProvider>
           <RootNavigator />
+        </AuthPromptProvider>
         </CartProvider>
         </SessionLocationProvider>
       </AuthProvider>

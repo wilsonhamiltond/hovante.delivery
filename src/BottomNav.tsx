@@ -2,6 +2,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useAuth } from './auth';
+import { useAuthPrompt } from './AuthPrompt';
 import { t } from './theme';
 
 export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history' | 'products';
@@ -39,9 +41,17 @@ const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: s
 // How much space a screen must leave at the bottom so content is not hidden behind the bar.
 export const BOTTOM_NAV_HEIGHT = 62;
 
+// The tabs a GUEST cannot open: both are windows into an account that does not exist. Tapping one
+// asks the sign-in question in place (the AuthPrompt popup) instead of yanking the person to the
+// login screen -- cancelling leaves them browsing right where they were. Only the client bar can
+// meet a guest; drivers and merchants are signed in by definition.
+const AUTH_ONLY_TABS: TabKey[] = ['orders', 'account'];
+
 export function BottomNav({ active, variant = 'client' }: { active: TabKey; variant?: Variant }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
+  const { promptLogin } = useAuthPrompt();
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
@@ -52,7 +62,11 @@ export function BottomNav({ active, variant = 'client' }: { active: TabKey; vari
             key={tab.key}
             style={styles.item}
             // replace, not push: tabs switch rather than stack on top of each other.
-            onPress={() => { if (!on) router.replace(tab.route as any); }}
+            onPress={() => {
+              if (on) return;
+              if (!token && AUTH_ONLY_TABS.includes(tab.key)) { promptLogin(); return; }
+              router.replace(tab.route as any);
+            }}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
             accessibilityLabel={tab.label}

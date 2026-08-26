@@ -6,7 +6,9 @@ import * as api from './api';
 import type { Me, Order, Product } from './api';
 import { useCart } from './cart';
 import { detectCurrentLocation } from './profileForm';
+import { useAuthPrompt } from './AuthPrompt';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
+import { Skeleton } from './Skeleton';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
@@ -56,6 +58,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   initialPreview?: Product | null;
 }) {
   const router = useRouter();
+  const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
   // Whether the GPS lookup behind the header button is in flight.
@@ -89,6 +92,8 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   // The customer's in-progress orders, for the row under the categories. Refetched whenever the home
   // regains focus (after placing an order or coming back from tracking), so their state stays live.
   const loadOrders = useCallback(() => {
+    // A guest has no orders to load -- the endpoint is account-based and would only answer 401.
+    if (!profile) return;
     api.myOrders().then((res) => {
       if (res.success) {
         setOrders((res.data ?? []).filter(
@@ -96,14 +101,18 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         ));
       }
     });
-  }, []);
+    // `!profile` above makes this depend on whether someone is signed in, not just on mount.
+  }, [profile == null]);
   useFocusEffect(useCallback(() => { loadOrders(); }, [loadOrders]));
 
-  // The category row is driven by the business categories the marketplace exposes.
+  // The category row is driven by the business categories the marketplace exposes. The loaded flag
+  // swaps the row's skeleton circles for the real chips; settled on failure too, so a dead request
+  // leaves the row with just "Todos" rather than placeholders that never resolve.
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   useEffect(() => {
     api.businessCategories().then((res) => {
       if (res.success) setCategories((res.data ?? []).filter((c) => c.active));
-    });
+    }).finally(() => setCategoriesLoaded(true));
   }, []);
 
   // --- Catalog paging ---------------------------------------------------------------------------
@@ -186,6 +195,28 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   // truth again -- drop the local echo so a newer default cannot be masked by a stale pick.
   useEffect(() => { setChosen(null); }, [profile?.address, profile?.addressLabel]);
 
+  // A guest starts with the pin already on the phone: with no account there is no saved address to
+  // fall back on, so without this the catalogue opens unfiltered and the header shows "Agrega tu
+  // dirección" to someone who cannot save one. Only while nothing else answers "where to?" -- and
+  // silently on failure or denial: browsing simply stays unfiltered, and the header's location
+  // button still asks again by hand (with its own words for what went wrong).
+  useEffect(() => {
+    if (profile || session.location) return;
+    let active = true;
+    setLocating(true);
+    detectCurrentLocation()
+      .then((result) => {
+        if (!active || !result.ok) return;
+        session.setLocation({
+          address: result.location.address ?? 'Tu ubicación actual',
+          latitude: result.location.lat,
+          longitude: result.location.lng,
+        });
+      })
+      .finally(() => { if (active) setLocating(false); });
+    return () => { active = false; };
+  }, []);
+
   // Both only set state: the effect above notices and reloads from the first page.
   const selectCompany = (id: string, name: string) => setSelectedCompany({ id, name });
   const clearCompany = () => setSelectedCompany(null);
@@ -232,6 +263,8 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
 
   const openAddresses = () => {
     setAddrOpen(true);
+    // Guests keep the sheet (it also offers "mi ubicación actual") but have no saved list to load.
+    if (!profile) return;
     api.myAddresses().then((res) => { if (res.success) setAddresses(res.data ?? []); });
   };
 
@@ -264,7 +297,13 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
     setAddrOpen(false);
   };
 
-  const addAddress = () => { setAddrOpen(false); router.push('/address-new'); };
+  const addAddress = () => {
+    setAddrOpen(false);
+    // The address book is account-based: a guest gets the sign-in popup instead of a form whose
+    // save could only fail.
+    if (!profile) { promptLogin(); return; }
+    router.push('/address-new');
+  };
 
   // No client-side filtering left: the server returns exactly the page asked for. The list is not
   // grouped by store either -- every tile names its own merchant, so the catalog reads as one list
@@ -503,7 +542,24 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         }}
         ListEmptyComponent={
           loading
-            ? <View style={styles.loadingBox}><ActivityIndicator color={t.text} /></View>
+            // Skeleton tiles shaped like the grid about to appear, so a fresh load (first open,
+            // or a changed filter that emptied the list) reads as "the products are coming"
+            // rather than a bare spinner over nothing.
+            ? <View>
+                {[0, 1, 2].map((row) => (
+                  <View key={row} style={styles.gridRow}>
+                    {[0, 1].map((col) => (
+                      <View key={col} style={styles.tile}>
+                        <Skeleton style={styles.tileSkeletonThumb} />
+                        <View style={styles.tileBody}>
+                          <Skeleton style={styles.tileSkeletonLine} />
+                          <Skeleton style={styles.tileSkeletonLineShort} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
             // An empty catalogue has two very different causes, and saying "para tu búsqueda" for
             // both sent people hunting for a product that was never going to appear: with nothing
             // typed, the list is empty because no merchant covers where the order would go.
@@ -515,9 +571,20 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         }
         ListHeaderComponent={
           <>
-        <Text style={styles.hello}>¡Hola, {greeting}! 👋</Text>
+        <Text style={styles.hello}>{greeting ? `¡Hola, ${greeting}! 👋` : '¡Hola! 👋'}</Text>
 
-        {/* Circular category tiles */}
+        {/* Circular category tiles. Skeleton circles while the list loads, so the row holds its
+            place instead of showing a lone "Todos" that the real categories then shove aside. */}
+        {!categoriesLoaded ? (
+          <View style={[styles.cats, styles.catsSkeletonRow]}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.catTile}>
+                <Skeleton style={styles.catSkeletonCircle} />
+                <Skeleton style={styles.catSkeletonLabel} />
+              </View>
+            ))}
+          </View>
+        ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
           {categoryChips.map((c) => {
             const active = c.key === category;
@@ -531,6 +598,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
             );
           })}
         </ScrollView>
+        )}
 
         {/* Current orders: a line of in-progress orders under the categories; tap one to track it. */}
         {orders.length > 0 ? (
@@ -863,6 +931,12 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: t.border,
   },
   catCircleActive: { borderColor: t.accent, backgroundColor: t.cardStrong },
+  // Skeleton stand-ins for the row above, matching the circle and label dimensions so the swap to
+  // real chips does not shift the header. `cats` is a contentContainerStyle, so the plain View
+  // needs the row direction it would have inherited from the ScrollView.
+  catsSkeletonRow: { flexDirection: 'row', overflow: 'hidden' },
+  catSkeletonCircle: { width: 60, height: 60, borderRadius: 30 },
+  catSkeletonLabel: { height: 10, borderRadius: 5, width: 48, marginTop: 8 },
   catEmoji: { fontSize: 26 },
   catLabel: { fontSize: 12, color: t.textMuted, marginTop: 6, fontWeight: '600' },
   catLabelActive: { color: t.text, fontWeight: '800' },
@@ -908,6 +982,11 @@ const styles = StyleSheet.create({
     borderRadius: 14, overflow: 'hidden',
   },
   tileThumb: { height: 84, backgroundColor: t.cardStrong, justifyContent: 'center', alignItems: 'center' },
+  // Skeleton stand-ins sized like a real tile's contents, so nothing jumps when the page lands.
+  // The thumb keeps square corners -- the tile's own overflow:hidden rounds it, like the photo.
+  tileSkeletonThumb: { height: 84, borderRadius: 0 },
+  tileSkeletonLine: { height: 12, borderRadius: 6, marginBottom: 8 },
+  tileSkeletonLineShort: { height: 12, borderRadius: 6, width: '55%' },
   tileThumbEmoji: { fontSize: 34 },
   tileBody: { padding: 10 },
   // No reserved second line: a one-line name would otherwise leave a blank one above the merchant.

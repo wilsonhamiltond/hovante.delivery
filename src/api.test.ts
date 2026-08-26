@@ -79,8 +79,7 @@ describe('api client', () => {
       json: async () => ({ success: true, message: 'ok', data: [] }),
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    // These are authenticated reads: without a token the client answers "Sesión no iniciada."
-    // before it ever reaches fetch.
+    // These are authenticated reads: the token puts the merchant's identity on the request.
     api.setAuthToken('merchant-jwt');
 
     await api.merchantOrders(true);
@@ -177,8 +176,14 @@ describe('expired session', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
     expect(res.success).toBe(false);
     expect(res.message).toBe(api.SESSION_EXPIRED);
-    // The token is gone, so the next call does not repeat the round trip with a dead credential.
-    expect((await api.me()).message).toBe('Sesión no iniciada.');
+    // The token is gone: the next call still goes out (guests may browse), but as a guest -- no
+    // Authorization header, so the dead credential is never repeated -- and its 401 does not fire
+    // the handler again, because there is no session left to end.
+    const again = await api.me();
+    expect(again.success).toBe(false);
+    const lastInit = (globalThis.fetch as jest.Mock).mock.calls.at(-1)?.[1];
+    expect(lastInit?.headers?.Authorization).toBeUndefined();
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
   it('leaves an ordinary failure alone, so a 500 does not sign anyone out', async () => {
@@ -203,8 +208,7 @@ describe('cached profile', () => {
   const mockMe = (data: any) => {
     globalThis.fetch = jest.fn().mockResolvedValue({
       // /auth/me is an authenticated read, so the mock needs the rotation header the client
-      // inspects on every response -- and the caller needs a token, or get() answers
-      // "Sesión no iniciada." before it ever reaches fetch.
+      // inspects on every response, and a token so the request carries an identity.
       headers: { get: () => null },
       json: async () => ({ success: true, message: 'ok', data }),
     }) as unknown as typeof fetch;

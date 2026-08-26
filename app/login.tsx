@@ -55,6 +55,12 @@ export default function WelcomeScreen() {
             <Text style={styles.signInText}>¿Ya tienes cuenta? <Text style={styles.signInStrong}>Inicia sesión</Text></Text>
           </Pressable>
 
+          {/* Browsing needs no account (guideline 5.1.1): the marketplace is open as a guest, and
+              signing in is only asked for at the account-based steps (ordering, addresses). */}
+          <Pressable style={styles.signIn} onPress={() => router.replace('/home')} accessibilityRole="button">
+            <Text style={styles.signInText}>Explorar sin cuenta</Text>
+          </Pressable>
+
           {APP_VERSION_LABEL ? <Text style={styles.version}>Versión {APP_VERSION_LABEL}</Text> : null}
         </View>
       </SafeAreaView>

@@ -4,6 +4,8 @@ import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, Style
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useAuth } from '../src/auth';
+import { useAuthPrompt } from '../src/AuthPrompt';
 import { useCart } from '../src/cart';
 import { emojiFor } from '../src/categoryEmoji';
 import * as api from '../src/api';
@@ -12,6 +14,7 @@ import { deliveryFeeRd } from '../src/deliveryFee';
 import { LocationPicker } from '../src/LocationPicker';
 import { PointsMap } from '../src/PointsMap';
 import { DEFAULT_CENTER, type DeliveryArea } from '../src/mapHtml';
+import { pointInPolygon } from '../src/geo';
 import { detectCurrentLocation } from '../src/profileForm';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
 import { STEP_TITLES, stepsFor, type StepKey } from '../src/checkoutSteps';
@@ -28,6 +31,8 @@ const money = (n: number) => `RD$${n.toFixed(2)}`;
 // rather than making the customer pin an address the order will never use.
 export default function CartScreen() {
   const router = useRouter();
+  const { token } = useAuth();
+  const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
   // The wizard's position is held as the step's KEY, not its number: the sequence has a different
@@ -74,6 +79,8 @@ export default function CartScreen() {
       if (session.location.latitude != null) setMapKey((k) => k + 1);
       return;
     }
+    // Guests have no profile to pre-fill from; the map simply opens uncentred for them.
+    if (!token) return;
     api.me().then((res) => {
       if (!res.success || !res.data) return;
       setAddress(res.data.address ?? '');
@@ -139,12 +146,21 @@ export default function CartScreen() {
   // fell out of the sequence lands back on the cart rather than on nothing.
   const steps = stepsFor(deliveryMode);
   const stepIndex = Math.max(0, steps.indexOf(stepKey));
-  const goNext = () => setStepKey(steps[Math.min(steps.length - 1, stepIndex + 1)]);
+  const goNext = () => {
+    // Reviewing the cart is open to guests; ORDERING is account-based (guideline 5.1.1). The
+    // moment a guest tries to move past the review step, the popup asks them to sign in or create
+    // an account -- and cancelling leaves them on the review, cart intact (it lives in memory
+    // above the navigator, so it also survives the trip through login).
+    if (!token && stepKey === 'cart') { promptLogin(); return; }
+    setStepKey(steps[Math.min(steps.length - 1, stepIndex + 1)]);
+  };
   const goBack = () => setStepKey(steps[Math.max(0, stepIndex - 1)]);
 
   // Once a branch is chosen the map shows only its area: the union of every branch's would let the
   // customer place a pin the chosen one cannot reach.
   const areas: DeliveryArea[] = (selectedOffice ? [selectedOffice] : offices)
+    // An office with a polygon always carries its bounding box too (derived on save), so the
+    // rectangle filter still recognizes every area-bearing office.
     .filter((o) => o.minLatitude != null && o.maxLatitude != null
       && o.minLongitude != null && o.maxLongitude != null)
     .map((o) => ({
@@ -152,23 +168,27 @@ export default function CartScreen() {
       maxLatitude: o.maxLatitude as number,
       minLongitude: o.minLongitude as number,
       maxLongitude: o.maxLongitude as number,
+      polygon: o.polygon ?? null,
       officeName: o.name,
       latitude: o.latitude,
       longitude: o.longitude,
     }));
 
   // Whether a point may be ordered to. Mirrors the map's own check so "Mi ubicación" and a
-  // pre-filled saved address are held to the same rule as a tap.
+  // pre-filled saved address are held to the same rule as a tap: the polygon when the office drew
+  // one, the rectangle otherwise.
   const insideArea = (lat: number | null, lng: number | null): boolean => {
     if (!areas.length) return true;
     if (lat == null || lng == null) return false;
-    return areas.some((a) => lat >= a.minLatitude && lat <= a.maxLatitude
-      && lng >= a.minLongitude && lng <= a.maxLongitude);
+    return areas.some((a) => (a.polygon && a.polygon.length >= 3)
+      ? pointInPolygon(a.polygon, lat, lng)
+      : lat >= a.minLatitude && lat <= a.maxLatitude
+        && lng >= a.minLongitude && lng <= a.maxLongitude);
   };
 
   const outsideNotice = () => Alert.alert(
     'Fuera del área de entrega',
-    'Este comercio solo entrega dentro del área marcada en el mapa. Elige un punto dentro del recuadro.',
+    'Este comercio solo entrega dentro del área marcada en el mapa. Elige un punto dentro del área.',
   );
 
   // Device GPS, then a readable address for it -- the same shared helper the sign-up and

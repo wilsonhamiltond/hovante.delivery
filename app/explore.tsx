@@ -42,7 +42,7 @@ export default function ExploreScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     (async () => {
-      if (!token) return;
+      if (!token) { setProfile(null); return; }
       const res = await api.me();
       if (!active) return;
       if (!res.success) return;
@@ -65,6 +65,10 @@ export default function ExploreScreen() {
   }, [profile?.isDriver]);
 
   if (loading || profile?.isDriver) return <LogoSplash />;
+
+  // A guest browsing the catalogue: no session, so no profile to wait for. Same browse mode as the
+  // home tab -- account-based actions send them to /login where they happen.
+  if (!token) return <ExploreHome profile={null} initialSearch={q} initialCompany={company} initialPreview={initialPreview} />;
 
   if (profile) return <ExploreHome profile={profile} initialSearch={q} initialCompany={company} initialPreview={initialPreview} />;
 

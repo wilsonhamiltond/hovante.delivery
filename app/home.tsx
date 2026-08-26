@@ -24,7 +24,7 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     (async () => {
-      if (!token) return;
+      if (!token) { setProfile(null); return; }
       const res = await api.me();
       if (!active) return;
       if (!res.success) return;
@@ -44,6 +44,12 @@ export default function HomeScreen() {
   }, [loading, profile, token, attempt]);
 
   if (loading) return <LogoSplash />;
+
+  // A guest: no session at all, so there is no profile to wait for -- straight to the marketplace
+  // in browse mode. Account-based screens (orders, addresses, checkout's final step) each send
+  // them to /login when reached. Required by App Review guideline 5.1.1: browsing must not need
+  // an account.
+  if (!token) return <ClientHome profile={null} />;
 
   // Every role signs out from its "Cuenta" tab, so no home needs the handler. The merchant check
   // goes first: an ERP account has no delivery contact, so its driver/client flags are both false
