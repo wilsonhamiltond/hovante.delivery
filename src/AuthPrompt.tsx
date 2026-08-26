@@ -61,14 +61,6 @@ export function AuthPromptProvider({ children }: { children: React.ReactNode }) 
             >
               <Text style={styles.primaryText}>Iniciar sesión</Text>
             </Pressable>
-            <Pressable
-              style={styles.secondary}
-              onPress={() => go('/register')}
-              accessibilityRole="button"
-              accessibilityLabel="Crear cuenta"
-            >
-              <Text style={styles.secondaryText}>Crear cuenta</Text>
-            </Pressable>
             <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Cancelar">
               <Text style={styles.cancel}>Cancelar</Text>
             </Pressable>
