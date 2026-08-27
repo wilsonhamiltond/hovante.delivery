@@ -7,8 +7,9 @@ import { AuthProvider, useAuth } from '../src/auth';
 import { AuthPromptProvider } from '../src/AuthPrompt';
 import { CartProvider } from '../src/cart';
 import { SessionLocationProvider } from '../src/sessionLocation';
+import * as api from '../src/api';
 import {
-  configureNotificationHandler, routeForNotification, type PushTarget,
+  configureNotificationHandler, routeForNotification, targetOfResponse, type PushTarget,
 } from '../src/pushNotifications';
 
 // Notifications arriving while the app is open should still be seen. Set once, at module load,
@@ -36,11 +37,13 @@ function RootNavigator() {
   const segments = useSegments();
   const router = useRouter();
 
-  // Where a tapped notification wants to go, held until it is safe to go there. A tap that cold-
-  // starts the app arrives before the session has loaded, and navigating then would race the gate
-  // below -- which would bounce a signed-in driver to /login, or drop a signed-out one onto a stop
-  // they cannot see. So the route waits for the session instead.
-  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+  // Where a tapped notification wants to go, held as its PAYLOAD until it is safe to resolve. A
+  // tap that cold-starts the app arrives before the session has loaded, and navigating then would
+  // race the gate below. It is the payload and not the route because the route depends on the
+  // signed-in ROLE (a merchant opens order pushes on the counter's view), and the role is not
+  // known until the profile has been fetched -- resolving at tap time picked the customer screen
+  // on every cold start.
+  const [pendingTarget, setPendingTarget] = useState<PushTarget | null>(null);
   // Whether there is a navigator to push onto yet, and whether the app has landed on a real screen
   // rather than the bare "/" the root index redirects away from. Both have to be true before a
   // notification's route can be applied -- see the effect below.
@@ -60,13 +63,18 @@ function RootNavigator() {
       const id = response.notification.request.identifier;
       if (handled.current.has(id)) return;
       handled.current.add(id);
-      const data = response.notification.request.content.data as PushTarget | undefined;
-      const route = routeForNotification(data);
+      // A tapped notification leaves the tray immediately -- Android does not always dismiss
+      // tray notifications on tap by itself, and a handled one lingering there reads as unread.
+      Notifications.dismissNotificationAsync(id).catch(() => {});
+      // targetOfResponse, not content.data directly: an Android tray tap can carry the payload
+      // on the trigger's FCM message instead of content.data, and reading only the latter is why
+      // tapping "Nuevo pedido" from the tray opened the app on home instead of the order.
+      const data = targetOfResponse(response);
       // Printed in development because this is otherwise invisible: a tap that carries an
       // unroutable payload, or one that arrives before the navigator, both look identical from the
       // outside -- the app opens on the home screen and nothing else happens.
-      if (__DEV__) console.log('[push] tap', JSON.stringify(data ?? null), '->', route ?? 'sin ruta');
-      if (route) setPendingRoute(route);
+      if (__DEV__) console.log('[push] tap', JSON.stringify(data ?? null));
+      if (data && (data.orderId || data.deliveryId)) setPendingTarget(data);
     };
 
     // The tap that launched the app from cold. The listener below does not replay it.
@@ -76,7 +84,7 @@ function RootNavigator() {
   }, []);
 
   useEffect(() => {
-    if (!pendingRoute || loading) return;
+    if (!pendingTarget || loading) return;
     // Only once there is a session to show it to; otherwise the gate is about to send them to
     // /login anyway and the route would be thrown away mid-navigation.
     if (!token || profileComplete !== true) return;
@@ -88,9 +96,19 @@ function RootNavigator() {
     // The root index redirects "/" to /home declaratively; pushing before that has happened would
     // put the target underneath it and the redirect would replace it away.
     if (!landed) return;
-    setPendingRoute(null);
-    router.push(pendingRoute);
-  }, [pendingRoute, loading, token, profileComplete, navReady, landed]);
+    let active = true;
+    (async () => {
+      // The route depends on the role (merchant -> counter view), so make sure a profile has been
+      // fetched before resolving -- on a cold start nothing else has asked for it yet.
+      if (!api.cachedMe()) await api.me();
+      if (!active) return;
+      const route = routeForNotification(pendingTarget);
+      if (__DEV__) console.log('[push] ruta', route ?? 'sin ruta');
+      setPendingTarget(null);
+      if (route) router.push(route);
+    })();
+    return () => { active = false; };
+  }, [pendingTarget, loading, token, profileComplete, navReady, landed]);
 
   useEffect(() => {
     if (loading) return;

@@ -50,8 +50,14 @@ export default function NotificationsScreen() {
     return (
       <Pressable
         style={[styles.card, unread && styles.cardUnread]}
+        // Each audience opens ITS OWN view of the order: the driver their stop, the merchant the
+        // counter's screen, the customer the tracking timeline. The merchant case matters most --
+        // /order/{id} only loads the customer's own orders, so sending a merchant there ended in
+        // "pedido no encontrado".
         onPress={() => router.push(
-          audience === 'driver' ? `/delivery/${n.orderId}` : `/order/${n.orderId}`,
+          audience === 'driver' ? `/delivery/${n.orderId}`
+            : audience === 'merchant' ? `/merchant-order/${n.orderId}`
+            : `/order/${n.orderId}`,
         )}
         accessibilityRole="button"
       >

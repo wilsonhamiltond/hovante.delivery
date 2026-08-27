@@ -109,6 +109,28 @@ export async function unregisterFromPush(token: string | null) {
   }
 }
 
+/** How many notifications are sitting in the system tray right now (always 0 on web). */
+export async function presentedNotificationCount(): Promise<number> {
+  if (Platform.OS === 'web') return 0;
+  try {
+    return (await Notifications.getPresentedNotificationsAsync()).length;
+  } catch {
+    return 0;
+  }
+}
+
+/** "Marcar todo visto": clears every notification from the tray, and the app-icon badge with
+ * them. The orders themselves are untouched -- this only tidies the tray. */
+export async function clearAllNotifications() {
+  if (Platform.OS === 'web') return;
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+    await Notifications.setBadgeCountAsync(0);
+  } catch (e) {
+    if (__DEV__) console.warn('[push] no se pudieron limpiar las notificaciones', e);
+  }
+}
+
 export interface PushTarget {
   /**
    * 'pool' -> an order anyone may claim; 'assigned' -> one already on this driver's route;
@@ -120,8 +142,42 @@ export interface PushTarget {
   orderId?: string;
 }
 
+/**
+ * The payload a tapped notification actually carries. A foreground notification puts it in
+ * content.data -- but an Android TRAY notification (app backgrounded or killed) often arrives
+ * with content.data EMPTY and the real payload riding on the FCM message inside the trigger.
+ * Reading only content.data is why tapping "Nuevo pedido" from the tray opened the app on home
+ * instead of the order; this reads both, preferring content.data when it has anything.
+ */
+export function targetOfResponse(response: Notifications.NotificationResponse): PushTarget | undefined {
+  const request = response.notification.request;
+  let data: Record<string, unknown> | undefined =
+    request.content.data as Record<string, unknown> | undefined;
+  if (!data || Object.keys(data).length === 0) {
+    const trigger = request.trigger as { remoteMessage?: { data?: Record<string, unknown> } } | null;
+    data = trigger?.remoteMessage?.data;
+  }
+  if (!data) return undefined;
+  return {
+    type: typeof data.type === 'string' ? data.type : undefined,
+    deliveryId: typeof data.deliveryId === 'string' ? data.deliveryId : undefined,
+    orderId: typeof data.orderId === 'string' ? data.orderId : undefined,
+  };
+}
+
 /** The route a notification's payload points at, or null when it carries nothing routable. */
 export function routeForNotification(data: PushTarget | null | undefined): string | null {
+  // A MERCHANT account opens every order push on the counter's view, whatever the push type. The
+  // same login can wear both hats -- a merchant placing a test order to their own store gets the
+  // customer-facing "confirmado"/"en camino" pushes too, and routing those to the customer
+  // timeline on the shop's phone is how "the notification opened order/ instead of
+  // merchant-order/" happens. cachedMe is the signed-in role the tab bar already relies on.
+  const isMerchant = api.cachedMe()?.isMerchant === true;
+  if (isMerchant && data?.orderId
+      && (data.type === 'order' || data.type === 'customer-order')) {
+    return `/merchant-order/${data.orderId}`;
+  }
+
   // The customer's own order: its tracking screen, which is the whole point of the notification --
   // "confirmado", "va en camino", "entregado" all want the same timeline.
   if (data?.type === 'customer-order' && data.orderId) return `/order/${data.orderId}`;

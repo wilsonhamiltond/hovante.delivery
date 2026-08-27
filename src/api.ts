@@ -34,6 +34,9 @@ export interface ApiResponse<T> {
 let currentToken: string | null = null;
 export function setAuthToken(token: string | null) {
   currentToken = token;
+  // An identity request in flight belongs to the previous credential; coalescing onto it would
+  // hand the new session the old session's answer.
+  meInFlight = null;
 }
 
 // Sliding-session refresh (8.5.1): every authenticated response carries a fresh access token in the
@@ -314,10 +317,25 @@ export function clearCachedMe() {
   lastMe = null;
 }
 
-export async function me() {
-  const res = await get<Me>('/auth/me');
-  if (res.success && res.data) lastMe = res.data;
-  return res;
+// One identity request at a time: at startup the token-restore check and the home screen both ask
+// "who am I" within the same tick, and each used to go to the network separately. Concurrent
+// callers now share the same request; SEQUENTIAL callers still refetch, so a screen regaining
+// focus keeps seeing fresh data (and the tests pinning retry-after-401 and refetch-failure
+// behavior keep holding).
+let meInFlight: Promise<ApiResponse<Me>> | null = null;
+
+export function me(): Promise<ApiResponse<Me>> {
+  if (meInFlight) return meInFlight;
+  meInFlight = (async () => {
+    try {
+      const res = await get<Me>('/auth/me');
+      if (res.success && res.data) lastMe = res.data;
+      return res;
+    } finally {
+      meInFlight = null;
+    }
+  })();
+  return meInFlight;
 }
 
 // What a social sign-in (Facebook/Google) could not supply. The provider proves the email and is
@@ -377,6 +395,11 @@ export async function uploadProfileImage(uri: string, mimeType: string, fileName
 // server would reject, nor holds back one it would accept.
 export function isProfileComplete(profile: Me | null): boolean {
   if (!profile) return false;
+  // A merchant is an ERP account: the sign-up wizard's person fields do not define it, and most
+  // merchants have no delivery-side contact to carry them. Treating one as incomplete quietly
+  // broke everything gated on profileComplete -- notification taps most visibly, which were
+  // dropped on the way to /merchant-order because the gate never released.
+  if (profile.isMerchant) return true;
   const filled = (value: string | null) => typeof value === 'string' && value.trim().length > 0;
   return filled(profile.name) && filled(profile.lastName) && filled(profile.phone) && filled(profile.address);
 }

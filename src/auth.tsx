@@ -85,14 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token || profileComplete !== true) return;
     let active = true;
     (async () => {
-      const res = await api.me();
       // Every role now, because every role is pushed to: drivers hear about work to pick up,
       // merchants about orders landing at their counter, and customers about their own order
-      // changing state -- confirmed, picked up, on its way, delivered. Customers were held back
-      // while nothing was sent to them (Android only offers the permission prompt once, so
-      // spending it on a channel we never used would have wasted it); the API sends now, so the
-      // prompt buys something.
-      if (!active || !res.success) return;
+      // changing state. The profile is only needed as "the session is real": checkProfile just
+      // fetched it to compute profileComplete, so the cached copy answers without a THIRD /me on
+      // every launch -- the network is only asked when the cache is somehow empty.
+      if (!api.cachedMe()) {
+        const res = await api.me();
+        if (!active || !res.success) return;
+      }
+      if (!active) return;
       const registered = await registerForPush();
       if (active) pushToken.current = registered;
     })();

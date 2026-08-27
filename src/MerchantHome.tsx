@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { FontAwesome5 } from '@expo/vector-icons';
 import * as api from './api';
 import type { Me, Order } from './api';
 import { GradientBackground, t } from './theme';
@@ -9,6 +10,7 @@ import { MerchantTopBar } from './MerchantTopBar';
 import { BottomNav } from './BottomNav';
 import { MerchantOrderCard } from './MerchantOrderCard';
 import { QueueTimeModal } from './QueueTimeModal';
+import { clearAllNotifications, presentedNotificationCount } from './pushNotifications';
 
 // The merchant's phone view: the counter's queue -- the orders still to be dealt with -- with the
 // same accept/release/reject actions the web back office has, so a shopkeeper can run the counter
@@ -26,6 +28,13 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
   // The order being accepted: confirming goes through the queue-time modal, which asks how long
   // it will wait before preparation starts, and only then calls the API.
   const [confirming, setConfirming] = useState<Order | null>(null);
+  // Notifications sitting in the system tray, so "Marcar todo visto" only shows when there is
+  // something to clear. Always 0 on web, which is what hides the button there.
+  const [trayCount, setTrayCount] = useState(0);
+
+  const refreshTray = useCallback(() => {
+    void presentedNotificationCount().then(setTrayCount);
+  }, []);
 
   const load = useCallback(async () => {
     const res = await api.merchantOrders(true);
@@ -37,10 +46,11 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
   useFocusEffect(useCallback(() => {
     let alive = true;
     load().finally(() => alive && setLoading(false));
+    refreshTray();
     // New orders arrive while the screen sits on the counter, so it polls itself.
     const timer = setInterval(load, 15000);
     return () => { alive = false; clearInterval(timer); };
-  }, [load]));
+  }, [load, refreshTray]));
 
   // The 15s poll above is the floor. A push telling the counter an order just landed is the
   // fastest signal there is, so reload the moment one arrives rather than waiting out the timer --
@@ -55,9 +65,11 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
     const sub = Notifications.addNotificationReceivedListener((n) => {
       const data = n.request?.content?.data as { type?: string } | undefined;
       if (data?.type === 'order') void load();
+      // Whatever arrived is now in the tray; keep the "Marcar todo visto" counter honest.
+      refreshTray();
     });
     return () => sub.remove();
-  }, [load]);
+  }, [load, refreshTray]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -128,6 +140,21 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
           ListHeaderComponent={
             <View style={styles.headerBlock}>
+              {/* Tidies the tray without opening each notification: everything is dismissed and
+                  the badge cleared. Only offered while something is actually sitting there. */}
+              {trayCount > 0 ? (
+                <Pressable
+                  style={styles.clearBtn}
+                  onPress={() => { void clearAllNotifications().then(refreshTray); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Marcar todas las notificaciones como vistas"
+                >
+                  <FontAwesome5 name="check-double" size={12} color={t.text} />
+                  <Text style={styles.clearBtnText}>
+                    Marcar todo visto · {trayCount} notificación{trayCount === 1 ? '' : 'es'}
+                  </Text>
+                </Pressable>
+              ) : null}
               {error ? <Text style={styles.error}>{error}</Text> : null}
               {orders.length === 0 ? (
                 <View style={styles.emptyWrap}>
@@ -180,6 +207,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 12, paddingBottom: 86 },
   headerBlock: { gap: 12 },
+  // A quiet pill, not a primary action: clearing the tray is housekeeping, and the accent stays
+  // reserved for the order actions below it.
+  clearBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 999, borderWidth: 1, borderColor: t.border, backgroundColor: t.card,
+    paddingVertical: 9, paddingHorizontal: 14, alignSelf: 'flex-start',
+  },
+  clearBtnText: { color: t.text, fontSize: 13, fontWeight: '800' },
   sectionTitle: { fontSize: 15, fontWeight: '900', color: t.textMuted, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 4 },
   error: { color: t.danger, fontSize: 14, marginBottom: 8 },
 
