@@ -8,6 +8,24 @@ describe('routeForNotification', () => {
     expect(routeForNotification({ type: 'order', orderId: 'o1' })).toBe('/merchant-order/o1');
   });
 
+  // Every status change the API pushes about carries this type, so one route serves "confirmado",
+  // "va en camino" and "entregado" alike -- they all want the same timeline.
+  it('sends a customer to their order\'s tracking screen', () => {
+    expect(routeForNotification({ type: 'customer-order', orderId: 'o1' })).toBe('/order/o1');
+  });
+
+  // The two order-shaped payloads must not be confused: the merchant's opens the counter's screen,
+  // which a customer cannot read, and the customer's opens tracking, which shows a merchant nothing
+  // they can act on.
+  it('keeps the customer and merchant order payloads apart', () => {
+    expect(routeForNotification({ type: 'customer-order', orderId: 'o1' })).toBe('/order/o1');
+    expect(routeForNotification({ type: 'order', orderId: 'o1' })).toBe('/merchant-order/o1');
+  });
+
+  it('routes nothing for a customer payload with no order id', () => {
+    expect(routeForNotification({ type: 'customer-order' })).toBeNull();
+  });
+
   it('sends a pool offer to the claim screen, not the driver\'s own stop', () => {
     // /delivery/[id] reads the driver's OWN deliveries, and a pool order is not theirs yet.
     expect(routeForNotification({ type: 'pool', deliveryId: 'd1' })).toBe('/available/d1');

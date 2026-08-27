@@ -7,6 +7,7 @@ import * as api from './api';
 import * as outbox from './outbox';
 import type { Delivery, Me } from './api';
 import { GradientBackground, t } from './theme';
+import { NotificationsButton } from './NotificationsButton';
 import { BottomNav } from './BottomNav';
 import { NEARBY_RADIUS_KM, originOf, useNearbyAvailable } from './nearby';
 import { PointsMap } from './PointsMap';
@@ -204,16 +205,21 @@ export function DriverHome({ profile }: { profile: Me | null }) {
       <View style={styles.root}>
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <View style={styles.headerBand}>
-            <Text style={styles.hello} numberOfLines={1}>¡Hola, {greeting}! 🛵</Text>
-            <Text style={styles.poolLine}>
-              {current
-                ? (phase === 'office'
-                  ? `Entrega en curso · recoge en ${current.pickupName ?? 'el comercio'}`
-                  : `Entrega en curso · lleva el pedido a ${current.recipientName ?? 'el cliente'}`)
-                : nearby.count > 0
-                  ? `${nearby.count} entrega(s) disponible(s)${nearby.filtered ? ` a menos de ${NEARBY_RADIUS_KM} km` : ''} · toca un pin`
-                  : 'No hay entregas disponibles ahora'}
-            </Text>
+            <View style={styles.headerTop}>
+              <Text style={styles.hello} numberOfLines={1}>¡Hola, {greeting}! 🛵</Text>
+              <NotificationsButton audience="driver" />
+            </View>
+            {/* With nothing in hand and nothing in the pool there is no line at all: the empty
+                map already says it. */}
+            {current || nearby.count > 0 ? (
+              <Text style={styles.poolLine}>
+                {current
+                  ? (phase === 'office'
+                    ? `Entrega en curso · recoge en ${current.pickupName ?? 'el comercio'}`
+                    : `Entrega en curso · lleva el pedido a ${current.recipientName ?? 'el cliente'}`)
+                  : `${nearby.count} entrega(s) disponible(s)${nearby.filtered ? ` a menos de ${NEARBY_RADIUS_KM} km` : ''} · toca un pin`}
+              </Text>
+            ) : null}
           </View>
         </SafeAreaView>
 
@@ -429,9 +435,13 @@ export function DriverHome({ profile }: { profile: Me | null }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  headerSafe: { backgroundColor: 'transparent' },
+  // Solid, matching the bottom nav, so the header and the tab bar frame the screen as a pair;
+  // the border mirrors the nav's top border.
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
   headerBand: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
-  hello: { fontSize: 22, fontWeight: '800', color: t.text },
+  // The greeting takes the room it needs and the bell keeps the right edge.
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  hello: { flex: 1, fontSize: 22, fontWeight: '800', color: t.text },
   poolLine: { fontSize: 13, color: t.textMuted, marginTop: 2, fontWeight: '600' },
 
   pendingBanner: {

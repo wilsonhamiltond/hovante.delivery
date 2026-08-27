@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -36,10 +37,14 @@ export default function HistoryScreen() {
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Historial de entregas</Text>
-      </View>
+    <View style={styles.safe}>
+      {/* The header carries the top inset itself, so the solid band reaches the screen edge. */}
+      <SafeAreaView edges={['top']} style={styles.headerSafe}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Historial de entregas</Text>
+          <NotificationsButton audience="driver" />
+        </View>
+      </SafeAreaView>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
@@ -75,15 +80,18 @@ export default function HistoryScreen() {
         />
       )}
       <BottomNav active="history" variant="driver" />
-    </SafeAreaView>
+    </View>
     </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  header: { paddingHorizontal: 16, paddingVertical: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: t.text },
+  // Solid, matching the bottom nav, so the header and the tab bar frame the screen as a pair;
+  // the border mirrors the nav's top border.
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  title: { flex: 1, fontSize: 22, fontWeight: '900', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 10, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
   empty: { color: t.textMuted, fontSize: 14, textAlign: 'center', marginTop: 40 },

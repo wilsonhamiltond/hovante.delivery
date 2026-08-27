@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Product } from '../src/api';
 import { emojiFor } from '../src/categoryEmoji';
 import { takeFlash } from '../src/flash';
 import { GradientBackground, t } from '../src/theme';
+import { MerchantTopBar } from '../src/MerchantTopBar';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 // The merchant's own catalogue as an infinite scroll, and the counter's way to maintain it: add a
@@ -119,7 +119,9 @@ export default function MerchantProductsScreen() {
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={styles.safe}>
+      {/* The same "🏪 comercio" bar the home wears; the top safe area rides inside it. */}
+      <MerchantTopBar />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Productos</Text>
@@ -245,7 +247,7 @@ export default function MerchantProductsScreen() {
       </Modal>
 
       <BottomNav active="products" variant="merchant" />
-    </SafeAreaView>
+    </View>
     </GradientBackground>
   );
 }

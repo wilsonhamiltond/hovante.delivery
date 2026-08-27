@@ -6,6 +6,8 @@ import * as api from '../src/api';
 import type { Order } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { CartButton } from '../src/CartButton';
+import { NotificationsButton } from '../src/NotificationsButton';
 import { orderStatusChip } from '../src/orderStatus';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
@@ -90,8 +92,15 @@ export default function OrdersScreen() {
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Mis pedidos</Text>
+      {/* The same solid band the home wears, so the header and the tab bar frame the screen as a
+          pair -- and the same two buttons, because "what is waiting for me" is worth reaching from
+          any customer screen, not only the home. */}
+      <View style={styles.headerSafe}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Mis pedidos</Text>
+          <CartButton />
+          <NotificationsButton audience="client" style={styles.bellBtn} />
+        </View>
       </View>
 
       {loading ? (
@@ -137,8 +146,11 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  header: { paddingHorizontal: 16, paddingVertical: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: t.text },
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  // The title takes the room it needs; a long one shrinks rather than shoving the buttons off.
+  title: { flex: 1, fontSize: 22, fontWeight: '900', color: t.text },
+  bellBtn: { marginLeft: 8 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 12, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
   headerBlock: { gap: 12 },

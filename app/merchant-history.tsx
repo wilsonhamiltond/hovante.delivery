@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Order } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { MerchantTopBar } from '../src/MerchantTopBar';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 import { MerchantOrderCard } from '../src/MerchantOrderCard';
 
@@ -65,7 +65,9 @@ export default function MerchantHistoryScreen() {
 
   return (
     <GradientBackground>
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={styles.safe}>
+      {/* The same "🏪 comercio" bar the home wears; the top safe area rides inside it. */}
+      <MerchantTopBar />
       <View style={styles.header}>
         <Text style={styles.title}>Historial de pedidos</Text>
       </View>
@@ -91,7 +93,7 @@ export default function MerchantHistoryScreen() {
       )}
 
       <BottomNav active="history" variant="merchant" />
-    </SafeAreaView>
+    </View>
     </GradientBackground>
   );
 }

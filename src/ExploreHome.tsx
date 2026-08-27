@@ -10,6 +10,8 @@ import { useAuthPrompt } from './AuthPrompt';
 import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
 import { Skeleton } from './Skeleton';
 import { GradientBackground, GRADIENT, t } from './theme';
+import { CartButton } from './CartButton';
+import { NotificationsButton } from './NotificationsButton';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BottomNav } from './BottomNav';
 import { AddToCartButton, ADDED_FEEDBACK_MS } from './AddToCartButton';
@@ -61,7 +63,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
-  // Whether the GPS lookup behind the header button is in flight.
+  // Whether the GPS lookup behind the sheet's "Ubicación actual" row is in flight.
   const [locating, setLocating] = useState(false);
   const [search, setSearch] = useState(initialSearch ?? '');
   const [category, setCategory] = useState('all');
@@ -195,15 +197,18 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   // truth again -- drop the local echo so a newer default cannot be masked by a stale pick.
   useEffect(() => { setChosen(null); }, [profile?.address, profile?.addressLabel]);
 
-  // A guest starts with the pin already on the phone: with no account there is no saved address to
-  // fall back on, so without this the catalogue opens unfiltered and the header shows "Agrega tu
-  // dirección" to someone who cannot save one. Only while nothing else answers "where to?" -- and
-  // silently on failure or denial: browsing simply stays unfiltered, and the header's location
-  // button still asks again by hand (with its own words for what went wrong).
+  // Same rule as the home: reading the phone answers "where to?" for everyone, signed in or not,
+  // and only once per session -- session.attempted survives a remount and stays set after clear(),
+  // so a customer who picked a saved address is not moved back to where they are standing every
+  // time they open Explorar. Normally the home has already done this and there is nothing to do
+  // here; this covers arriving straight into the catalogue (a search, a deep link).
+  //
+  // Silent on failure or denial: browsing simply stays unfiltered, and the address dropdown is
+  // still there to answer by hand.
   useEffect(() => {
-    if (profile || session.location) return;
+    if (session.attempted || session.location) return;
+    session.markAttempted();
     let active = true;
-    setLocating(true);
     detectCurrentLocation()
       .then((result) => {
         if (!active || !result.ok) return;
@@ -213,7 +218,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
           longitude: result.location.lng,
         });
       })
-      .finally(() => { if (active) setLocating(false); });
+      .catch(() => { /* denial and failure are both silence here */ });
     return () => { active = false; };
   }, []);
 
@@ -236,30 +241,6 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   const addressLabel = session.location
     ? SESSION_LOCATION_LABEL
     : (chosen ? chosen.label : profile?.addressLabel)?.trim();
-
-  // Drops the pin on the phone's position and keeps it for the session. Picking a saved address
-  // from the dropdown clears it, so the two cannot both claim to be the delivery point.
-  const useCurrentLocation = async () => {
-    setLocating(true);
-    const result = await detectCurrentLocation();
-    setLocating(false);
-    if (!result.ok) {
-      Alert.alert(
-        result.reason === 'permission' ? 'Permiso de ubicación' : 'Ubicación',
-        result.reason === 'permission'
-          ? 'Activa el permiso de ubicación para usar tu ubicación actual.'
-          : 'No se pudo obtener tu ubicación actual.',
-      );
-      return;
-    }
-    session.setLocation({
-      // Without a readable address the coordinates still deliver; the label says where it came from.
-      address: result.location.address ?? 'Tu ubicación actual',
-      latitude: result.location.lat,
-      longitude: result.location.lng,
-    });
-    setChosen(null);
-  };
 
   const openAddresses = () => {
     setAddrOpen(true);
@@ -304,6 +285,31 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
     if (!profile) { promptLogin(); return; }
     router.push('/address-new');
   };
+
+  // "Deliver where I am now": the same detection the boot runs, but on demand -- it sets the
+  // session pin, so it never rewrites the saved address book.
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    const result = await detectCurrentLocation();
+    setLocating(false);
+    if (!result.ok) {
+      Alert.alert('Ubicación', result.reason === 'permission'
+        ? 'Activa el permiso de ubicación para usar tu ubicación actual.'
+        : 'No se pudo obtener tu ubicación. Inténtalo de nuevo.');
+      return;
+    }
+    session.setLocation({
+      address: result.location.address ?? 'Tu ubicación actual',
+      latitude: result.location.lat,
+      longitude: result.location.lng,
+    });
+    setChosen(null);
+    setAddrOpen(false);
+  };
+
+  // The GPS row highlights when the session pin is what filters the catalogue AND it is not one of
+  // the saved rows below -- a saved address chosen "for today" marks its own row instead.
+  const currentActive = !!session.location && !addresses.some((a) => a.address === session.location?.address);
 
   // No client-side filtering left: the server returns exactly the page asked for. The list is not
   // grouped by store either -- every tile names its own merchant, so the catalog reads as one list
@@ -420,40 +426,12 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
               </View>
             </Pressable>
 
-            {/* Deliver to wherever the phone is right now. Sits opposite the address pill because it
-                is the other answer to the same question, and it is a one-off: it holds only for this
-                session and never rewrites a saved address. */}
-            <Pressable
-              style={[styles.hereBtn, session.location && styles.hereBtnActive]}
-              onPress={useCurrentLocation}
-              disabled={locating}
-              accessibilityRole="button"
-              accessibilityLabel="Usar mi ubicación actual"
-            >
-              {locating
-                ? <ActivityIndicator color={t.text} size="small" />
-                : <FontAwesome5 name="location-arrow" size={13} color={session.location ? t.onAccent : t.text} />}
-            </Pressable>
 
-            {/* The cart, reachable from the top of the screen rather than only from the bar that
-                appears once something is in it: people who came back to finish an order look up
-                here for it. The badge is the whole point -- an empty cart shows none, so the icon
-                stays quiet until there is something to collect. */}
-            <Pressable
-              style={styles.cartBtn}
-              onPress={() => router.push('/cart')}
-              accessibilityRole="button"
-              accessibilityLabel={cart.count > 0 ? `Carrito, ${cart.count} artículos` : 'Carrito vacío'}
-            >
-              <FontAwesome5 name="shopping-cart" size={14} color={t.text} />
-              {cart.count > 0 ? (
-                <View style={styles.cartBadge}>
-                  {/* Past 99 the count stops being a number worth reading and starts breaking the
-                      circle it sits in. */}
-                  <Text style={styles.cartBadgeText}>{cart.count > 99 ? '99+' : cart.count}</Text>
-                </View>
-              ) : null}
-            </Pressable>
+            {/* Cart and bell: both are "what is waiting for me", pushed to the right edge so the
+                address pill keeps the whole left side. */}
+            <CartButton style={styles.cartBtn} />
+
+            <NotificationsButton audience="client" style={styles.bellBtn} />
           </View>
 
           <View style={styles.searchBox}>
@@ -736,6 +714,29 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
               </Pressable>
             </View>
 
+            {/* Always first: delivering to where the person is standing needs no saved list. */}
+            <Pressable
+              style={[styles.sheetCard, currentActive && styles.sheetCardActive, !!addrBusy && styles.sheetCardDim]}
+              onPress={useCurrentLocation}
+              disabled={locating || !!addrBusy}
+              accessibilityRole="button"
+              accessibilityState={{ selected: currentActive }}
+            >
+              <View style={[styles.sheetPinBadge, currentActive && styles.sheetPinBadgeActive]}>
+                <FontAwesome5 name="location-arrow" size={13} solid color={t.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetLabel}>{SESSION_LOCATION_LABEL}</Text>
+              </View>
+              {locating ? (
+                <ActivityIndicator color={t.text} size="small" />
+              ) : currentActive ? (
+                <View style={styles.sheetCheck}><Text style={styles.sheetCheckIcon}>✓</Text></View>
+              ) : (
+                <View style={styles.sheetRadio} />
+              )}
+            </Pressable>
+
             {addresses.length === 0 ? (
               <Text style={styles.sheetEmpty}>Todavía no tienes direcciones guardadas.</Text>
             ) : null}
@@ -768,8 +769,13 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                     <Text style={styles.sheetPin}>📍</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    {item.label ? <Text style={styles.sheetLabel}>{item.label}</Text> : null}
-                    <Text style={styles.sheetAddress} numberOfLines={2}>{item.address}</Text>
+                    {/* The name the customer gave it ("Casa") is what identifies the address to
+                        them; the street line is how it gets delivered to, which is not what they
+                        are choosing between here. An entry seen only on a past order was never
+                        named, so there the address stands in for one. */}
+                    <Text style={styles.sheetLabel} numberOfLines={2}>
+                      {item.label?.trim() || item.address}
+                    </Text>
                   </View>
                   {busy ? (
                     <ActivityIndicator color={t.text} size="small" />
@@ -798,7 +804,9 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  headerSafe: { backgroundColor: 'transparent' },
+  // Solid, matching the bottom nav, so the header and the tab bar frame the screen as a pair;
+  // the border mirrors the nav's top border.
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
   headerBand: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
 
@@ -851,7 +859,6 @@ const styles = StyleSheet.create({
   sheetPinBadgeActive: { backgroundColor: t.accent },
   sheetPin: { fontSize: 17 },
   sheetLabel: { fontSize: 15, fontWeight: '800', color: t.text },
-  sheetAddress: { fontSize: 13, color: t.textMuted, marginTop: 1, lineHeight: 17 },
   sheetCheck: {
     width: 24, height: 24, borderRadius: 12, backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
@@ -886,29 +893,13 @@ const styles = StyleSheet.create({
   // A small disc balancing the pin badge on the other end of the pill.
   // Opposite the address pill, same height as it. Filled once a session location is held, so the
   // header shows at a glance that "now" is in effect rather than a saved address.
-  hereBtn: {
-    marginLeft: 'auto', width: 38, height: 38, borderRadius: 19,
-    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  hereBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
   // Same pill as the location button, sitting just right of it. No marginLeft:'auto' here -- that
   // one already pushes the pair to the edge, and a second auto margin would split them apart.
-  cartBtn: {
-    marginLeft: 8, width: 38, height: 38, borderRadius: 19,
-    backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  // Sits to the RIGHT of the cart; the cart carries the marginLeft:'auto' that pushes the pair to
+  // the edge, so a second auto margin here would split them apart.
+  bellBtn: { marginLeft: 8 },
+  cartBtn: { marginLeft: 'auto' },
   // Overhangs the button's rim, so the count never sits on top of the icon it counts.
-  cartBadge: {
-    position: 'absolute', top: -3, right: -3, minWidth: 19, height: 19, borderRadius: 10,
-    paddingHorizontal: 5, backgroundColor: t.accent,
-    // Against the gradient the white badge and the white-ish button rim would merge; the border
-    // separates them the way the app's other floating chips do.
-    borderWidth: 2, borderColor: '#1d4ed8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cartBadgeText: { color: t.onAccent, fontSize: 10, fontWeight: '900' },
   chevronWrap: {
     width: 20, height: 20, borderRadius: 10, backgroundColor: t.cardStrong,
     alignItems: 'center', justifyContent: 'center',

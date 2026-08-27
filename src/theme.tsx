@@ -7,6 +7,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 export const GRADIENT = ['#0b2a6b', '#1d4ed8', '#3b82f6'] as const;
 
 export const t = {
+  // Solid bar surfaces (the bottom nav and screen headers): the gradient's deepest blue, so the
+  // two bands framing a screen always match.
+  bar: '#0b2a6b',
   text: '#ffffff',
   textMuted: 'rgba(255,255,255,0.72)',
   textFaint: 'rgba(255,255,255,0.5)',

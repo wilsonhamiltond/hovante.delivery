@@ -8,6 +8,8 @@ import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import type { Me } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { CartButton } from '../src/CartButton';
+import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 // The "Cuenta" tab: who you are, plus the actions that used to live in the top-right drawer.
@@ -83,8 +85,18 @@ export default function AccountScreen() {
 
   return (
     <GradientBackground>
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}><Text style={styles.title}>Mi cuenta</Text></View>
+      <View style={styles.safe}>
+        {/* The header carries the top inset itself, so the solid band reaches the screen edge.
+            The bell counts the audience this account belongs to, same as its home screen. */}
+        <SafeAreaView edges={['top']} style={styles.headerSafe}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Mi cuenta</Text>
+            {/* Only a customer has a cart; a driver or a merchant would be shown a button that
+                leads nowhere they can use. */}
+            {navVariant === 'client' ? <CartButton /> : null}
+            <NotificationsButton audience={navVariant} />
+          </View>
+        </SafeAreaView>
 
         {loading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
@@ -223,15 +235,18 @@ export default function AccountScreen() {
         )}
 
         <BottomNav active="account" variant={navVariant} />
-      </SafeAreaView>
+      </View>
     </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  header: { paddingHorizontal: 16, paddingVertical: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: t.text },
+  // Solid, matching the bottom nav, so the header and the tab bar frame the screen as a pair;
+  // the border mirrors the nav's top border.
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  title: { flex: 1, fontSize: 22, fontWeight: '900', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 16, gap: 14, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
 

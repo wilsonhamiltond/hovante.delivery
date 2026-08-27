@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as api from './api';
 import type { Me, Order } from './api';
 import { GradientBackground, t } from './theme';
+import { MerchantTopBar } from './MerchantTopBar';
 import { BottomNav } from './BottomNav';
 import { MerchantOrderCard } from './MerchantOrderCard';
 import { QueueTimeModal } from './QueueTimeModal';
@@ -109,16 +109,12 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
   return (
     <GradientBackground>
     <View style={styles.root}>
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
-        <View style={styles.header}>
-          <Text style={styles.hello} numberOfLines={1}>🏪 {companyName}</Text>
-          <Text style={styles.subtitle}>
-            {orders.length === 0
-              ? 'Sin pedidos en curso'
-              : `${fresh.length} nuevo(s) · ${working.length} en marcha`}
-          </Text>
-        </View>
-      </SafeAreaView>
+      {/* No subtitle with an empty counter: the "Todo al día" empty state below already says it,
+          so the header saying it twice was just noise. */}
+      <MerchantTopBar
+        companyName={companyName}
+        subtitle={orders.length > 0 ? `${fresh.length} nuevo(s) · ${working.length} en marcha` : null}
+      />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
@@ -181,10 +177,6 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  headerSafe: { backgroundColor: 'transparent' },
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
-  hello: { fontSize: 22, fontWeight: '900', color: t.text },
-  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 2, fontWeight: '600' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 12, paddingBottom: 86 },
   headerBlock: { gap: 12 },

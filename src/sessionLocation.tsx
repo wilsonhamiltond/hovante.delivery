@@ -17,16 +17,31 @@ interface SessionLocationState {
   location: SessionLocation | null;
   setLocation: (location: SessionLocation) => void;
   clear: () => void;
+  /**
+   * Whether the app has already tried to read the phone's position this session. The home detects
+   * on entry, and this is what keeps that to ONCE: it survives the screen being remounted, and it
+   * stays true after clear(), so a customer who deliberately picks a saved address is not quietly
+   * moved back to where they are standing the next time the home mounts.
+   */
+  attempted: boolean;
+  markAttempted: () => void;
 }
 
 const SessionLocationContext = createContext<SessionLocationState | undefined>(undefined);
 
 export function SessionLocationProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState<SessionLocation | null>(null);
+  const [attempted, setAttempted] = useState(false);
 
   const value = useMemo<SessionLocationState>(
-    () => ({ location, setLocation, clear: () => setLocation(null) }),
-    [location],
+    () => ({
+      location,
+      setLocation,
+      clear: () => setLocation(null),
+      attempted,
+      markAttempted: () => setAttempted(true),
+    }),
+    [location, attempted],
   );
 
   return (

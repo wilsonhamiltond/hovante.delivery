@@ -814,6 +814,14 @@ export function merchantOrderInvoice(id: string) {
   return get<OrderInvoice>(`/delivery/orders/${id}/invoice`);
 }
 
+// One-tap "Facturar" with the company's defaults (same document type and office the automatic
+// invoice at "listo" resolves), for a delivered order that was never invoiced -- auto-invoicing
+// failed at "listo", or the order predates it. The server refuses double-invoicing.
+export function autoInvoiceMerchantOrder(id: string) {
+  return postAuth<{ orderId: string; documentId: string; documentNumber: string | null; ncf: string | null }>(
+    `/delivery/orders/${id}/invoice/auto`, {});
+}
+
 // --- The merchant's fleet ("Repartidores") and delivery settings --------------------------------
 //
 // A merchant links drivers to its company. A linked driver only sees that fleet's deliveries; a

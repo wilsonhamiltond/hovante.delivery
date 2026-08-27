@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import type { Order, OrderTracking } from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
+import { InvoiceModal } from '../../src/InvoiceModal';
 import { GradientBackground, t } from '../../src/theme';
 import { orderStatusChip } from '../../src/orderStatus';
 import { queueRemainingMin } from '../../src/orderQueue';
@@ -77,6 +78,14 @@ export default function OrderTrackingScreen() {
   const [data, setData] = useState<OrderTracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The invoice sheet, opened by "Ver factura" once the order is delivered.
+  const [showInvoice, setShowInvoice] = useState(false);
+  // The merchant branch this order comes from, for the map's second stop.
+  const [office, setOffice] = useState<api.MerchantOffice | null>(null);
+  // The customer's own profile picture, worn by the pin on their address. Read here rather than in
+  // the map screen: /map is opened by drivers too, and there the face on the destination is the
+  // CUSTOMER's, not whoever is looking at it.
+  const [myPhoto, setMyPhoto] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -92,6 +101,30 @@ export default function OrderTrackingScreen() {
     const timer = setInterval(load, 8000);
     return () => { active = false; clearInterval(timer); };
   }, [load]));
+
+  // Where the order is collected from, so the map can draw the route to it. Same rule the server
+  // and the merchant's own map use: the branch the order names, falling back to the first one with
+  // a pin. Fetched once per order -- a branch does not move while a screen is open.
+  const merchantCompanyId = data?.order.merchantCompanyId;
+  const officeId = data?.order.officeId;
+  useEffect(() => {
+    if (!merchantCompanyId) return;
+    let active = true;
+    api.merchantOffices(merchantCompanyId).then((res) => {
+      if (!active || !res.success) return;
+      const pinned = (res.data ?? []).filter((o) => o.latitude != null && o.longitude != null);
+      setOffice(pinned.find((o) => o.id === officeId) ?? pinned[0] ?? null);
+    });
+    return () => { active = false; };
+  }, [merchantCompanyId, officeId]);
+
+  useEffect(() => {
+    let active = true;
+    api.me().then((res) => {
+      if (active && res.success) setMyPhoto(res.data?.imageUrl ?? null);
+    });
+    return () => { active = false; };
+  }, []);
 
 
   if (loading) {
@@ -163,15 +196,33 @@ export default function OrderTrackingScreen() {
   // different states in two places.
   const statusChip = orderStatusChip(stated);
 
+  // The invoice, once the order is in the customer's hands and one was issued. The server mails it
+  // on delivery; this button shows the same document in the app, with printing.
+  const delivered = order.status === 'DELIVERED' || deliveryStatus === 'DELIVERED';
+  const canViewInvoice = delivered && !!order.documentId;
+
   // Shows where this order is going, in the app. The map geocodes the address when the order has
   // no pin (older orders placed before the location step captured one).
+  // The route the order travels: the merchant's branch at one end, the delivery address at the
+  // other. Until the branches have loaded (or when none of them has ever been geocoded) this stays
+  // the single-pin map it was, rather than opening with half a route.
   const openMap = () => router.push({
     pathname: '/map',
     params: {
       ...(order.latitude != null ? { lat: String(order.latitude) } : {}),
       ...(order.longitude != null ? { lng: String(order.longitude) } : {}),
       ...(order.address ? { address: order.address } : {}),
-      title: 'Entregar en',
+      // The two faces, when they exist: the customer's photo on their door, the shop's logo on the
+      // branch. A missing one simply leaves that pin as a numbered teardrop.
+      ...(myPhoto ? { img: myPhoto } : {}),
+      ...(office ? {
+        olat: String(office.latitude),
+        olng: String(office.longitude),
+        otitle: office.name || order.merchantName || 'Comercio',
+        ...(office.address ? { oaddress: office.address } : {}),
+        ...(order.merchantImageUrl ? { oimg: order.merchantImageUrl } : {}),
+      } : {}),
+      title: office ? 'Tu dirección' : 'Entregar en',
     },
   });
 
@@ -293,10 +344,22 @@ export default function OrderTrackingScreen() {
           </Pressable>
         ) : null}
 
+        {canViewInvoice ? (
+          <Pressable style={styles.invoiceBtn} onPress={() => setShowInvoice(true)} accessibilityRole="button">
+            <Text style={styles.invoiceBtnText}>🧾 Ver factura</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable style={styles.secondary} onPress={() => router.replace('/orders')}>
           <Text style={styles.secondaryText}>Ver mis pedidos</Text>
         </Pressable>
       </ScrollView>
+
+      <InvoiceModal
+        orderId={order.id}
+        visible={showInvoice}
+        onClose={() => setShowInvoice(false)}
+      />
     </SafeAreaView>
     </GradientBackground>
   );
@@ -367,6 +430,9 @@ const styles = StyleSheet.create({
 
   secondary: { backgroundColor: t.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: t.border },
   secondaryText: { color: t.text, fontSize: 16, fontWeight: '800' },
+
+  invoiceBtn: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  invoiceBtnText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
 
   cancelBtn: { marginTop: 16, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   cancelBtnText: { color: '#fecaca', fontSize: 16, fontWeight: '800' },

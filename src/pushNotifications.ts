@@ -112,7 +112,8 @@ export async function unregisterFromPush(token: string | null) {
 export interface PushTarget {
   /**
    * 'pool' -> an order anyone may claim; 'assigned' -> one already on this driver's route;
-   * 'order' -> a new order at the merchant's counter.
+   * 'order' -> an order at the merchant's counter; 'customer-order' -> the customer's own order,
+   * on any status change the API pushes about.
    */
   type?: string;
   deliveryId?: string;
@@ -121,7 +122,11 @@ export interface PushTarget {
 
 /** The route a notification's payload points at, or null when it carries nothing routable. */
 export function routeForNotification(data: PushTarget | null | undefined): string | null {
-  // The merchant's new-order notification. Checked first because it carries orderId rather than
+  // The customer's own order: its tracking screen, which is the whole point of the notification --
+  // "confirmado", "va en camino", "entregado" all want the same timeline.
+  if (data?.type === 'customer-order' && data.orderId) return `/order/${data.orderId}`;
+
+  // The merchant's counter. Checked before the delivery ids because it carries orderId rather than
   // deliveryId -- an order's delivery exists from creation but is parked in AWAITING_MERCHANT, so
   // there is nothing about it a shop could act on yet.
   if (data?.type === 'order' && data.orderId) return `/merchant-order/${data.orderId}`;

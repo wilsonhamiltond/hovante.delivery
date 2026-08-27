@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../src/auth';
@@ -41,6 +41,12 @@ function RootNavigator() {
   // below -- which would bounce a signed-in driver to /login, or drop a signed-out one onto a stop
   // they cannot see. So the route waits for the session instead.
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+  // Whether there is a navigator to push onto yet, and whether the app has landed on a real screen
+  // rather than the bare "/" the root index redirects away from. Both have to be true before a
+  // notification's route can be applied -- see the effect below.
+  const rootNavigationState = useRootNavigationState();
+  const navReady = !!rootNavigationState?.key;
+  const landed = !!segments[0];
   // Notification ids already routed, so the cold-start check and the live listener cannot both act
   // on the same tap.
   const handled = useRef<Set<string>>(new Set());
@@ -54,9 +60,12 @@ function RootNavigator() {
       const id = response.notification.request.identifier;
       if (handled.current.has(id)) return;
       handled.current.add(id);
-      const route = routeForNotification(
-        response.notification.request.content.data as PushTarget | undefined,
-      );
+      const data = response.notification.request.content.data as PushTarget | undefined;
+      const route = routeForNotification(data);
+      // Printed in development because this is otherwise invisible: a tap that carries an
+      // unroutable payload, or one that arrives before the navigator, both look identical from the
+      // outside -- the app opens on the home screen and nothing else happens.
+      if (__DEV__) console.log('[push] tap', JSON.stringify(data ?? null), '->', route ?? 'sin ruta');
       if (route) setPendingRoute(route);
     };
 
@@ -71,9 +80,17 @@ function RootNavigator() {
     // Only once there is a session to show it to; otherwise the gate is about to send them to
     // /login anyway and the route would be thrown away mid-navigation.
     if (!token || profileComplete !== true) return;
+    // ...and only once the navigator exists. A tap that cold-starts the app can resolve the
+    // session before expo-router has mounted its root navigator, and a push made then is silently
+    // DROPPED -- the app opens on the home screen as if the notification had carried nothing.
+    // navReady is expo-router's own signal that there is something to navigate.
+    if (!navReady) return;
+    // The root index redirects "/" to /home declaratively; pushing before that has happened would
+    // put the target underneath it and the redirect would replace it away.
+    if (!landed) return;
     setPendingRoute(null);
     router.push(pendingRoute);
-  }, [pendingRoute, loading, token, profileComplete]);
+  }, [pendingRoute, loading, token, profileComplete, navReady, landed]);
 
   useEffect(() => {
     if (loading) return;

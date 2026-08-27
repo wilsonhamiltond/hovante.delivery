@@ -6,6 +6,7 @@ import * as api from '../src/api';
 import * as outbox from '../src/outbox';
 import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 // "Mi ruta": every delivery the driver is carrying right now -- claimed, about to start, or on the
@@ -60,10 +61,14 @@ export default function RouteScreen() {
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <Text style={styles.title}>Mi ruta</Text>
-          <Text style={styles.subtitle}>
-            {route.length > 0 ? `${route.length} entrega(s) en curso` : 'Nada en curso ahora mismo'}
-          </Text>
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>Mi ruta</Text>
+            <NotificationsButton audience="driver" />
+          </View>
+          {/* With nothing in hand there is no line at all: the empty state below already says it. */}
+          {route.length > 0 ? (
+            <Text style={styles.subtitle}>{route.length} entrega(s) en curso</Text>
+          ) : null}
         </View>
       </SafeAreaView>
 
@@ -146,9 +151,12 @@ export default function RouteScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  headerSafe: { backgroundColor: 'transparent' },
+  // Solid, matching the bottom nav, so the header and the tab bar frame the screen as a pair;
+  // the border mirrors the nav's top border.
+  headerSafe: { backgroundColor: t.bar, borderBottomWidth: 1, borderBottomColor: t.border },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: '900', color: t.text },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  title: { flex: 1, fontSize: 22, fontWeight: '900', color: t.text },
   subtitle: { fontSize: 13, color: t.textMuted, marginTop: 2, fontWeight: '600' },
   list: { padding: 16, gap: 10, paddingBottom: BOTTOM_NAV_HEIGHT + 24, flexGrow: 1 },
   error: { color: t.danger, fontSize: 14, marginBottom: 8 },

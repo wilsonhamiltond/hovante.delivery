@@ -86,12 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       const res = await api.me();
-      // Drivers and merchants: drivers are told about work to pick up, merchants about orders
-      // landing at their counter. Customers are still left out -- nothing is pushed to them yet,
-      // and spending their one notification-permission prompt on a channel we never use would
-      // waste it, since Android only offers it once.
+      // Every role now, because every role is pushed to: drivers hear about work to pick up,
+      // merchants about orders landing at their counter, and customers about their own order
+      // changing state -- confirmed, picked up, on its way, delivered. Customers were held back
+      // while nothing was sent to them (Android only offers the permission prompt once, so
+      // spending it on a channel we never used would have wasted it); the API sends now, so the
+      // prompt buys something.
       if (!active || !res.success) return;
-      if (!res.data?.isDriver && !res.data?.isMerchant) return;
       const registered = await registerForPush();
       if (active) pushToken.current = registered;
     })();

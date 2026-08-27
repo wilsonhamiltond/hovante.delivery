@@ -12,8 +12,14 @@ import { GradientBackground, t } from '../src/theme';
 // zooms to it. A point with no coordinates is forward-geocoded from its address by the map itself.
 export default function MapScreen() {
   const router = useRouter();
-  const { lat, lng, address, title } = useLocalSearchParams<{
+  const { lat, lng, address, title, img, olat, olng, oaddress, otitle, oimg } = useLocalSearchParams<{
     lat?: string; lng?: string; address?: string; title?: string;
+    /** The face for the destination pin (the customer's photo). Optional; a pin without one keeps
+     *  its numbered teardrop. */
+    img?: string;
+    // The other end of the route, when there is one: the merchant's branch. Optional -- without it
+    // this stays the single-pin map it has always been.
+    olat?: string; olng?: string; oaddress?: string; otitle?: string; oimg?: string;
   }>();
 
   const toNum = (v?: string) => {
@@ -21,6 +27,10 @@ export default function MapScreen() {
     return v !== undefined && v !== '' && Number.isFinite(n) ? n : null;
   };
   const point = { lat: toNum(lat), lng: toNum(lng), address: address ?? null };
+  const origin = { lat: toNum(olat), lng: toNum(olng), address: oaddress ?? null };
+  // A second stop only counts when it can actually be placed: RouteMap geocodes an address-only
+  // point, so either a pin or an address will do.
+  const hasOrigin = origin.lat !== null || !!origin.address;
   const heading = title || 'Ubicación';
   const hasPoint = point.lat !== null || !!point.address;
 
@@ -37,14 +47,32 @@ export default function MapScreen() {
           <View style={styles.center}><Text style={styles.muted}>Esta dirección no tiene ubicación.</Text></View>
         ) : (
           <>
+            {/* With both ends known, RouteMap draws the street route between them (Google
+                Directions, then OSRM, then a dashed straight hop). With only one, the empty stop
+                resolves to nothing and it stays a single pin zoomed to the address. */}
             <RouteMap
-              pickup={{ lat: null, lng: null, address: null, label: '', title: '', color: '#16a34a' }}
-              client={{ ...point, label: '📍', title: heading, color: '#16a34a' }}
+              pickup={hasOrigin
+                ? {
+                  ...origin, label: '🏪', title: otitle || 'Comercio', color: '#0b2a6b',
+                  imageUrl: oimg ?? null,
+                }
+                : { lat: null, lng: null, address: null, label: '', title: '', color: '#16a34a' }}
+              client={{ ...point, label: '📍', title: heading, color: '#16a34a', imageUrl: img ?? null }}
             />
-            {address ? (
+            {address || (hasOrigin && oaddress) ? (
               <View style={styles.footer}>
-                <Text style={styles.footerLabel}>Dirección</Text>
-                <Text style={styles.footerText}>{address}</Text>
+                {hasOrigin && oaddress ? (
+                  <>
+                    <Text style={styles.footerLabel}>{otitle || 'Comercio'}</Text>
+                    <Text style={styles.footerText}>{oaddress}</Text>
+                  </>
+                ) : null}
+                {address ? (
+                  <>
+                    <Text style={styles.footerLabel}>{hasOrigin ? 'Entregar en' : 'Dirección'}</Text>
+                    <Text style={styles.footerText}>{address}</Text>
+                  </>
+                ) : null}
               </View>
             ) : null}
           </>
@@ -60,7 +88,7 @@ const styles = StyleSheet.create({
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   muted: { color: t.textMuted, textAlign: 'center' },
-  footer: { padding: 16, borderTopWidth: 1, borderTopColor: t.border },
-  footerLabel: { fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
+  footer: { padding: 16, gap: 2, borderTopWidth: 1, borderTopColor: t.border },
+  footerLabel: { marginTop: 6, fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
   footerText: { fontSize: 15, fontWeight: '600', color: t.text, marginTop: 3 },
 });

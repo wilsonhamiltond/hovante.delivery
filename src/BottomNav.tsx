@@ -83,7 +83,7 @@ export function BottomNav({ active, variant = 'client' }: { active: TabKey; vari
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    backgroundColor: '#0b2a6b',
+    backgroundColor: t.bar,
     borderTopWidth: 1,
     borderTopColor: t.border,
     paddingTop: 8,

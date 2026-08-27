@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -46,6 +46,10 @@ export default function MerchantOrderDetail() {
   const [deliverCode, setDeliverCode] = useState('');
   // The invoice sheet, opened by tapping the invoice number on its card.
   const [showInvoice, setShowInvoice] = useState(false);
+  // The branch the order is collected from, so the customer map draws the route office → cliente
+  // rather than a lone pin. Same rule the client's tracking map uses: the branch the order names,
+  // falling back to the first one with a pin.
+  const [office, setOffice] = useState<api.MerchantOffice | null>(null);
 
   const load = useCallback(async () => {
     const res = await api.merchantOrders();
@@ -61,6 +65,20 @@ export default function MerchantOrderDetail() {
     const timer = setInterval(load, 15000);
     return () => { alive = false; clearInterval(timer); };
   }, [load]));
+
+  // Fetched once per order -- a branch does not move while a screen is open.
+  const merchantCompanyId = order?.merchantCompanyId;
+  const officeId = order?.officeId;
+  useEffect(() => {
+    if (!merchantCompanyId) return;
+    let alive = true;
+    api.merchantOffices(merchantCompanyId).then((res) => {
+      if (!alive || !res.success) return;
+      const pinned = (res.data ?? []).filter((o) => o.latitude != null && o.longitude != null);
+      setOffice(pinned.find((o) => o.id === officeId) ?? pinned[0] ?? null);
+    });
+    return () => { alive = false; };
+  }, [merchantCompanyId, officeId]);
 
   const act = async (fn: (id: string) => Promise<api.ApiResponse<Order>>) => {
     if (!order) return false;
@@ -79,6 +97,20 @@ export default function MerchantOrderDetail() {
   const confirmWithQueue = async (queueMinutes: number) => {
     const ok = await act((i) => api.confirmMerchantOrder(i, queueMinutes));
     if (ok) setConfirming(false);
+  };
+
+  // Issues the invoice with the company's defaults, then opens it -- the delivered-order fallback
+  // for orders the READY auto-invoice missed. The reload in between is what fills documentNumber,
+  // flipping the button to "Ver factura" for later visits.
+  const invoiceNow = async () => {
+    if (!order) return;
+    setBusy(true);
+    setError(null);
+    const res = await api.autoInvoiceMerchantOrder(order.id);
+    setBusy(false);
+    if (!res.success) { setError(res.message); return; }
+    await load();
+    setShowInvoice(true);
   };
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/home'));
@@ -103,6 +135,9 @@ export default function MerchantOrderDetail() {
 
   const s = statusOf(order);
   const grandTotal = order.total + (order.deliveryFee ?? 0);
+  // In the driver flow only the DELIVERY reaches DELIVERED (the order stays READY); the counter's
+  // pickup handover marks both. Either one means the goods are in the customer's hands.
+  const delivered = order.status === 'DELIVERED' || order.deliveryStatus === 'DELIVERED';
 
   return (
     <GradientBackground>
@@ -150,6 +185,17 @@ export default function MerchantOrderDetail() {
                   lat: String(order.latitude), lng: String(order.longitude),
                   ...(order.address ? { address: order.address } : {}),
                   title: order.customerName ?? 'Entregar',
+                  // The customer's face on their door, when they have one.
+                  ...(order.customerImageUrl ? { img: order.customerImageUrl } : {}),
+                  // The branch as the route's other end, so the map shows the street route between
+                  // the shop and the customer rather than a lone pin.
+                  ...(office ? {
+                    olat: String(office.latitude),
+                    olng: String(office.longitude),
+                    otitle: office.name || 'Comercio',
+                    ...(office.address ? { oaddress: office.address } : {}),
+                    ...(order.merchantImageUrl ? { oimg: order.merchantImageUrl } : {}),
+                  } : {}),
                 },
               })}
             >
@@ -309,6 +355,22 @@ export default function MerchantOrderDetail() {
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Entregar pedido</Text>}
             </Pressable>
           </View>
+        ) : null}
+
+        {/* A delivered order has no pipeline left, so the one thing still worth doing -- the
+            invoice -- gets a full button of its own: view it when one exists, or issue it with the
+            company's defaults when the order was delivered without one (auto-invoicing failed at
+            "listo", or the order predates it). */}
+        {delivered ? (
+          order.documentNumber ? (
+            <Pressable style={[styles.action, styles.ready]} onPress={() => setShowInvoice(true)} accessibilityRole="button">
+              <Text style={[styles.actionText, styles.readyText]}>🧾 Ver factura</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={[styles.action, styles.ready, busy && styles.disabled]} disabled={busy} onPress={invoiceNow} accessibilityRole="button">
+              {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>🧾 Facturar pedido</Text>}
+            </Pressable>
+          )
         ) : null}
       </ScrollView>
 

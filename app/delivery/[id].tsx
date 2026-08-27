@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth';
 import * as api from '../../src/api';
 import * as outbox from '../../src/outbox';
@@ -9,6 +9,7 @@ import type { Delivery } from '../../src/api';
 import type { OutboxItem } from '../../src/outbox';
 import { formatEta, useRouteEta } from '../../src/eta';
 import { GradientBackground, t } from '../../src/theme';
+import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 
 // Named by leg, matching Mi ruta: a claimed delivery is a ride to the merchant's office, and a
 // started one is the ride to the customer. Same wording in both places so a driver reads one story.
@@ -120,7 +121,16 @@ export default function DeliveryDetail() {
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe}>
-      <Stack.Screen options={{ headerShown: true, title: delivery.deliveryNumber ?? 'Entrega', headerStyle: { backgroundColor: '#0b2a6b' }, headerTintColor: '#fff', headerTitleStyle: { color: '#fff' } }} />
+      {/* The app's own header instead of the native stack bar, so the back control is the same
+          pill every other screen uses. */}
+      <View style={styles.header}>
+        <BackButton
+          label="Regresar"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
+        />
+        <Text style={styles.heading} numberOfLines={1}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
+        <View style={{ width: BACK_BUTTON_WIDTH }} />
+      </View>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.rowBetween}>
           <Text style={styles.number}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
@@ -253,6 +263,12 @@ export default function DeliveryDetail() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: t.border,
+  },
+  heading: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   container: { padding: 20, gap: 14, maxWidth: 480, width: '100%', alignSelf: 'center' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
