@@ -92,11 +92,15 @@ export async function currentPosition(): Promise<DevicePosition | null> {
  * The device position, kept current while the screen is mounted -- the driver's own dot on the
  * route map. Null until the first fix arrives, and forever when the permission is refused, so
  * callers render without it rather than block on it.
+ *
+ * `enabled: false` never touches the GPS (and never prompts) -- for screens that only track the
+ * device on some of their openings, since a hook cannot be called conditionally.
  */
-export function useDriverPosition(): DevicePosition | null {
+export function useDriverPosition(enabled = true): DevicePosition | null {
   const [position, setPosition] = useState<DevicePosition | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     let subscription: Location.LocationSubscription | null = null;
 
@@ -129,7 +133,7 @@ export function useDriverPosition(): DevicePosition | null {
     })();
 
     return () => { active = false; stopWatching(subscription); };
-  }, []);
+  }, [enabled]);
 
   return position;
 }

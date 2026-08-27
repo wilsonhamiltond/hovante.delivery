@@ -111,13 +111,20 @@ ${markersJs()}
     var at = { lat: la, lng: ln };
     // Fixes can beat the Maps library: hold the newest one and place it once the map exists.
     if (!mapRef) { pendingDriver = { at: at, acc: acc }; return; }
+    // Kept for the replay after the stops resolve: a fix that lands in the window between the map
+    // existing and the geocoder answering has no leg target yet, and a stationary driver
+    // (distance-gated watch) may never send another one to retry with.
+    lastDriver = { at: at, acc: acc };
     moveDriver(at, acc);
 
-    // Leg 1, redrawn as the driver rides. Only once they have actually covered ground: routing on
-    // every fix would spend a Directions request on a moto idling at a light.
-    if (pickupPoint && (!legDrawnFrom || metresBetween(legDrawnFrom, at) > 75)) {
+    // Leg 1, redrawn as the driver rides. Its far end is the next stop on the ride: the pickup
+    // when there is one, otherwise straight to the client -- which is what the single-pin map
+    // becomes when the driver's own position is pushed in. Only once they have actually covered
+    // ground: routing on every fix would spend a Directions request on a moto idling at a light.
+    var driverTarget = pickupPoint || clientPoint;
+    if (driverTarget && (!legDrawnFrom || metresBetween(legDrawnFrom, at) > 75)) {
       legDrawnFrom = at;
-      drawLeg(at, pickupPoint, '#f59e0b', driverLeg);
+      drawLeg(at, driverTarget, '#f59e0b', driverLeg);
     }
 
     // Only the first fix widens the framing, so a driver who starts outside the two stops still
@@ -144,7 +151,7 @@ ${markersJs()}
   // its sequence number discards a slow answer that lands after a newer request went out.
   var driverLeg = { seq: 0, line: null, renderer: null };
   var stopsLeg = { seq: 0, line: null, renderer: null };
-  var pickupPoint = null, legDrawnFrom = null;
+  var pickupPoint = null, clientPoint = null, legDrawnFrom = null, lastDriver = null;
 
   function clearLeg(leg) {
     if (leg.line) { leg.line.setMap(null); leg.line = null; }
@@ -274,14 +281,18 @@ ${markersJs()}
       else if (count === 1) { map.setCenter(bounds.getCenter()); map.setZoom(16); }
 
       pickupPoint = pp;
+      clientPoint = cp;
 
       // Leg 2, office -> client. Fixed for the life of the screen: neither end moves.
       if (pp && cp) drawLeg(pp, cp, '#2563eb', stopsLeg);
 
-      // Any fix that arrived while the stops were resolving. Replayed after pickupPoint is set, so
-      // it draws leg 1 rather than only placing the dot, and after the framing above so the driver
-      // widens the view rather than being overwritten by it.
-      if (pendingDriver) { var pd = pendingDriver; pendingDriver = null; window.setDriver(pd.at.lat, pd.at.lng, pd.acc); }
+      // Any fix that arrived while the stops were resolving -- before the map existed
+      // (pendingDriver) or after it but before this geocode answered (lastDriver). Replayed after
+      // the points are set, so it draws leg 1 rather than only placing the dot, and after the
+      // framing above so the driver widens the view rather than being overwritten by it.
+      var replay = pendingDriver || lastDriver;
+      pendingDriver = null;
+      if (replay) window.setDriver(replay.at.lat, replay.at.lng, replay.acc);
     });
   }
 </script>

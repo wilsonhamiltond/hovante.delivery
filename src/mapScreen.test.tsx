@@ -17,17 +17,34 @@ jest.mock('../src/RouteMap', () => ({
   RouteMap: (props: unknown) => { mockRouteMap(props); return null; },
 }));
 
+// The device position, controllable per test. The screen only tracks when the opener asked
+// (me=1), so the mock records the enabled flag it was called with.
+const mockUseDriverPosition = jest.fn().mockReturnValue(null);
+jest.mock('../src/position', () => ({
+  useDriverPosition: (enabled?: boolean) => mockUseDriverPosition(enabled),
+  useCoarsePosition: (p: unknown) => p,
+}));
+
+// The estimate is a network call; the plumbing under test is which stops and driver reach the
+// map, so it stays silent here.
+jest.mock('../src/eta', () => ({
+  ...jest.requireActual('../src/eta'),
+  useRouteEta: jest.fn().mockReturnValue(null),
+}));
+
 const CLIENT = { lat: '18.4761', lng: '-69.9412', address: 'Calle 1, Piantini' };
 const OFFICE = { olat: '18.4861', olng: '-69.9312', oaddress: 'Av. Churchill', otitle: 'Volao Test' };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockUseDriverPosition.mockReturnValue(null);
   mockParams = {};
 });
 
 const stops = () => mockRouteMap.mock.calls[0][0] as {
   pickup: { lat: number | null; title: string; imageUrl: string | null };
   client: { lat: number | null; title: string; imageUrl: string | null };
+  driver: { lat: number; lng: number } | null;
 };
 
 it('draws the route between the branch and the delivery address when both are given', async () => {
@@ -85,6 +102,30 @@ it('leaves a pin plain when its face is missing', async () => {
 
   expect(stops().client.imageUrl).toBeNull();
   expect(stops().pickup.imageUrl).toBeNull();
+});
+
+// The driver screens open the map with me=1: their own live position becomes the route's origin,
+// so the single pin turns into the ride to it.
+it('routes from the device when the opener asked (me=1)', async () => {
+  mockUseDriverPosition.mockReturnValue({ lat: 18.5, lng: -69.95, accuracyM: 12 });
+  mockParams = { ...CLIENT, title: 'Entregar', me: '1' };
+
+  await render(<MapScreen />);
+
+  expect(mockUseDriverPosition).toHaveBeenCalledWith(true);
+  expect(stops().driver).toEqual({ lat: 18.5, lng: -69.95, accuracyM: 12 });
+});
+
+// A client reading their own order must never be prompted for a location permission: without
+// me=1 the tracking hook is disabled and no driver dot reaches the map.
+it('never tracks the device when the opener did not ask', async () => {
+  mockUseDriverPosition.mockReturnValue({ lat: 18.5, lng: -69.95, accuracyM: 12 });
+  mockParams = { ...CLIENT, ...OFFICE, title: 'Tu dirección' };
+
+  await render(<MapScreen />);
+
+  expect(mockUseDriverPosition).toHaveBeenCalledWith(false);
+  expect(stops().driver).toBeNull();
 });
 
 it('says so when the order has no location at all', async () => {

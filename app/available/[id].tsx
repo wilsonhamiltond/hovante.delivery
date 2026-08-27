@@ -50,6 +50,8 @@ export default function AvailableDeliveryScreen() {
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
+  // `me: '1'`: the map tracks the driver's own position and draws the route from it to the stop,
+  // so judging the ride is looking at it rather than reading a number.
   const openMap = (params: { lat?: number | null; lng?: number | null; address?: string | null; title: string }) => {
     if (params.lat == null && !params.address) return;
     router.push({
@@ -59,6 +61,7 @@ export default function AvailableDeliveryScreen() {
         ...(params.lng != null ? { lng: String(params.lng) } : {}),
         ...(params.address ? { address: params.address } : {}),
         title: params.title,
+        me: '1',
       },
     });
   };

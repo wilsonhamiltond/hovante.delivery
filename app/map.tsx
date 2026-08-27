@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RouteMap } from '../src/RouteMap';
+import { formatEta, useRouteEta } from '../src/eta';
+import { useCoarsePosition, useDriverPosition } from '../src/position';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
@@ -12,11 +14,15 @@ import { GradientBackground, t } from '../src/theme';
 // zooms to it. A point with no coordinates is forward-geocoded from its address by the map itself.
 export default function MapScreen() {
   const router = useRouter();
-  const { lat, lng, address, title, img, olat, olng, oaddress, otitle, oimg } = useLocalSearchParams<{
+  const { lat, lng, address, title, img, me, olat, olng, oaddress, otitle, oimg } = useLocalSearchParams<{
     lat?: string; lng?: string; address?: string; title?: string;
     /** The face for the destination pin (the customer's photo). Optional; a pin without one keeps
      *  its numbered teardrop. */
     img?: string;
+    /** '1' routes from the device itself: the driver's live dot plus the street route from it to
+     *  the pin, redrawn as they ride. The driver screens send it; client/merchant openings do not,
+     *  so those never prompt for a location permission. */
+    me?: string;
     // The other end of the route, when there is one: the merchant's branch. Optional -- without it
     // this stays the single-pin map it has always been.
     olat?: string; olng?: string; oaddress?: string; otitle?: string; oimg?: string;
@@ -33,6 +39,17 @@ export default function MapScreen() {
   const hasOrigin = origin.lat !== null || !!origin.address;
   const heading = title || 'Ubicación';
   const hasPoint = point.lat !== null || !!point.address;
+
+  const fromMe = me === '1';
+  // The driver's own dot, live while the screen is open; the map draws the route from it to the
+  // pin. Disabled entirely when the opener did not ask, so this screen stays permissionless for
+  // clients and merchants.
+  const driver = useDriverPosition(fromMe);
+  // The estimate re-requests when its origin moves in hundred-metre steps, not on every GPS tick.
+  const etaOrigin = useCoarsePosition(fromMe ? driver : null, 100);
+  // Driving estimate me -> pin, for the footer. Silent when the pin is address-only (no
+  // coordinates to route to) or OSRM cannot answer -- the route line still tells the story.
+  const eta = useRouteEta(etaOrigin?.lat, etaOrigin?.lng, point.lat, point.lng);
 
   return (
     <GradientBackground>
@@ -58,9 +75,11 @@ export default function MapScreen() {
                 }
                 : { lat: null, lng: null, address: null, label: '', title: '', color: '#16a34a' }}
               client={{ ...point, label: '📍', title: heading, color: '#16a34a', imageUrl: img ?? null }}
+              driver={fromMe ? driver : null}
             />
-            {address || (hasOrigin && oaddress) ? (
+            {address || (hasOrigin && oaddress) || eta ? (
               <View style={styles.footer}>
+                {eta ? <Text style={styles.eta}>⏱️ {formatEta(eta)}</Text> : null}
                 {hasOrigin && oaddress ? (
                   <>
                     <Text style={styles.footerLabel}>{otitle || 'Comercio'}</Text>
@@ -89,6 +108,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   muted: { color: t.textMuted, textAlign: 'center' },
   footer: { padding: 16, gap: 2, borderTopWidth: 1, borderTopColor: t.border },
+  eta: { color: t.text, fontWeight: '800', fontSize: 14 },
   footerLabel: { marginTop: 6, fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
   footerText: { fontSize: 15, fontWeight: '600', color: t.text, marginTop: 3 },
 });

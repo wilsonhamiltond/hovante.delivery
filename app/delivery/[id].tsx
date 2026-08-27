@@ -53,8 +53,10 @@ export default function DeliveryDetail() {
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
   // Both open the in-app map screen rather than handing off to Google Maps, so the driver never
-  // leaves the app mid-route. The map geocodes an address-only stop itself.
-  const openMap = (params: { lat?: number | null; lng?: number | null; address?: string | null; title: string }) => {
+  // leaves the app mid-route. The map geocodes an address-only stop itself. `me: '1'` is what
+  // makes it a route rather than a lone pin: the map tracks the driver's own position and draws
+  // the street route from it to the stop.
+  const openMap = (params: { lat?: number | null; lng?: number | null; address?: string | null; title: string; img?: string | null }) => {
     if (params.lat == null && !params.address) return;
     router.push({
       pathname: '/map',
@@ -62,7 +64,9 @@ export default function DeliveryDetail() {
         ...(params.lat != null ? { lat: String(params.lat) } : {}),
         ...(params.lng != null ? { lng: String(params.lng) } : {}),
         ...(params.address ? { address: params.address } : {}),
+        ...(params.img ? { img: params.img } : {}),
         title: params.title,
+        me: '1',
       },
     });
   };
@@ -71,6 +75,7 @@ export default function DeliveryDetail() {
     lng: delivery?.longitude,
     address: delivery?.addressLine,
     title: delivery?.recipientName ?? 'Entregar',
+    img: delivery?.customerImageUrl,
   });
   // The pickup now opens on the merchant's own pin when its office has one, exactly like the
   // drop-off above. The address still goes along so the map can geocode it when it does not.
@@ -79,6 +84,7 @@ export default function DeliveryDetail() {
     lng: delivery?.pickupLongitude,
     address: delivery?.pickupAddress,
     title: delivery?.pickupName ?? 'Recoger',
+    img: delivery?.pickupImageUrl,
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
 
