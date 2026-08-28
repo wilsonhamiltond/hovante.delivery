@@ -1,4 +1,4 @@
-import { driverNotices, merchantNotices, notices, unreadCount } from './notifications';
+import { driverNotices, merchantNotices, notices, unreadCount, visibleNotices } from './notifications';
 import type { Order } from './api';
 
 // The inbox is a reading of the customer's orders, so what is tested here is that reading: one
@@ -77,6 +77,26 @@ describe('unreadCount', () => {
   // Marks outlive the orders they belonged to; a stale one must not subtract from the count.
   it('ignores marks for entries that are no longer listed', () => {
     expect(unreadCount(list, ['gone', 'a'])).toBe(1);
+  });
+});
+
+describe('visibleNotices', () => {
+  const list = [
+    { id: 'o1:CONFIRMED|', orderId: 'o1', title: '', body: '', color: '#000', at: '2026-08-13T12:00:00.000Z' },
+    { id: 'o2:PENDING|', orderId: 'o2', title: '', body: '', color: '#000', at: '2026-08-13T11:00:00.000Z' },
+  ];
+
+  it('drops cleared entries and keeps the rest', () => {
+    expect(visibleNotices(list, ['o1:CONFIRMED|']).map((n) => n.id)).toEqual(['o2:PENDING|']);
+    expect(visibleNotices(list, [])).toHaveLength(2);
+  });
+
+  // Clearing is per STATE, not per order: the id changes when the order advances, so a cleared
+  // order must resurface with its next piece of news.
+  it('lets a cleared order come back when it advances', () => {
+    const advanced = [{ ...list[0], id: 'o1:CONFIRMED|ASSIGNED' }];
+
+    expect(visibleNotices(advanced, ['o1:CONFIRMED|'])).toHaveLength(1);
   });
 });
 

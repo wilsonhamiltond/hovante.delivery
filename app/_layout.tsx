@@ -131,9 +131,13 @@ function RootNavigator() {
     if (profileComplete === null) return;
 
     // A social sign-in mints the account from the provider's email and name alone, so the person
-    // info and location steps still have to be collected before the app is usable.
+    // info and location steps are still owed -- but only where they are actually needed. Browsing
+    // (the guest routes) stays open to an incomplete account: forcing the form before the
+    // marketplace is the "registration before browsing" shape guideline 5.1.1 rejects. Landing on
+    // the form right after sign-in is kept (an auth screen is not a guest route); the form offers
+    // a way out to explore, and checkout sends them back when the details really are required.
     if (!profileComplete) {
-      if (!onCompleteProfile) router.replace('/complete-profile');
+      if (!onCompleteProfile && !onGuestRoute) router.replace('/complete-profile');
     } else if (onAuthScreen || onCompleteProfile) {
       router.replace('/home');
     }

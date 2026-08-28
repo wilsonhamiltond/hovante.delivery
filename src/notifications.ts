@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useFocusEffect } from 'expo-router';
@@ -163,40 +163,61 @@ export function unreadCount(list: Notice[], read: string[]): number {
   return list.filter((n) => !seen.has(n.id)).length;
 }
 
-// Read marks live on the device, like the outbox and the pickup progress: localStorage on web,
-// SecureStore on a phone. They are per-device on purpose -- "I have seen this" is about this
-// handset, and there is no server field to hang it on.
+// Read and dismissed marks live on the device, like the outbox and the pickup progress:
+// localStorage on web, SecureStore on a phone. They are per-device on purpose -- "I have seen
+// this" and "I cleared this" are about this handset, and there is no server field to hang them on.
 const READ_KEY = 'hovante_notifications_read';
+const DISMISSED_KEY = 'hovante_notifications_dismissed';
 // Trimmed when saving: an account with hundreds of past orders would otherwise grow this forever,
 // and a mark old enough to fall off is one whose order is long finished.
-const READ_LIMIT = 200;
+const MARK_LIMIT = 200;
 
-export async function loadRead(): Promise<string[]> {
+async function loadMarks(key: string): Promise<string[]> {
   try {
     const raw = Platform.OS === 'web'
-      ? globalThis.localStorage?.getItem(READ_KEY)
-      : await SecureStore.getItemAsync(READ_KEY);
+      ? globalThis.localStorage?.getItem(key)
+      : await SecureStore.getItemAsync(key);
     const parsed = raw ? JSON.parse(raw) : null;
     return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
   } catch {
-    // Unreadable marks mean everything reads as unread, which is the safe way to be wrong here.
+    // Unreadable marks mean everything reads as unread (or undismissed), which is the safe way to
+    // be wrong here: the worst outcome is seeing a notice again.
     return [];
   }
 }
 
-export async function saveRead(ids: string[]): Promise<void> {
-  const raw = JSON.stringify(ids.slice(-READ_LIMIT));
+async function saveMarks(key: string, ids: string[]): Promise<void> {
+  const raw = JSON.stringify(ids.slice(-MARK_LIMIT));
   try {
-    if (Platform.OS === 'web') globalThis.localStorage?.setItem(READ_KEY, raw);
-    else await SecureStore.setItemAsync(READ_KEY, raw);
-  } catch { /* a failed mark only means the badge comes back; never worth an error */ }
+    if (Platform.OS === 'web') globalThis.localStorage?.setItem(key, raw);
+    else await SecureStore.setItemAsync(key, raw);
+  } catch { /* a failed mark only means the notice comes back; never worth an error */ }
 }
 
-/** Adds these ids to what has been seen, keeping the rest. */
-export async function markRead(ids: string[]): Promise<string[]> {
-  const merged = [...new Set([...(await loadRead()), ...ids])];
-  await saveRead(merged);
+/** Adds these ids to the named mark set, keeping the rest, and returns the merged set. */
+async function addMarks(key: string, ids: string[]): Promise<string[]> {
+  const merged = [...new Set([...(await loadMarks(key)), ...ids])];
+  await saveMarks(key, merged);
   return merged;
+}
+
+export const loadRead = () => loadMarks(READ_KEY);
+export const saveRead = (ids: string[]) => saveMarks(READ_KEY, ids);
+/** Adds these ids to what has been seen, keeping the rest. */
+export const markRead = (ids: string[]) => addMarks(READ_KEY, ids);
+
+export const loadDismissed = () => loadMarks(DISMISSED_KEY);
+/** Adds these ids to what has been cleared from the inbox, keeping the rest. */
+export const markDismissed = (ids: string[]) => addMarks(DISMISSED_KEY, ids);
+
+/**
+ * The list with cleared entries removed. Because a notice's id carries the order's STATE, a
+ * dismissed order comes back the moment it advances -- clearing "en preparación" does not swallow
+ * the later "va en camino", which is exactly the difference between "seen it" and "never tell me".
+ */
+export function visibleNotices(list: Notice[], dismissed: string[]): Notice[] {
+  const gone = new Set(dismissed);
+  return list.filter((n) => !gone.has(n.id));
 }
 
 /** Whose news this is. Each role reads a different list and is told a different thing about it. */
@@ -239,6 +260,7 @@ async function loadFor(audience: Audience): Promise<Notice[]> {
 export function useNotices(audience: Audience | null = 'client') {
   const [list, setList] = useState<Notice[]>([]);
   const [read, setRead] = useState<string[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -246,9 +268,10 @@ export function useNotices(audience: Audience | null = 'client') {
     // the role before it can ask. Fetching the client's orders meanwhile would spend a request and
     // flash the wrong list at a driver.
     if (!audience) return;
-    const [fresh, marks] = await Promise.all([loadFor(audience), loadRead()]);
+    const [fresh, marks, gone] = await Promise.all([loadFor(audience), loadRead(), loadDismissed()]);
     setList(fresh);
     setRead(marks);
+    setDismissed(gone);
   }, [audience]);
 
   useFocusEffect(useCallback(() => {
@@ -258,9 +281,27 @@ export function useNotices(audience: Audience | null = 'client') {
     return () => { alive = false; };
   }, [load, audience]));
 
-  const markAllRead = useCallback(async () => {
-    setRead(await markRead(list.map((n) => n.id)));
-  }, [list]);
+  // What the screen and the badge actually see: cleared entries are gone from both, so a dismissed
+  // notice cannot keep a bell lit any more than it can sit in the list.
+  const visible = useMemo(() => visibleNotices(list, dismissed), [list, dismissed]);
 
-  return { list, read, loading, unread: unreadCount(list, read), markAllRead, reload: load };
+  const markAllRead = useCallback(async () => {
+    setRead(await markRead(visible.map((n) => n.id)));
+  }, [visible]);
+
+  /** Clears one entry -- tapping a notice both opens its order and takes it off the list. */
+  const dismiss = useCallback(async (id: string) => {
+    setDismissed(await markDismissed([id]));
+  }, []);
+
+  /** The "clear all" button: empties the inbox as it stands now. */
+  const dismissAll = useCallback(async () => {
+    setDismissed(await markDismissed(visible.map((n) => n.id)));
+  }, [visible]);
+
+  return {
+    list: visible, read, loading,
+    unread: unreadCount(visible, read),
+    markAllRead, dismiss, dismissAll, reload: load,
+  };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
@@ -25,6 +26,7 @@ const STEPS = ['Datos', 'Ubicación'];
 // Nobody navigates here: the gate in _layout sends every signed-in account that still owes these
 // details, so closing the app part-way through lands back here rather than in a half-set-up home.
 export default function CompleteProfileScreen() {
+  const router = useRouter();
   const { refreshProfile, signOut } = useAuth();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,12 @@ export default function CompleteProfileScreen() {
   // Step 1: who you are. One field for the whole name, split on submit -- the account stores a name
   // and a surname separately. Pre-filled from the provider's display name where it can be.
   const [fullName, setFullName] = useState('');
+  // True when the provider already supplied a usable full name (Apple's sheet, Google's profile).
+  // The name field is then not shown at all: App Review guideline 4 rejects re-asking for what
+  // Sign in with Apple already provided (this happened to the 1.0 submission), and the same
+  // courtesy applies to Google. The known name is submitted silently; only what no provider can
+  // give -- the phone and the delivery address -- is asked.
+  const [nameKnown, setNameKnown] = useState(false);
   const [phone, setPhone] = useState('');
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   // Step 2: where to deliver.
@@ -53,6 +61,10 @@ export default function CompleteProfileScreen() {
       // (from an earlier attempt), otherwise the display name carries both parts.
       const joined = [res.data.name, res.data.lastName].filter(Boolean).join(' ').trim();
       setFullName((current) => current || joined);
+      // "Usable" means it splits into a name AND a surname -- the same bar the submit below is
+      // held to. A single word (or an email-derived stand-in) still opens the field to be
+      // completed by hand.
+      if (splitDisplayName(joined).lastName) setNameKnown(true);
       // Masked on the way in too: a number stored before this format existed would otherwise show
       // raw and then be rejected by the very validation that is about to run on it.
       // Split a stored number back into its country and national part, so an existing one opens on
@@ -92,9 +104,13 @@ export default function CompleteProfileScreen() {
   const next = () => {
     setError(null);
     if (step === 1) {
-      if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
-      // completeProfile refuses a blank surname, so one word cannot be enough here.
-      if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
+      // A known name was never on screen, so it cannot be re-validated at the person -- it already
+      // passed the same split test when it was recognised.
+      if (!nameKnown) {
+        if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
+        // completeProfile refuses a blank surname, so one word cannot be enough here.
+        if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
+      }
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
       if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
       return setStep(2);
@@ -161,16 +177,33 @@ export default function CompleteProfileScreen() {
 
         {step === 1 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Ya verificamos tu correo. Solo falta saber quién eres y cómo contactarte.</Text>
-            <Text style={styles.label}>Nombre y apellido</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
-              autoCapitalize="words" value={fullName} onChangeText={setFullName} />
+            {nameKnown ? (
+              // The provider already told us who they are -- say so instead of asking again.
+              <Text style={styles.lead}>
+                Hola, {splitDisplayName(fullName).name}. Tu nombre y correo ya vienen de tu cuenta.
+                Solo falta un teléfono de contacto.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.lead}>Ya verificamos tu correo. Solo falta saber quién eres y cómo contactarte.</Text>
+                <Text style={styles.label}>Nombre y apellido</Text>
+                <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
+                  autoCapitalize="words" value={fullName} onChangeText={setFullName} />
+              </>
+            )}
             <Text style={styles.label}>Teléfono</Text>
             <PhoneInput
               country={phoneCountry}
               national={phone}
               onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
             />
+
+            {/* The details are only truly needed to place an order, so browsing first is allowed
+                (guideline 5.1.1: only account-based features may demand them). Checkout brings
+                anyone who skipped back here. */}
+            <Pressable onPress={() => router.replace('/home')} style={styles.signOut} accessibilityRole="button">
+              <Text style={styles.signOutText}>Ahora no, quiero explorar</Text>
+            </Pressable>
 
             <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
               <Text style={styles.signOutText}>Usar otra cuenta</Text>

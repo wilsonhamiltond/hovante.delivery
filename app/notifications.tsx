@@ -36,7 +36,7 @@ export default function NotificationsScreen() {
     return () => { alive = false; };
   }, []);
 
-  const { list, read, loading, markAllRead } = useNotices(audience);
+  const { list, read, loading, markAllRead, dismiss, dismissAll } = useNotices(audience);
   const seen = new Set(read);
 
   // Opening the screen IS reading them: marked once the list has arrived, so the badge clears
@@ -54,11 +54,18 @@ export default function NotificationsScreen() {
         // counter's screen, the customer the tracking timeline. The merchant case matters most --
         // /order/{id} only loads the customer's own orders, so sending a merchant there ended in
         // "pedido no encontrado".
-        onPress={() => router.push(
-          audience === 'driver' ? `/delivery/${n.orderId}`
-            : audience === 'merchant' ? `/merchant-order/${n.orderId}`
-            : `/order/${n.orderId}`,
-        )}
+        //
+        // Opening a notice also clears it: once they are looking at the order, the inbox entry has
+        // done its job. The order's NEXT state change makes a fresh entry (new id), so this never
+        // silences future news.
+        onPress={() => {
+          void dismiss(n.id);
+          router.push(
+            audience === 'driver' ? `/delivery/${n.orderId}`
+              : audience === 'merchant' ? `/merchant-order/${n.orderId}`
+              : `/order/${n.orderId}`,
+          );
+        }}
         accessibilityRole="button"
       >
         {/* The dot the eye lands on: colour says which state, presence says "this is new". */}
@@ -78,7 +85,19 @@ export default function NotificationsScreen() {
         <View style={styles.header}>
           <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
           <Text style={styles.heading}>Notificaciones</Text>
-          <View style={{ width: BACK_BUTTON_WIDTH }} />
+          {/* Kept the back button's width when empty so the heading stays centred either way. */}
+          {list.length > 0 ? (
+            <Pressable
+              onPress={() => void dismissAll()}
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar todas las notificaciones"
+              hitSlop={8}
+            >
+              <Text style={styles.clearAll}>Limpiar</Text>
+            </Pressable>
+          ) : (
+            <View style={{ width: BACK_BUTTON_WIDTH }} />
+          )}
         </View>
 
         {loading ? (
@@ -115,6 +134,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: t.border,
   },
   heading: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
+  clearAll: { color: t.textMuted, fontSize: 13, fontWeight: '800' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
   empty: { color: t.text, fontSize: 16, fontWeight: '800' },
   emptyHint: { color: t.textMuted, fontSize: 13, lineHeight: 19, textAlign: 'center' },

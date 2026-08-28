@@ -17,10 +17,15 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockMarkAllRead = jest.fn().mockResolvedValue(undefined);
+const mockDismiss = jest.fn().mockResolvedValue(undefined);
+const mockDismissAll = jest.fn().mockResolvedValue(undefined);
 let mockInbox: { list: Notice[]; read: string[]; loading: boolean };
 jest.mock('./notifications', () => ({
   ...jest.requireActual('./notifications'),
-  useNotices: () => ({ ...mockInbox, markAllRead: mockMarkAllRead, unread: 0, reload: jest.fn() }),
+  useNotices: () => ({
+    ...mockInbox, markAllRead: mockMarkAllRead, dismiss: mockDismiss, dismissAll: mockDismissAll,
+    unread: 0, reload: jest.fn(),
+  }),
 }));
 
 const notice = (over: Partial<Notice> = {}): Notice => ({
@@ -64,11 +69,30 @@ it('counts opening the screen as reading them', async () => {
   expect(mockMarkAllRead).toHaveBeenCalled();
 });
 
-it('opens the order a notice is about', async () => {
+// Tapping does two things at once: opens the order, and takes the entry off the list -- looking at
+// the order is the end of that notice's life.
+it('opens the order a notice is about, and clears the notice', async () => {
   mockInbox = { list: [notice()], read: [], loading: false };
   await render(<NotificationsScreen />);
 
   fireEvent.press(screen.getByText('PED-1 · Repartidor asignado'));
 
   expect(mockPush).toHaveBeenCalledWith('/order/o1');
+  expect(mockDismiss).toHaveBeenCalledWith('o1:READY|ASSIGNED');
+});
+
+it('clears the whole inbox from the header button', async () => {
+  mockInbox = { list: [notice()], read: [], loading: false };
+  await render(<NotificationsScreen />);
+
+  fireEvent.press(screen.getByText('Limpiar'));
+
+  expect(mockDismissAll).toHaveBeenCalled();
+});
+
+// An empty inbox has nothing to clear, so the button would only be a dead control.
+it('hides the clear button when there is nothing to clear', async () => {
+  await render(<NotificationsScreen />);
+
+  expect(screen.queryByText('Limpiar')).toBeNull();
 });

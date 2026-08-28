@@ -31,7 +31,7 @@ const money = (n: number) => `RD$${n.toFixed(2)}`;
 // rather than making the customer pin an address the order will never use.
 export default function CartScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, profileComplete } = useAuth();
   const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
@@ -152,6 +152,10 @@ export default function CartScreen() {
     // an account -- and cancelling leaves them on the review, cart intact (it lives in memory
     // above the navigator, so it also survives the trip through login).
     if (!token && stepKey === 'cart') { promptLogin(); return; }
+    // A signed-in account that skipped the completion form ("Ahora no, quiero explorar") is
+    // brought back to it HERE, where the phone and address are genuinely needed -- an order
+    // cannot be delivered without them.
+    if (token && profileComplete === false && stepKey === 'cart') { router.push('/complete-profile'); return; }
     setStepKey(steps[Math.min(steps.length - 1, stepIndex + 1)]);
   };
   const goBack = () => setStepKey(steps[Math.max(0, stepIndex - 1)]);
