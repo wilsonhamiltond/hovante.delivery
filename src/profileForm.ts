@@ -28,6 +28,34 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   return null;
 }
 
+/**
+ * The mirror image: turns a TYPED address into a pin, with the same Geocoding API so the result
+ * matches what picking off the map would have named. Biased to the Dominican Republic
+ * (components=country:DO) so "Calle Duarte 12" finds the local one, not a namesake abroad.
+ *
+ * Null on any failure (no key, no network, nothing found): the caller keeps the pin and the text
+ * it already has, and says "not found" in its own words.
+ */
+export async function forwardGeocode(query: string): Promise<{ lat: number; lng: number; address: string | null } | null> {
+  if (!MAPS_ENABLED) return null;
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    const url = 'https://maps.googleapis.com/maps/api/geocode/json'
+      + `?address=${encodeURIComponent(q)}&components=country:DO&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const hit = json?.status === 'OK' ? json.results?.[0] : null;
+    const loc = hit?.geometry?.location;
+    if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+      return { lat: loc.lat, lng: loc.lng, address: (hit.formatted_address as string) ?? null };
+    }
+  } catch {
+    // Fall through, same as above.
+  }
+  return null;
+}
+
 // The pieces the sign-up wizard and the social profile-completion form both need. They ask for the
 // same person info and the same location; only how the account is created differs (a password and
 // an emailed code, or a provider that already proved the email).

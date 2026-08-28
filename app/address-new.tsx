@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
-import { detectCurrentLocation } from '../src/profileForm';
+import { detectCurrentLocation, forwardGeocode } from '../src/profileForm';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
 
@@ -31,6 +31,8 @@ export default function AddressNewScreen() {
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [mapKey, setMapKey] = useState(0);
   const [locating, setLocating] = useState(false);
+  // The typed-address lookup ("buscar en el mapa") in flight.
+  const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +75,26 @@ export default function AddressNewScreen() {
     if (result.location.address) setAddress(result.location.address);
   };
 
+  // The reverse of tapping the map: geocode what was typed and take the map there, pin dropped.
+  // The found formatted address replaces the raw text so what gets saved matches what a map pick
+  // would have named. Explicit (search key / button) rather than as-you-type: every lookup is a
+  // billable geocode, and the map remount that recenters it is too heavy to run per keystroke.
+  const searchAddress = async () => {
+    Keyboard.dismiss();
+    if (!address.trim() || searching) return;
+    setSearching(true);
+    setError(null);
+    const found = await forwardGeocode(address);
+    setSearching(false);
+    if (!found) {
+      setError('No se encontró esa dirección. Ajusta el texto o elige el punto en el mapa.');
+      return;
+    }
+    setCoords({ lat: found.lat, lng: found.lng });
+    setMapKey((k) => k + 1);
+    if (found.address) setAddress(found.address);
+  };
+
   const save = async () => {
     setError(null);
     // Checked in the order the fields appear on the screen.
@@ -102,6 +124,10 @@ export default function AddressNewScreen() {
   return (
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Tapping anywhere that is not a control puts the keyboard away -- the screen offered no
+            way to dismiss it once a field had focus. accessible={false} keeps this wrapper out of
+            the screen-reader tree; the children's own presses still win over it. */}
+        <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.header}>
           <BackButton onPress={back} />
           <Text style={styles.title}>{editingId ? 'Editar dirección' : 'Nueva dirección'}</Text>
@@ -128,7 +154,8 @@ export default function AddressNewScreen() {
           </View>
           {labelChoice === 'Otro' ? (
             <TextInput style={styles.input} placeholderTextColor={t.textFaint}
-              placeholder="Ej. Casa de mamá" value={customLabel} onChangeText={setCustomLabel} />
+              placeholder="Ej. Casa de mamá" value={customLabel} onChangeText={setCustomLabel}
+              returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
           ) : null}
 
           <View style={[styles.locRow, styles.locRowSpaced]}>
@@ -143,9 +170,22 @@ export default function AddressNewScreen() {
             longitude={coords.lng ?? DEFAULT_CENTER.lng}
             onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
           />
-          <Text style={styles.label}>Dirección</Text>
+          <View style={styles.locRow}>
+            <Text style={[styles.label, styles.labelInRow]}>Dirección</Text>
+            {/* Takes the map to what was typed -- the mirror of tapping the map to fill the box. */}
+            <Pressable style={styles.searchBtn} onPress={searchAddress} disabled={searching}
+              accessibilityRole="button" accessibilityLabel="Buscar la dirección en el mapa">
+              {searching
+                ? <ActivityIndicator color={t.onAccent} size="small" />
+                : <Text style={styles.locBtnText}>🔍 Buscar en el mapa</Text>}
+            </Pressable>
+          </View>
+          {/* The return key searches instead of inserting a newline: an address wants commas, not
+              line breaks, and this multiline box otherwise trapped the keyboard open. */}
           <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
-            placeholder="Se llena al elegir en el mapa" value={address} onChangeText={setAddress} multiline />
+            placeholder="Escribe y busca, o elige en el mapa" value={address} onChangeText={setAddress}
+            multiline returnKeyType="search" submitBehavior="blurAndSubmit"
+            onSubmitEditing={searchAddress} />
         </View>
 
         <View style={styles.footer}>
@@ -154,6 +194,7 @@ export default function AddressNewScreen() {
             {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{editingId ? 'Guardar cambios' : 'Guardar dirección'}</Text>}
           </Pressable>
         </View>
+        </Pressable>
       </SafeAreaView>
     </GradientBackground>
   );
@@ -161,6 +202,9 @@ export default function AddressNewScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
+  // The keyboard-dismiss wrapper is pure layout: it must fill the screen or taps below the last
+  // control would land on nothing and dismiss nothing.
+  dismissArea: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
@@ -183,6 +227,11 @@ const styles = StyleSheet.create({
   lead: { flex: 1, color: t.textMuted, fontSize: 14, fontWeight: '600' },
   locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
+  // Same pill as "Mi ubicación": the two are the same kind of act -- putting the pin somewhere
+  // the map is not currently looking.
+  searchBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 150, alignItems: 'center' },
+  // The label's own top margin, minus the row's centering -- keeps the row aligned with the pill.
+  labelInRow: { flex: 1, marginTop: 0 },
 
   footer: { padding: 20, paddingTop: 8, gap: 10 },
   error: { color: t.danger, fontSize: 14, textAlign: 'center' },
