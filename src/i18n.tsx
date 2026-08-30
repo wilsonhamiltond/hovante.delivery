@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 // App UI languages. Spanish is the source language and the default (Dominican market);
@@ -29,11 +29,28 @@ export function parseLocale(value: string | null | undefined): Locale | null {
   return (LOCALES as readonly string[]).includes(v) ? (v as Locale) : null;
 }
 
+// The phone's language, read from RN's own native settings modules — the OS setting itself,
+// asked in the order each platform exposes it. Hermes' Intl alone is not enough: its
+// resolvedOptions().locale can answer a generic en-US regardless of the device language, which
+// is why Intl is only the last resort here.
+function deviceLanguageTag(): string | null {
+  if (Platform.OS === 'web') {
+    return globalThis.navigator?.language ?? null;
+  }
+  if (Platform.OS === 'ios') {
+    const settings = NativeModules.SettingsManager?.settings;
+    return settings?.AppleLocale ?? settings?.AppleLanguages?.[0] ?? null;
+  }
+  if (Platform.OS === 'android') {
+    return NativeModules.I18nManager?.localeIdentifier ?? null;
+  }
+  return null;
+}
+
 function deviceLocale(): Locale {
   try {
-    if (Platform.OS === 'web') {
-      return parseLocale(globalThis.navigator?.language) ?? DEFAULT_LOCALE;
-    }
+    const fromDevice = parseLocale(deviceLanguageTag());
+    if (fromDevice) return fromDevice;
     return parseLocale(new Intl.DateTimeFormat().resolvedOptions().locale) ?? DEFAULT_LOCALE;
   } catch {
     return DEFAULT_LOCALE;
