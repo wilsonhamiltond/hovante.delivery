@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../src/api';
@@ -86,10 +86,9 @@ export default function AddressNewScreen() {
     setError(null);
     const found = await forwardGeocode(address);
     setSearching(false);
-    if (!found) {
-      setError('No se encontró esa dirección. Ajusta el texto o elige el punto en el mapa.');
-      return;
-    }
+    // Not found: keep the typed text and the current pin, silently -- the user can keep editing
+    // or just pick the point on the map.
+    if (!found) return;
     setCoords({ lat: found.lat, lng: found.lng });
     setMapKey((k) => k + 1);
     if (found.address) setAddress(found.address);
@@ -127,6 +126,11 @@ export default function AddressNewScreen() {
         {/* Tapping anywhere that is not a control puts the keyboard away -- the screen offered no
             way to dismiss it once a field had focus. accessible={false} keeps this wrapper out of
             the screen-reader tree; the children's own presses still win over it. */}
+        {/* iOS keeps the window size when the keyboard opens, so without this the keyboard covers
+            the address box at the bottom. "padding" raises the layout by the keyboard's height and
+            the flex map absorbs the squeeze, keeping the field visible while typing. Android
+            already resizes the window itself (softwareKeyboardLayoutMode defaults to resize). */}
+        <KeyboardAvoidingView style={styles.dismissArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.header}>
           <BackButton onPress={back} />
@@ -170,21 +174,16 @@ export default function AddressNewScreen() {
             longitude={coords.lng ?? DEFAULT_CENTER.lng}
             onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
           />
-          <View style={styles.locRow}>
+          <View style={[styles.locRow, styles.locRowSpaced]}>
             <Text style={[styles.label, styles.labelInRow]}>Dirección</Text>
-            {/* Takes the map to what was typed -- the mirror of tapping the map to fill the box. */}
-            <Pressable style={styles.searchBtn} onPress={searchAddress} disabled={searching}
-              accessibilityRole="button" accessibilityLabel="Buscar la dirección en el mapa">
-              {searching
-                ? <ActivityIndicator color={t.onAccent} size="small" />
-                : <Text style={styles.locBtnText}>🔍 Buscar en el mapa</Text>}
-            </Pressable>
+            {searching ? <ActivityIndicator color={t.accent} size="small" /> : null}
           </View>
           {/* The return key searches instead of inserting a newline: an address wants commas, not
               line breaks, and this multiline box otherwise trapped the keyboard open. */}
           <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
             placeholder="Escribe y busca, o elige en el mapa" value={address} onChangeText={setAddress}
             multiline returnKeyType="search" submitBehavior="blurAndSubmit"
+            blurOnSubmit /* react-native-web ignores submitBehavior; without this, Enter on web never submits */
             onSubmitEditing={searchAddress} />
         </View>
 
@@ -195,6 +194,7 @@ export default function AddressNewScreen() {
           </Pressable>
         </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </GradientBackground>
   );
@@ -229,7 +229,6 @@ const styles = StyleSheet.create({
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
   // Same pill as "Mi ubicación": the two are the same kind of act -- putting the pin somewhere
   // the map is not currently looking.
-  searchBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 150, alignItems: 'center' },
   // The label's own top margin, minus the row's centering -- keeps the row aligned with the pill.
   labelInRow: { flex: 1, marginTop: 0 },
 

@@ -401,7 +401,10 @@ export function isProfileComplete(profile: Me | null): boolean {
   // dropped on the way to /merchant-order because the gate never released.
   if (profile.isMerchant) return true;
   const filled = (value: string | null) => typeof value === 'string' && value.trim().length > 0;
-  return filled(profile.name) && filled(profile.lastName) && filled(profile.phone) && filled(profile.address);
+  // No lastName here: Apple only reports the name on the first authorisation, so a returning
+  // Sign in with Apple account may hold a single-word name forever. Requiring a surname would
+  // trap it in the completion form asking for what Apple already provided (guideline 4).
+  return filled(profile.name) && filled(profile.phone) && filled(profile.address);
 }
 
 // The business categories shown as the home category row. The marketplace discovery endpoint, not

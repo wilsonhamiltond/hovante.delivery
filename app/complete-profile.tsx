@@ -18,10 +18,10 @@ import { GradientBackground, t } from '../src/theme';
 
 const STEPS = ['Datos', 'Ubicación'];
 
-// Finishes an account created by a social sign-in. Facebook (or Google) proved the email and stays
-// the credential, so the sign-up wizard's first four steps have nothing to ask: no code to mail,
-// no address to verify, no password to choose. What is left is who you are and where to deliver --
-// the same two steps, posted to /auth/complete-profile.
+// Finishes an account created by a social sign-in. The provider (Apple, Google, Facebook) proved
+// the email, supplied the name and stays the credential, so the sign-up wizard's earlier steps
+// have nothing to ask: no code to mail, no name to type, no password to choose. What is left is
+// how to reach you and where to deliver -- posted to /auth/complete-profile.
 //
 // Nobody navigates here: the gate in _layout sends every signed-in account that still owes these
 // details, so closing the app part-way through lands back here rather than in a half-set-up home.
@@ -32,15 +32,14 @@ export default function CompleteProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Step 1: who you are. One field for the whole name, split on submit -- the account stores a name
-  // and a surname separately. Pre-filled from the provider's display name where it can be.
+  // The provider's name, carried through for the greeting and the submit -- NEVER asked for.
+  // App Review guideline 4 rejects asking for a name or email after Sign in with Apple (it
+  // failed the 1.0 submission, and again in 2.0 when the field reappeared for accounts whose
+  // stored name had no surname -- Apple only sends the name on the FIRST authorisation, so a
+  // returning account carries the email-derived single word instead). Whatever the account
+  // holds is kept as-is; only what no provider can give -- the phone and the delivery
+  // address -- is asked. The name stays editable later from the account screen.
   const [fullName, setFullName] = useState('');
-  // True when the provider already supplied a usable full name (Apple's sheet, Google's profile).
-  // The name field is then not shown at all: App Review guideline 4 rejects re-asking for what
-  // Sign in with Apple already provided (this happened to the 1.0 submission), and the same
-  // courtesy applies to Google. The known name is submitted silently; only what no provider can
-  // give -- the phone and the delivery address -- is asked.
-  const [nameKnown, setNameKnown] = useState(false);
   const [phone, setPhone] = useState('');
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_COUNTRY);
   // Step 2: where to deliver.
@@ -51,8 +50,8 @@ export default function CompleteProfileScreen() {
   const [mapKey, setMapKey] = useState(0);
   const [locating, setLocating] = useState(false);
 
-  // The provider's name arrives as one string; opening the form pre-filled means most people only
-  // confirm it. Anything they have already typed wins, so a slow response cannot overwrite them.
+  // Fetches what the account already holds: the provider's name (greeting + silent resubmit) and
+  // any stored phone. Anything already typed wins, so a slow response cannot overwrite them.
   useEffect(() => {
     let active = true;
     api.me().then((res) => {
@@ -61,10 +60,6 @@ export default function CompleteProfileScreen() {
       // (from an earlier attempt), otherwise the display name carries both parts.
       const joined = [res.data.name, res.data.lastName].filter(Boolean).join(' ').trim();
       setFullName((current) => current || joined);
-      // "Usable" means it splits into a name AND a surname -- the same bar the submit below is
-      // held to. A single word (or an email-derived stand-in) still opens the field to be
-      // completed by hand.
-      if (splitDisplayName(joined).lastName) setNameKnown(true);
       // Masked on the way in too: a number stored before this format existed would otherwise show
       // raw and then be rejected by the very validation that is about to run on it.
       // Split a stored number back into its country and national part, so an existing one opens on
@@ -104,13 +99,8 @@ export default function CompleteProfileScreen() {
   const next = () => {
     setError(null);
     if (step === 1) {
-      // A known name was never on screen, so it cannot be re-validated at the person -- it already
-      // passed the same split test when it was recognised.
-      if (!nameKnown) {
-        if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
-        // completeProfile refuses a blank surname, so one word cannot be enough here.
-        if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
-      }
+      // The name is never validated: it was never on screen, and the server keeps whatever the
+      // account already holds when it arrives blank.
       if (!phone.trim()) return setError('Ingresa tu teléfono.');
       if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
       return setStep(2);
@@ -177,20 +167,14 @@ export default function CompleteProfileScreen() {
 
         {step === 1 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            {nameKnown ? (
-              // The provider already told us who they are -- say so instead of asking again.
-              <Text style={styles.lead}>
-                Hola, {splitDisplayName(fullName).name}. Tu nombre y correo ya vienen de tu cuenta.
-                Solo falta un teléfono de contacto.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.lead}>Ya verificamos tu correo. Solo falta saber quién eres y cómo contactarte.</Text>
-                <Text style={styles.label}>Nombre y apellido</Text>
-                <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
-                  autoCapitalize="words" value={fullName} onChangeText={setFullName} />
-              </>
-            )}
+            {/* Never a name (or email) field here -- guideline 4: the provider already gave them.
+                Greet by name only when the stored one looks like a person's (it splits into name
+                and surname); the email-derived single-word stand-in reads as noise, not a name. */}
+            <Text style={styles.lead}>
+              {splitDisplayName(fullName).lastName
+                ? `Hola, ${splitDisplayName(fullName).name}. Tu nombre y correo ya vienen de tu cuenta. Solo falta un teléfono de contacto.`
+                : 'Tu cuenta ya está verificada. Solo falta un teléfono de contacto.'}
+            </Text>
             <Text style={styles.label}>Teléfono</Text>
             <PhoneInput
               country={phoneCountry}

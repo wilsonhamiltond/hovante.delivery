@@ -31,7 +31,14 @@ describe('isProfileComplete', () => {
     expect(isProfileComplete(account({ lastName: null, phone: null, address: null }))).toBe(false);
   });
 
-  it.each(['name', 'lastName', 'phone', 'address'] as const)('rejects a missing %s', (field) => {
+  // Apple only sends the name on the first authorisation, so a returning Sign in with Apple
+  // account may hold a single-word name forever. It must count as complete -- requiring a surname
+  // would trap it in the form re-asking for what Apple provided (App Review guideline 4).
+  it('accepts a single-word name with no surname', () => {
+    expect(isProfileComplete(account({ lastName: null }))).toBe(true);
+  });
+
+  it.each(['name', 'phone', 'address'] as const)('rejects a missing %s', (field) => {
     expect(isProfileComplete(account({ [field]: null }))).toBe(false);
     expect(isProfileComplete(account({ [field]: '   ' }))).toBe(false);
   });
