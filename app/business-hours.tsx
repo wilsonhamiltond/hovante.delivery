@@ -7,18 +7,76 @@ import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { TimeField } from '../src/TimeField';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // Monday first, the way a Dominican week is read -- but each day keeps its .NET DayOfWeek number
-// (0 = domingo), which is what the API stores.
+// (0 = domingo), which is what the API stores. Display names live in the S map below.
 const WEEK = [
-  { day: 1, name: 'Lunes' },
-  { day: 2, name: 'Martes' },
-  { day: 3, name: 'Miércoles' },
-  { day: 4, name: 'Jueves' },
-  { day: 5, name: 'Viernes' },
-  { day: 6, name: 'Sábado' },
-  { day: 0, name: 'Domingo' },
+  { day: 1 },
+  { day: 2 },
+  { day: 3 },
+  { day: 4 },
+  { day: 5 },
+  { day: 6 },
+  { day: 0 },
 ];
+
+const S: Record<
+  Locale,
+  {
+    dayNames: Record<number, string>;
+    invalidTime: (day: string) => string;
+    closeAfterOpen: (day: string) => string;
+    saved: string;
+    title: string;
+    hint: string;
+    closed: string;
+    opens: string;
+    closes: string;
+    save: string;
+  }
+> = {
+  es: {
+    dayNames: {
+      1: 'Lunes',
+      2: 'Martes',
+      3: 'Miércoles',
+      4: 'Jueves',
+      5: 'Viernes',
+      6: 'Sábado',
+      0: 'Domingo',
+    },
+    invalidTime: (day) => `${day}: elige una hora válida.`,
+    closeAfterOpen: (day) => `${day}: la hora de cierre debe ser después de la de apertura.`,
+    saved: 'Horario guardado.',
+    title: 'Horario',
+    hint: 'Marca los días que tu comercio abre y elige la hora de apertura y de cierre.',
+    closed: 'Cerrado',
+    opens: 'Abre',
+    closes: 'Cierra',
+    save: 'Guardar horario',
+  },
+  en: {
+    dayNames: {
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday',
+      0: 'Sunday',
+    },
+    invalidTime: (day) => `${day}: choose a valid time.`,
+    closeAfterOpen: (day) => `${day}: the closing time must be after the opening time.`,
+    saved: 'Hours saved.',
+    title: 'Business hours',
+    hint: 'Check the days your business is open and choose the opening and closing time.',
+    closed: 'Closed',
+    opens: 'Opens',
+    closes: 'Closes',
+    save: 'Save hours',
+  },
+};
 
 // A sensible first fill for a day just switched on, so the merchant edits two times rather than
 // typing both from nothing.
@@ -43,6 +101,7 @@ const toMinutes = (v: string): number | null => {
 // simply not sent, which the API reads as closed.
 export default function BusinessHoursScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [days, setDays] = useState<Record<number, DayState>>(() =>
     Object.fromEntries(WEEK.map((w) => [w.day, { open: false, from: DEFAULT_OPEN, to: DEFAULT_CLOSE }])));
   const [loading, setLoading] = useState(true);
@@ -80,10 +139,10 @@ export default function BusinessHoursScreen() {
       const from = toMinutes(d.from);
       const to = toMinutes(d.to);
       if (from == null || to == null) {
-        return setNotice({ tone: 'error', message: `${w.name}: elige una hora válida.` });
+        return setNotice({ tone: 'error', message: tx.invalidTime(tx.dayNames[w.day]) });
       }
       if (to <= from) {
-        return setNotice({ tone: 'error', message: `${w.name}: la hora de cierre debe ser después de la de apertura.` });
+        return setNotice({ tone: 'error', message: tx.closeAfterOpen(tx.dayNames[w.day]) });
       }
       hours.push({ dayOfWeek: w.day, openTime: d.from.trim(), closeTime: d.to.trim() });
     }
@@ -92,7 +151,7 @@ export default function BusinessHoursScreen() {
     const res = await api.saveMerchantBusinessHours(hours);
     setSaving(false);
     setNotice(res.success
-      ? { tone: 'success', message: res.message || 'Horario guardado.' }
+      ? { tone: 'success', message: res.message || tx.saved }
       : { tone: 'error', message: res.message });
   };
 
@@ -108,7 +167,7 @@ export default function BusinessHoursScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Horario</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -118,7 +177,7 @@ export default function BusinessHoursScreen() {
           <View style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
               <Text style={styles.hint}>
-                Marca los días que tu comercio abre y elige la hora de apertura y de cierre.
+                {tx.hint}
               </Text>
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -130,24 +189,24 @@ export default function BusinessHoursScreen() {
                       <View style={[styles.checkbox, d.open && styles.checkboxOn]}>
                         {d.open ? <Text style={styles.checkboxTick}>✓</Text> : null}
                       </View>
-                      <Text style={styles.dayName}>{w.name}</Text>
-                      <Text style={styles.dayState}>{d.open ? '' : 'Cerrado'}</Text>
+                      <Text style={styles.dayName}>{tx.dayNames[w.day]}</Text>
+                      <Text style={styles.dayState}>{d.open ? '' : tx.closed}</Text>
                     </Pressable>
                     {d.open ? (
                       <View style={styles.hoursRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.label}>Abre</Text>
+                          <Text style={styles.label}>{tx.opens}</Text>
                           <TimeField
                             value={d.from}
-                            title={`${w.name} · Abre`}
+                            title={`${tx.dayNames[w.day]} · ${tx.opens}`}
                             onChange={(v) => setDay(w.day, { from: v })}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.label}>Cierra</Text>
+                          <Text style={styles.label}>{tx.closes}</Text>
                           <TimeField
                             value={d.to}
-                            title={`${w.name} · Cierra`}
+                            title={`${tx.dayNames[w.day]} · ${tx.closes}`}
                             onChange={(v) => setDay(w.day, { to: v })}
                           />
                         </View>
@@ -162,7 +221,7 @@ export default function BusinessHoursScreen() {
               <Pressable style={[styles.primary, saving && styles.disabled]} onPress={save} disabled={saving}>
                 {saving
                   ? <ActivityIndicator color={t.onAccent} />
-                  : <Text style={styles.primaryText}>Guardar horario</Text>}
+                  : <Text style={styles.primaryText}>{tx.save}</Text>}
               </Pressable>
             </View>
           </View>

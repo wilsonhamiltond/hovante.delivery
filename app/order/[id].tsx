@@ -9,44 +9,169 @@ import { InvoiceModal } from '../../src/InvoiceModal';
 import { GradientBackground, t } from '../../src/theme';
 import { orderStatusChip } from '../../src/orderStatus';
 import { queueRemainingMin } from '../../src/orderQueue';
+import { useStrings, type Locale } from '../../src/i18n';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
-// Tracking timeline, in order. It spans the merchant's order status (confirmar → listo) and then the
-// delivery status (asignada → en camino → entregada), so the customer sees the whole journey.
-const STAGES = [
-  { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
-  { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
-  { title: 'Listo para recoger', sub: 'El comercio preparó tu pedido' },
-  { title: 'Repartidor asignado', sub: 'Un repartidor tomó tu pedido' },
-  { title: 'En camino', sub: 'Tu pedido va hacia ti' },
-  { title: 'Entregado', sub: 'Disfruta tu pedido' },
-];
-
-// Big headline per phase (same index as STAGES).
-const HEADLINE_BY_PHASE = [
-  'Esperando confirmación del comercio…',
-  'Pedido confirmado',
-  'Listo, buscando repartidor…',
-  'Repartidor asignado',
-  'Tu pedido va en camino',
-  '¡Pedido entregado! 🎉',
-];
-
-// A retiro en tienda has no street half: the customer IS the courier, so the journey is the
-// counter's alone -- placed, confirmed, ready, handed over.
-const PICKUP_STAGES = [
-  { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
-  { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
-  { title: 'Listo para recoger', sub: 'Pasa a buscarlo al comercio' },
-  { title: 'Entregado', sub: 'Disfruta tu pedido' },
-];
-const PICKUP_HEADLINES = [
-  'Esperando confirmación del comercio…',
-  'Pedido confirmado',
-  '¡Listo! Pasa a recogerlo 🏪',
-  '¡Pedido entregado! 🎉',
-];
+const S: Record<
+  Locale,
+  {
+    stages: { title: string; sub: string }[];
+    headlines: string[];
+    pickupStages: { title: string; sub: string }[];
+    pickupHeadlines: string[];
+    notFound: string;
+    ordersBack: string;
+    trackingTitle: string;
+    cancelledHeadline: string;
+    failedHeadline: string;
+    returnedHeadline: string;
+    queueNote: (min: number) => string;
+    driverLine: (name: string) => string;
+    codeLabel: string;
+    codeHintPickup: string;
+    codeHintDelivery: string;
+    merchantLabel: string;
+    deliverAt: string;
+    pickUpAt: string;
+    merchantFallback: string;
+    merchantTitleFallback: string;
+    noAddress: string;
+    mapBtn: string;
+    noteLabel: string;
+    productsLabel: string;
+    subtotal: string;
+    shipping: string;
+    total: string;
+    cancelReasonLine: (reason: string) => string;
+    cancelOrder: string;
+    viewInvoice: string;
+    viewMyOrders: string;
+    yourAddress: string;
+  }
+> = {
+  es: {
+    // Tracking timeline, in order. It spans the merchant's order status (confirmar → listo) and
+    // then the delivery status (asignada → en camino → entregada), so the customer sees the whole
+    // journey. Headlines share the same index.
+    stages: [
+      { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
+      { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
+      { title: 'Listo para recoger', sub: 'El comercio preparó tu pedido' },
+      { title: 'Repartidor asignado', sub: 'Un repartidor tomó tu pedido' },
+      { title: 'En camino', sub: 'Tu pedido va hacia ti' },
+      { title: 'Entregado', sub: 'Disfruta tu pedido' },
+    ],
+    headlines: [
+      'Esperando confirmación del comercio…',
+      'Pedido confirmado',
+      'Listo, buscando repartidor…',
+      'Repartidor asignado',
+      'Tu pedido va en camino',
+      '¡Pedido entregado! 🎉',
+    ],
+    // A retiro en tienda has no street half: the customer IS the courier, so the journey is the
+    // counter's alone -- placed, confirmed, ready, handed over.
+    pickupStages: [
+      { title: 'Pedido realizado', sub: 'El comercio recibió tu pedido' },
+      { title: 'Pedido confirmado', sub: 'El comercio aceptó tu pedido' },
+      { title: 'Listo para recoger', sub: 'Pasa a buscarlo al comercio' },
+      { title: 'Entregado', sub: 'Disfruta tu pedido' },
+    ],
+    pickupHeadlines: [
+      'Esperando confirmación del comercio…',
+      'Pedido confirmado',
+      '¡Listo! Pasa a recogerlo 🏪',
+      '¡Pedido entregado! 🎉',
+    ],
+    notFound: 'Pedido no encontrado.',
+    ordersBack: 'Pedidos',
+    trackingTitle: 'Seguimiento',
+    cancelledHeadline: 'Pedido cancelado',
+    failedHeadline: 'Entrega fallida',
+    returnedHeadline: 'Pedido devuelto',
+    queueNote: (min) => `El comercio empezará a prepararlo en unos ${min} min. Puedes cancelarlo mientras tanto.`,
+    driverLine: (name) => `Repartidor: ${name}`,
+    codeLabel: 'Código de entrega',
+    codeHintPickup: 'Muéstralo en el comercio al recoger tu pedido',
+    codeHintDelivery: 'Dáselo al repartidor al recibir tu pedido',
+    merchantLabel: 'Comercio',
+    deliverAt: 'Entregar en',
+    pickUpAt: 'Retirar en',
+    merchantFallback: 'El comercio',
+    merchantTitleFallback: 'Comercio',
+    noAddress: 'Sin dirección',
+    mapBtn: '🗺️ Mapa',
+    noteLabel: 'Nota',
+    productsLabel: 'Productos',
+    subtotal: 'Subtotal',
+    shipping: 'Envío',
+    total: 'Total',
+    cancelReasonLine: (reason) => `Motivo: ${reason}`,
+    cancelOrder: 'Cancelar pedido',
+    viewInvoice: '🧾 Ver factura',
+    viewMyOrders: 'Ver mis pedidos',
+    yourAddress: 'Tu dirección',
+  },
+  en: {
+    stages: [
+      { title: 'Order placed', sub: 'The merchant received your order' },
+      { title: 'Order confirmed', sub: 'The merchant accepted your order' },
+      { title: 'Ready for pickup', sub: 'The merchant prepared your order' },
+      { title: 'Driver assigned', sub: 'A driver took your order' },
+      { title: 'On the way', sub: 'Your order is heading to you' },
+      { title: 'Delivered', sub: 'Enjoy your order' },
+    ],
+    headlines: [
+      'Waiting for the merchant to confirm…',
+      'Order confirmed',
+      'Ready, finding a driver…',
+      'Driver assigned',
+      'Your order is on the way',
+      'Order delivered! 🎉',
+    ],
+    pickupStages: [
+      { title: 'Order placed', sub: 'The merchant received your order' },
+      { title: 'Order confirmed', sub: 'The merchant accepted your order' },
+      { title: 'Ready for pickup', sub: 'Stop by the store to get it' },
+      { title: 'Delivered', sub: 'Enjoy your order' },
+    ],
+    pickupHeadlines: [
+      'Waiting for the merchant to confirm…',
+      'Order confirmed',
+      'Ready! Come pick it up 🏪',
+      'Order delivered! 🎉',
+    ],
+    notFound: 'Order not found.',
+    ordersBack: 'Orders',
+    trackingTitle: 'Tracking',
+    cancelledHeadline: 'Order cancelled',
+    failedHeadline: 'Delivery failed',
+    returnedHeadline: 'Order returned',
+    queueNote: (min) => `The merchant will start preparing it in about ${min} min. You can cancel it in the meantime.`,
+    driverLine: (name) => `Driver: ${name}`,
+    codeLabel: 'Delivery code',
+    codeHintPickup: 'Show it at the store when picking up your order',
+    codeHintDelivery: 'Give it to the driver when you receive your order',
+    merchantLabel: 'Merchant',
+    deliverAt: 'Deliver to',
+    pickUpAt: 'Pick up at',
+    merchantFallback: 'The merchant',
+    merchantTitleFallback: 'Merchant',
+    noAddress: 'No address',
+    mapBtn: '🗺️ Map',
+    noteLabel: 'Note',
+    productsLabel: 'Products',
+    subtotal: 'Subtotal',
+    shipping: 'Delivery fee',
+    total: 'Total',
+    cancelReasonLine: (reason) => `Reason: ${reason}`,
+    cancelOrder: 'Cancel order',
+    viewInvoice: '🧾 View invoice',
+    viewMyOrders: 'View my orders',
+    yourAddress: 'Your address',
+  },
+};
 
 // A short "12 jul, 03:45 p. m." style stamp for a status change; null when the step isn't reached.
 const fmtStamp = (iso?: string | null): string | null =>
@@ -74,6 +199,7 @@ function currentPickupPhase(orderStatus: string, deliveryStatus: string | null):
 
 export default function OrderTrackingScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<OrderTracking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +268,7 @@ export default function OrderTrackingScreen() {
       <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Header onBack={() => router.replace('/orders')} />
-        <View style={styles.center}><Text style={styles.error}>{error ?? 'Pedido no encontrado.'}</Text></View>
+        <View style={styles.center}><Text style={styles.error}>{error ?? tx.notFound}</Text></View>
       </SafeAreaView>
       </GradientBackground>
     );
@@ -152,7 +278,7 @@ export default function OrderTrackingScreen() {
   // A retiro en tienda walks a shorter timeline: no driver stages, and the code is shown at the
   // counter rather than read to a rider at the door.
   const pickup = !!order.pickupAtStore;
-  const stages = pickup ? PICKUP_STAGES : STAGES;
+  const stages = pickup ? tx.pickupStages : tx.stages;
   const failed = order.status === 'CANCELLED'
     || deliveryStatus === 'FAILED' || deliveryStatus === 'CANCELLED' || deliveryStatus === 'RETURNED';
   const current = pickup
@@ -167,8 +293,8 @@ export default function OrderTrackingScreen() {
     ? [data.placedAt, data.confirmedAt, data.readyAt, data.deliveredAt]
     : [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
   const headline = failed
-    ? (order.status === 'CANCELLED' ? 'Pedido cancelado' : deliveryStatus === 'FAILED' ? 'Entrega fallida' : 'Pedido devuelto')
-    : (pickup ? PICKUP_HEADLINES : HEADLINE_BY_PHASE)[current];
+    ? (order.status === 'CANCELLED' ? tx.cancelledHeadline : deliveryStatus === 'FAILED' ? tx.failedHeadline : tx.returnedHeadline)
+    : (pickup ? tx.pickupHeadlines : tx.headlines)[current];
   // Show the confirmation code until the order is delivered (or terminal): the customer reads it to
   // the driver at the door -- or shows it at the counter -- to confirm receipt.
   const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && order.status !== 'DELIVERED' && !failed;
@@ -218,11 +344,11 @@ export default function OrderTrackingScreen() {
       ...(office ? {
         olat: String(office.latitude),
         olng: String(office.longitude),
-        otitle: office.name || order.merchantName || 'Comercio',
+        otitle: office.name || order.merchantName || tx.merchantTitleFallback,
         ...(office.address ? { oaddress: office.address } : {}),
         ...(order.merchantImageUrl ? { oimg: order.merchantImageUrl } : {}),
       } : {}),
-      title: office ? 'Tu dirección' : 'Entregar en',
+      title: office ? tx.yourAddress : tx.deliverAt,
     },
   });
 
@@ -242,20 +368,20 @@ export default function OrderTrackingScreen() {
         <Text style={[styles.headline, failed && { color: t.danger }]}>{headline}</Text>
         {inQueue ? (
           <Text style={styles.queueNote}>
-            El comercio empezará a prepararlo en unos {queueMinutesLeft} min. Puedes cancelarlo mientras tanto.
+            {tx.queueNote(queueMinutesLeft)}
           </Text>
         ) : null}
-        {driverName ? <Text style={styles.driver}>Repartidor: {driverName}</Text> : null}
+        {driverName ? <Text style={styles.driver}>{tx.driverLine(driverName)}</Text> : null}
 
         {/* Delivery confirmation code: the customer reads it to the driver at the door. */}
         {showCode ? (
           <View style={styles.codeCard}>
-            <Text style={styles.codeLabel}>Código de entrega</Text>
+            <Text style={styles.codeLabel}>{tx.codeLabel}</Text>
             <Text style={styles.codeValue}>{deliveryCode}</Text>
             <Text style={styles.codeHint}>
               {pickup
-                ? 'Muéstralo en el comercio al recoger tu pedido'
-                : 'Dáselo al repartidor al recibir tu pedido'}
+                ? tx.codeHintPickup
+                : tx.codeHintDelivery}
             </Text>
           </View>
         ) : null}
@@ -289,27 +415,27 @@ export default function OrderTrackingScreen() {
 
         {/* Order details */}
         <View style={styles.card}>
-          <Text style={styles.label}>Comercio</Text>
+          <Text style={styles.label}>{tx.merchantLabel}</Text>
           <Text style={styles.value}>{order.merchantName}</Text>
-          <Text style={styles.label}>{pickup ? 'Retirar en' : 'Entregar en'}</Text>
+          <Text style={styles.label}>{pickup ? tx.pickUpAt : tx.deliverAt}</Text>
           <View style={styles.addressRow}>
             <Text style={[styles.value, { flex: 1 }]}>
               {pickup
-                ? `🏪 ${order.merchantName ?? 'El comercio'}`
-                : (order.address ?? 'Sin dirección')}
+                ? `🏪 ${order.merchantName ?? tx.merchantFallback}`
+                : (order.address ?? tx.noAddress)}
             </Text>
             {!pickup && (order.address || order.latitude != null) ? (
               <Pressable style={styles.mapBtn} onPress={openMap} accessibilityRole="button">
-                <Text style={styles.mapBtnText}>🗺️ Mapa</Text>
+                <Text style={styles.mapBtnText}>{tx.mapBtn}</Text>
               </Pressable>
             ) : null}
           </View>
-          {deliveryCode ? (<><Text style={styles.label}>Código de entrega</Text><Text style={styles.value}>{deliveryCode}</Text></>) : null}
-          {order.notes ? (<><Text style={styles.label}>Nota</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
+          {deliveryCode ? (<><Text style={styles.label}>{tx.codeLabel}</Text><Text style={styles.value}>{deliveryCode}</Text></>) : null}
+          {order.notes ? (<><Text style={styles.label}>{tx.noteLabel}</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Productos</Text>
+          <Text style={styles.label}>{tx.productsLabel}</Text>
           {order.items.map((it) => (
             <View key={it.id} style={styles.line}>
               <Text style={styles.lineQty}>{it.quantity}×</Text>
@@ -321,18 +447,18 @@ export default function OrderTrackingScreen() {
             <>
               {/* With a delivery charge the breakdown is spelled out; without one (older orders)
                   the single products total stays as it always was. */}
-              <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
-              <View style={styles.subRow}><Text style={styles.totalLabel}>Envío</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
-              <View style={styles.subRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(order.total + order.deliveryFee)}</Text></View>
+              <View style={styles.totalRow}><Text style={styles.totalLabel}>{tx.subtotal}</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.shipping}</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.total}</Text><Text style={styles.totalValue}>{money(order.total + order.deliveryFee)}</Text></View>
             </>
           ) : (
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(order.total)}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>{tx.total}</Text><Text style={styles.totalValue}>{money(order.total)}</Text></View>
           )}
         </View>
 
         {/* The reason the customer gave when cancelling, echoed back once the order is cancelled. */}
         {order.status === 'CANCELLED' && order.cancelReason ? (
-          <Text style={styles.cancelReason}>Motivo: {order.cancelReason}</Text>
+          <Text style={styles.cancelReason}>{tx.cancelReasonLine(order.cancelReason)}</Text>
         ) : null}
 
         {/* Cancel: only while the merchant has not confirmed (PENDING). Opens the cancel screen,
@@ -340,18 +466,18 @@ export default function OrderTrackingScreen() {
             the button disappears on the next poll and the server refuses stragglers anyway. */}
         {canCancel ? (
           <Pressable style={styles.cancelBtn} onPress={() => router.push(`/cancel-order/${order.id}`)}>
-            <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+            <Text style={styles.cancelBtnText}>{tx.cancelOrder}</Text>
           </Pressable>
         ) : null}
 
         {canViewInvoice ? (
           <Pressable style={styles.invoiceBtn} onPress={() => setShowInvoice(true)} accessibilityRole="button">
-            <Text style={styles.invoiceBtnText}>🧾 Ver factura</Text>
+            <Text style={styles.invoiceBtnText}>{tx.viewInvoice}</Text>
           </Pressable>
         ) : null}
 
         <Pressable style={styles.secondary} onPress={() => router.replace('/orders')}>
-          <Text style={styles.secondaryText}>Ver mis pedidos</Text>
+          <Text style={styles.secondaryText}>{tx.viewMyOrders}</Text>
         </Pressable>
       </ScrollView>
 
@@ -366,10 +492,11 @@ export default function OrderTrackingScreen() {
 }
 
 function Header({ onBack }: { onBack: () => void }) {
+  const tx = useStrings(S);
   return (
     <View style={styles.header}>
-      <BackButton onPress={onBack} label="Pedidos" />
-      <Text style={styles.title}>Seguimiento</Text>
+      <BackButton onPress={onBack} label={tx.ordersBack} />
+      <Text style={styles.title}>{tx.trackingTitle}</Text>
       <View style={{ width: BACK_BUTTON_WIDTH }} />
     </View>
   );

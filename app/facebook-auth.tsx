@@ -5,6 +5,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../src/auth';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<Locale, { failed: string; goBack: string; signingIn: string }> = {
+  es: {
+    failed: 'No se pudo iniciar sesión con Facebook.',
+    goBack: 'Volver',
+    signingIn: 'Iniciando sesión con Facebook…',
+  },
+  en: {
+    failed: 'Could not sign in with Facebook.',
+    goBack: 'Go back',
+    signingIn: 'Signing in with Facebook…',
+  },
+};
 
 // On web this screen IS the popup the auth session opened: this hands the URL (with the token on
 // it) back to the login screen that opened it and closes the popup. No-op on native, where the
@@ -22,13 +36,14 @@ export default function FacebookAuthScreen() {
   const params = useLocalSearchParams<{ token?: string; error?: string }>();
   const { signInWithFacebook } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = typeof params.token === 'string' ? params.token : '';
     if (!token) {
       const message = typeof params.error === 'string' ? params.error : '';
-      setError(message || 'No se pudo iniciar sesión con Facebook.');
+      setError(message || tx.failed);
       return;
     }
     // Adopting the token flips the auth gate in _layout, which redirects to /home from here.
@@ -45,13 +60,13 @@ export default function FacebookAuthScreen() {
             <>
               <Text style={styles.error}>{error}</Text>
               <Pressable style={styles.button} onPress={() => router.replace('/login')} accessibilityRole="button">
-                <Text style={styles.buttonText}>Volver</Text>
+                <Text style={styles.buttonText}>{tx.goBack}</Text>
               </Pressable>
             </>
           ) : (
             <>
               <ActivityIndicator color={t.text} />
-              <Text style={styles.waiting}>Iniciando sesión con Facebook…</Text>
+              <Text style={styles.waiting}>{tx.signingIn}</Text>
             </>
           )}
         </View>

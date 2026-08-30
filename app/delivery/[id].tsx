@@ -10,27 +10,167 @@ import type { OutboxItem } from '../../src/outbox';
 import { formatEta, useRouteEta } from '../../src/eta';
 import { GradientBackground, t } from '../../src/theme';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
+import { useStrings, type Locale } from '../../src/i18n';
 
 // Named by leg, matching Mi ruta: a claimed delivery is a ride to the merchant's office, and a
 // started one is the ride to the customer. Same wording in both places so a driver reads one story.
-const STATUS: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Pendiente', color: '#64748b' },
-  ASSIGNED: { label: 'Recoger en oficina', color: '#2563eb' },
-  IN_TRANSIT: { label: 'En camino al cliente', color: '#d97706' },
-  DELIVERED: { label: 'Entregada', color: '#16a34a' },
-  FAILED: { label: 'Fallida', color: '#dc2626' },
-  RETURNED: { label: 'Devuelta', color: '#dc2626' },
-  CANCELLED: { label: 'Cancelada', color: '#94a3b8' },
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: '#64748b',
+  ASSIGNED: '#2563eb',
+  IN_TRANSIT: '#d97706',
+  DELIVERED: '#16a34a',
+  FAILED: '#dc2626',
+  RETURNED: '#dc2626',
+  CANCELLED: '#94a3b8',
 };
 
+// The canonical values submitted to the API stay Spanish whatever the UI language, so the
+// failureReason the merchant and customer later read is consistent; only the button label
+// translates (see S.failReasons).
 const FAIL_REASONS = ['Cliente ausente', 'Dirección incorrecta', 'Cliente rechazó el pedido', 'No se pudo contactar', 'Otro'];
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
+
+const S: Record<
+  Locale,
+  {
+    status: Record<string, string>;
+    failReasons: Record<string, string>;
+    actionFailed: string;
+    notFound: string;
+    back: string;
+    delivery: string;
+    totalToCollect: string;
+    paySub: (products: string, shipping: string) => string;
+    pickupKind: string;
+    merchant: string;
+    mapBtn: string;
+    pickupTitle: string;
+    deliverKind: string;
+    client: string;
+    noAddress: string;
+    deliverTitle: string;
+    viewRoute: string;
+    etaLabel: (eta: string) => string;
+    notePrefix: string;
+    receivedByPrefix: string;
+    reasonPrefix: string;
+    collected: string;
+    collectedHint: string;
+    markDelivered: string;
+    markFailed: string;
+    codeTitle: string;
+    codeHint: string;
+    confirmDelivery: string;
+    cancel: string;
+    failTitle: string;
+    notesPlaceholder: string;
+    confirmFail: string;
+  }
+> = {
+  es: {
+    status: {
+      PENDING: 'Pendiente',
+      ASSIGNED: 'Recoger en oficina',
+      IN_TRANSIT: 'En camino al cliente',
+      DELIVERED: 'Entregada',
+      FAILED: 'Fallida',
+      RETURNED: 'Devuelta',
+      CANCELLED: 'Cancelada',
+    },
+    failReasons: {
+      'Cliente ausente': 'Cliente ausente',
+      'Dirección incorrecta': 'Dirección incorrecta',
+      'Cliente rechazó el pedido': 'Cliente rechazó el pedido',
+      'No se pudo contactar': 'No se pudo contactar',
+      'Otro': 'Otro',
+    },
+    actionFailed: 'No se pudo completar la acción.',
+    notFound: 'Entrega no encontrada.',
+    back: 'Regresar',
+    delivery: 'Entrega',
+    totalToCollect: 'TOTAL A COBRAR',
+    paySub: (products, shipping) => `Productos ${products} · Envío ${shipping}`,
+    pickupKind: '1 · RECOGER EN',
+    merchant: 'Comercio',
+    mapBtn: '🗺️ Mapa',
+    pickupTitle: 'Recoger',
+    deliverKind: '2 · ENTREGAR A',
+    client: 'Cliente',
+    noAddress: 'Sin dirección',
+    deliverTitle: 'Entregar',
+    viewRoute: '🗺️  Ver ruta en el mapa',
+    etaLabel: (eta) => `⏱️ Tiempo estimado: ${eta}`,
+    notePrefix: 'Nota: ',
+    receivedByPrefix: 'Recibido por: ',
+    reasonPrefix: 'Motivo: ',
+    collected: 'Recogí el pedido',
+    collectedHint: 'Confírmalo en el comercio: la ruta pasa entonces a la dirección del cliente.',
+    markDelivered: 'Marcar entregada',
+    markFailed: 'Marcar fallida',
+    codeTitle: 'Código de entrega',
+    codeHint: 'Pídele al cliente su código de 4 dígitos y escríbelo para confirmar.',
+    confirmDelivery: 'Confirmar entrega',
+    cancel: 'Cancelar',
+    failTitle: 'Motivo del fallo',
+    notesPlaceholder: 'Notas (opcional)',
+    confirmFail: 'Confirmar fallo',
+  },
+  en: {
+    status: {
+      PENDING: 'Pending',
+      ASSIGNED: 'Pick up at the office',
+      IN_TRANSIT: 'On the way to the customer',
+      DELIVERED: 'Delivered',
+      FAILED: 'Failed',
+      RETURNED: 'Returned',
+      CANCELLED: 'Cancelled',
+    },
+    failReasons: {
+      'Cliente ausente': 'Customer not there',
+      'Dirección incorrecta': 'Wrong address',
+      'Cliente rechazó el pedido': 'Customer refused the order',
+      'No se pudo contactar': 'Could not reach the customer',
+      'Otro': 'Other',
+    },
+    actionFailed: 'The action could not be completed.',
+    notFound: 'Delivery not found.',
+    back: 'Back',
+    delivery: 'Delivery',
+    totalToCollect: 'TOTAL TO COLLECT',
+    paySub: (products, shipping) => `Products ${products} · Delivery fee ${shipping}`,
+    pickupKind: '1 · PICK UP AT',
+    merchant: 'Merchant',
+    mapBtn: '🗺️ Map',
+    pickupTitle: 'Pick up',
+    deliverKind: '2 · DELIVER TO',
+    client: 'Customer',
+    noAddress: 'No address',
+    deliverTitle: 'Deliver',
+    viewRoute: '🗺️  See route on the map',
+    etaLabel: (eta) => `⏱️ Estimated time: ${eta}`,
+    notePrefix: 'Note: ',
+    receivedByPrefix: 'Received by: ',
+    reasonPrefix: 'Reason: ',
+    collected: 'I picked up the order',
+    collectedHint: 'Confirm it at the merchant: the route then switches to the customer’s address.',
+    markDelivered: 'Mark delivered',
+    markFailed: 'Mark failed',
+    codeTitle: 'Delivery code',
+    codeHint: 'Ask the customer for their 4-digit code and type it in to confirm.',
+    confirmDelivery: 'Confirm delivery',
+    cancel: 'Cancel',
+    failTitle: 'Failure reason',
+    notesPlaceholder: 'Notes (optional)',
+    confirmFail: 'Confirm failure',
+  },
+};
 
 export default function DeliveryDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +214,7 @@ export default function DeliveryDetail() {
     lat: delivery?.latitude,
     lng: delivery?.longitude,
     address: delivery?.addressLine,
-    title: delivery?.recipientName ?? 'Entregar',
+    title: delivery?.recipientName ?? tx.deliverTitle,
     img: delivery?.customerImageUrl,
   });
   // The pickup now opens on the merchant's own pin when its office has one, exactly like the
@@ -83,7 +223,7 @@ export default function DeliveryDetail() {
     lat: delivery?.pickupLatitude,
     lng: delivery?.pickupLongitude,
     address: delivery?.pickupAddress,
-    title: delivery?.pickupName ?? 'Recoger',
+    title: delivery?.pickupName ?? tx.pickupTitle,
     img: delivery?.pickupImageUrl,
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
@@ -103,7 +243,7 @@ export default function DeliveryDetail() {
     setError(null);
     const res = await outbox.submit(build(outbox.newKey()));
     setBusy(false);
-    if (!res.ok) { setError(res.error ?? 'No se pudo completar la acción.'); return; }
+    if (!res.ok) { setError(res.error ?? tx.actionFailed); return; }
     // Back to the route, which flushes and refetches on focus. Fall back to the home when this screen
     // was opened directly (no history) so the action does not end on a "GO_BACK not handled" error.
     if (router.canGoBack()) router.back();
@@ -114,10 +254,10 @@ export default function DeliveryDetail() {
     return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View></SafeAreaView></GradientBackground>;
   }
   if (!delivery) {
-    return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><Text style={styles.muted}>Entrega no encontrada.</Text></View></SafeAreaView></GradientBackground>;
+    return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><Text style={styles.muted}>{tx.notFound}</Text></View></SafeAreaView></GradientBackground>;
   }
 
-  const s = STATUS[delivery.status] ?? { label: delivery.status, color: '#64748b' };
+  const s = { label: tx.status[delivery.status] ?? delivery.status, color: STATUS_COLORS[delivery.status] ?? '#64748b' };
   // Still on the way to the office, so the outstanding action is collecting the order there. The
   // 'start' transition IS the collection: it is what moves the delivery onto the client leg.
   const canCollect = delivery.status === 'ASSIGNED' || delivery.status === 'PENDING';
@@ -131,15 +271,15 @@ export default function DeliveryDetail() {
           pill every other screen uses. */}
       <View style={styles.header}>
         <BackButton
-          label="Regresar"
+          label={tx.back}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
         />
-        <Text style={styles.heading} numberOfLines={1}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
+        <Text style={styles.heading} numberOfLines={1}>{delivery.deliveryNumber ?? tx.delivery}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.rowBetween}>
-          <Text style={styles.number}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
+          <Text style={styles.number}>{delivery.deliveryNumber ?? tx.delivery}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
         </View>
 
@@ -147,11 +287,11 @@ export default function DeliveryDetail() {
             out so the number is explained. Hidden on deliveries with no order amounts. */}
         {delivery.orderTotal != null ? (
           <View style={styles.payCard}>
-            <Text style={styles.payLabel}>TOTAL A COBRAR</Text>
+            <Text style={styles.payLabel}>{tx.totalToCollect}</Text>
             <Text style={styles.payValue}>{money(delivery.orderTotal + (delivery.orderDeliveryFee ?? 0))}</Text>
             {delivery.orderDeliveryFee != null ? (
               <Text style={styles.paySub}>
-                Productos {money(delivery.orderTotal)} · Envío {money(delivery.orderDeliveryFee)}
+                {tx.paySub(money(delivery.orderTotal), money(delivery.orderDeliveryFee))}
               </Text>
             ) : null}
           </View>
@@ -160,14 +300,14 @@ export default function DeliveryDetail() {
         {/* Pickup: where the driver collects the order (merchant). */}
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>1 · RECOGER EN</Text>
-            <Text style={styles.stopName}>{delivery.pickupName ?? 'Comercio'}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{tx.pickupKind}</Text>
+            <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
               {/* A pin is enough on its own: an office that has been geocoded but never had its
                   address typed in is still somewhere the courier can be sent. */}
               {delivery.pickupAddress || delivery.pickupLatitude != null ? (
-                <Pressable style={styles.smallBtn} onPress={openMapPickup}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable>
+                <Pressable style={styles.smallBtn} onPress={openMapPickup}><Text style={styles.smallBtnText}>{tx.mapBtn}</Text></Pressable>
               ) : null}
               {delivery.pickupPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.pickupPhone)}><Text style={styles.smallBtnText}>📞 {delivery.pickupPhone}</Text></Pressable> : null}
             </View>
@@ -176,28 +316,28 @@ export default function DeliveryDetail() {
 
         {/* Delivery: where the driver drops it off (client). */}
         <View style={[styles.stopCard, { borderLeftColor: '#16a34a' }]}>
-          <Text style={[styles.stopKind, { color: '#15803d' }]}>2 · ENTREGAR A</Text>
-          <Text style={styles.stopName}>{delivery.recipientName ?? 'Cliente'}</Text>
-          <Text style={styles.stopAddress}>{delivery.addressLine ?? 'Sin dirección'}{delivery.city ? `, ${delivery.city}` : ''}</Text>
+          <Text style={[styles.stopKind, { color: '#15803d' }]}>{tx.deliverKind}</Text>
+          <Text style={styles.stopName}>{delivery.recipientName ?? tx.client}</Text>
+          <Text style={styles.stopAddress}>{delivery.addressLine ?? tx.noAddress}{delivery.city ? `, ${delivery.city}` : ''}</Text>
           <View style={styles.stopActions}>
             {/* One handler for both cases: openMapCoords already sends the address alongside the
                 pin, so a stop with no coordinates still opens -- and under the customer's name,
                 which the old address-only branch got wrong by titling it with the merchant's. */}
             {delivery.latitude != null || delivery.addressLine ? (
-              <Pressable style={styles.smallBtn} onPress={openMapCoords}><Text style={styles.smallBtnText}>🗺️ Mapa</Text></Pressable>
+              <Pressable style={styles.smallBtn} onPress={openMapCoords}><Text style={styles.smallBtnText}>{tx.mapBtn}</Text></Pressable>
             ) : null}
             {delivery.clientPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.clientPhone)}><Text style={styles.smallBtnText}>📞 {delivery.clientPhone}</Text></Pressable> : null}
           </View>
         </View>
 
         <Pressable style={styles.routeBtn} onPress={() => router.push(`/delivery-map/${delivery.id}`)}>
-          <Text style={styles.routeBtnText}>🗺️  Ver ruta en el mapa</Text>
-          {eta ? <Text style={styles.routeEta}>⏱️ Tiempo estimado: {formatEta(eta)}</Text> : null}
+          <Text style={styles.routeBtnText}>{tx.viewRoute}</Text>
+          {eta ? <Text style={styles.routeEta}>{tx.etaLabel(formatEta(eta))}</Text> : null}
         </Pressable>
 
-        {delivery.notes ? <Text style={styles.notes}>Nota: {delivery.notes}</Text> : null}
-        {finished && delivery.receiverName ? <Text style={styles.notes}>Recibido por: {delivery.receiverName}</Text> : null}
-        {finished && delivery.failureReason ? <Text style={styles.notes}>Motivo: {delivery.failureReason}</Text> : null}
+        {delivery.notes ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
+        {finished && delivery.receiverName ? <Text style={styles.notes}>{tx.receivedByPrefix}{delivery.receiverName}</Text> : null}
+        {finished && delivery.failureReason ? <Text style={styles.notes}>{tx.reasonPrefix}{delivery.failureReason}</Text> : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -205,23 +345,23 @@ export default function DeliveryDetail() {
         {canCollect ? (
           <View style={{ gap: 6 }}>
             <Pressable style={[styles.action, styles.primary]} disabled={busy} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'start', createdAt: new Date().toISOString() }))}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Recogí el pedido</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.collected}</Text>}
             </Pressable>
-            <Text style={styles.panelHint}>Confírmalo en el comercio: la ruta pasa entonces a la dirección del cliente.</Text>
+            <Text style={styles.panelHint}>{tx.collectedHint}</Text>
           </View>
         ) : null}
 
         {canFinish && panel === 'none' ? (
           <View style={{ gap: 10 }}>
-            <Pressable style={[styles.action, styles.success]} onPress={() => setPanel('deliver')}><Text style={styles.actionText}>Marcar entregada</Text></Pressable>
-            <Pressable style={[styles.action, styles.danger]} onPress={() => setPanel('fail')}><Text style={styles.actionText}>Marcar fallida</Text></Pressable>
+            <Pressable style={[styles.action, styles.success]} onPress={() => setPanel('deliver')}><Text style={styles.actionText}>{tx.markDelivered}</Text></Pressable>
+            <Pressable style={[styles.action, styles.danger]} onPress={() => setPanel('fail')}><Text style={styles.actionText}>{tx.markFailed}</Text></Pressable>
           </View>
         ) : null}
 
         {panel === 'deliver' ? (
           <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Código de entrega</Text>
-            <Text style={styles.panelHint}>Pídele al cliente su código de 4 dígitos y escríbelo para confirmar.</Text>
+            <Text style={styles.panelTitle}>{tx.codeTitle}</Text>
+            <Text style={styles.panelHint}>{tx.codeHint}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholder="••••"
@@ -240,25 +380,25 @@ export default function DeliveryDetail() {
               }}
             />
             <Pressable style={[styles.action, styles.success, code.length !== 4 && styles.disabled]} disabled={busy || code.length !== 4} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }))}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar entrega</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmDelivery}</Text>}
             </Pressable>
-            <Pressable onPress={() => { setPanel('none'); setCode(''); }}><Text style={styles.cancel}>Cancelar</Text></Pressable>
+            <Pressable onPress={() => { setPanel('none'); setCode(''); }}><Text style={styles.cancel}>{tx.cancel}</Text></Pressable>
           </View>
         ) : null}
 
         {panel === 'fail' ? (
           <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Motivo del fallo</Text>
+            <Text style={styles.panelTitle}>{tx.failTitle}</Text>
             {FAIL_REASONS.map((r) => (
               <Pressable key={r} style={[styles.reason, reason === r && styles.reasonActive]} onPress={() => setReason(r)}>
-                <Text style={[styles.reasonText, reason === r && styles.reasonTextActive]}>{r}</Text>
+                <Text style={[styles.reasonText, reason === r && styles.reasonTextActive]}>{tx.failReasons[r] ?? r}</Text>
               </Pressable>
             ))}
-            <TextInput style={styles.input} placeholder="Notas (opcional)" placeholderTextColor={t.textFaint} value={notes} onChangeText={setNotes} />
+            <TextInput style={styles.input} placeholder={tx.notesPlaceholder} placeholderTextColor={t.textFaint} value={notes} onChangeText={setNotes} />
             <Pressable style={[styles.action, styles.danger, !reason && styles.disabled]} disabled={busy || !reason} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'fail', reason: reason!, notes, createdAt: new Date().toISOString() }))}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar fallo</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmFail}</Text>}
             </Pressable>
-            <Pressable onPress={() => setPanel('none')}><Text style={styles.cancel}>Cancelar</Text></Pressable>
+            <Pressable onPress={() => setPanel('none')}><Text style={styles.cancel}>{tx.cancel}</Text></Pressable>
           </View>
         ) : null}
       </ScrollView>

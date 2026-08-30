@@ -14,6 +14,7 @@ import { PointsMap } from './PointsMap';
 import { distanceKm, useDriverPosition } from './position';
 import { useDriverPositionReporter } from './positionReport';
 import { loadReached, saveReached } from './pickupProgress';
+import { useStrings, type Locale } from './i18n';
 
 // The driver's home IS the pickup pool: one full-screen map where every available order hangs as a
 // pin wearing its product photo. Tapping a pin opens a bottom sheet with the order's details --
@@ -22,8 +23,100 @@ import { loadReached, saveReached } from './pickupProgress';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
+const S: Record<
+  Locale,
+  {
+    hello: (name: string) => string;
+    pickupTitle: string;
+    deliverTitle: string;
+    currentToOffice: (name: string) => string;
+    currentToClient: (name: string) => string;
+    merchantFallback: string;
+    clientFallback: string;
+    poolAvailable: (count: number, filtered: boolean, radiusKm: number) => string;
+    pendingSync: (n: number) => string;
+    startRide: string;
+    emptyChip: string;
+    groupTitle: (n: number, name: string) => string;
+    thisSpot: string;
+    groupSub: string;
+    delivery: string;
+    manyOrdersTitle: (n: number, name: string) => string;
+    noAddress: string;
+    pickupPrefix: string;
+    deliverPrefix: string;
+    clientPrefix: string;
+    client: string;
+    product: string;
+    moreItems: (n: number) => string;
+    toCollect: string;
+    includesShipping: (fee: string) => string;
+    see: string;
+  }
+> = {
+  es: {
+    hello: (name) => `¡Hola, ${name}! 🛵`,
+    pickupTitle: 'Recoger',
+    deliverTitle: 'Entregar',
+    currentToOffice: (name) => `Entrega en curso · recoge en ${name}`,
+    currentToClient: (name) => `Entrega en curso · lleva el pedido a ${name}`,
+    merchantFallback: 'el comercio',
+    clientFallback: 'el cliente',
+    poolAvailable: (count, filtered, radiusKm) =>
+      `${count} entrega(s) disponible(s)${filtered ? ` a menos de ${radiusKm} km` : ''} · toca un pin`,
+    pendingSync: (n) => `${n} acción(es) pendiente(s) de sincronizar.`,
+    startRide: '🚚 Entrega en camino',
+    emptyChip: 'Buscando pedidos cerca de ti · la lista se actualiza sola',
+    groupTitle: (n, name) => `${n} pedidos en ${name}`,
+    thisSpot: 'este punto',
+    groupSub: 'Elige cuál quieres ver',
+    delivery: 'Entrega',
+    manyOrdersTitle: (n, name) => `${n} pedidos · ${name}`,
+    noAddress: 'Sin dirección',
+    pickupPrefix: '🏪 Recoger: ',
+    deliverPrefix: '📍 Entregar: ',
+    clientPrefix: '👤 Cliente: ',
+    client: 'Cliente',
+    product: 'Producto',
+    moreItems: (n) => `… y ${n} producto(s) más`,
+    toCollect: 'a cobrar',
+    includesShipping: (fee) => ` · incluye envío ${fee}`,
+    see: 'Ver',
+  },
+  en: {
+    hello: (name) => `Hi, ${name}! 🛵`,
+    pickupTitle: 'Pick up',
+    deliverTitle: 'Deliver',
+    currentToOffice: (name) => `Delivery in progress · pick up at ${name}`,
+    currentToClient: (name) => `Delivery in progress · take the order to ${name}`,
+    merchantFallback: 'the merchant',
+    clientFallback: 'the customer',
+    poolAvailable: (count, filtered, radiusKm) =>
+      `${count} delivery(ies) available${filtered ? ` within ${radiusKm} km` : ''} · tap a pin`,
+    pendingSync: (n) => `${n} action(s) waiting to sync.`,
+    startRide: '🚚 Delivery on the way',
+    emptyChip: 'Looking for orders near you · the list refreshes on its own',
+    groupTitle: (n, name) => `${n} orders at ${name}`,
+    thisSpot: 'this spot',
+    groupSub: 'Choose which one to look at',
+    delivery: 'Delivery',
+    manyOrdersTitle: (n, name) => `${n} orders · ${name}`,
+    noAddress: 'No address',
+    pickupPrefix: '🏪 Pick up: ',
+    deliverPrefix: '📍 Deliver: ',
+    clientPrefix: '👤 Customer: ',
+    client: 'Customer',
+    product: 'Product',
+    moreItems: (n) => `… and ${n} more item(s)`,
+    toCollect: 'to collect',
+    includesShipping: (fee) => ` · includes delivery fee ${fee}`,
+    see: 'View',
+  },
+};
+
 export function DriverHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
+  const tx = useStrings(S);
   const [pending, setPending] = useState(0);
   // The delivery whose pin was tapped, driving the details sheet. Null while none is open.
   const [selected, setSelected] = useState<Delivery | null>(null);
@@ -120,12 +213,12 @@ export function DriverHome({ profile }: { profile: Me | null }) {
   const currentPoint = current ? (phase === 'office'
     ? {
       lat: current.pickupLatitude, lng: current.pickupLongitude, address: current.pickupAddress,
-      label: '1', title: current.pickupName ?? 'Recoger', color: '#f59e0b', id: current.id,
+      label: '1', title: current.pickupName ?? tx.pickupTitle, color: '#f59e0b', id: current.id,
       imageUrl: current.pickupImageUrl,
     }
     : {
       lat: current.latitude, lng: current.longitude, address: current.addressLine,
-      label: '2', title: current.recipientName ?? 'Entregar', color: '#16a34a', id: current.id,
+      label: '2', title: current.recipientName ?? tx.deliverTitle, color: '#16a34a', id: current.id,
       imageUrl: current.customerImageUrl,
     }) : null;
 
@@ -183,14 +276,14 @@ export function DriverHome({ profile }: { profile: Me | null }) {
       lat: g.at.lat, lng: g.at.lng, address: null,
       label: many ? String(g.ds.length) : String(i + 1),
       title: many
-        ? `${g.ds.length} pedidos · ${g.ds[0].pickupName ?? 'Entrega'}`
-        : (g.ds[0].pickupName ?? g.ds[0].deliveryNumber ?? 'Entrega'),
+        ? tx.manyOrdersTitle(g.ds.length, g.ds[0].pickupName ?? tx.delivery)
+        : (g.ds[0].pickupName ?? g.ds[0].deliveryNumber ?? tx.delivery),
       color: many ? '#dc2626' : '#0b2a6b',
       imageUrl: photo,
       badge: many ? g.ds.length : null,
       id: g.key,
     };
-  }), [poolGroups]);
+  }), [poolGroups, tx]);
 
   // A tapped pin: one order goes straight to its details sheet; a group opens the chooser first.
   const onPinPress = useCallback((key: string) => {
@@ -206,7 +299,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <View style={styles.headerBand}>
             <View style={styles.headerTop}>
-              <Text style={styles.hello} numberOfLines={1}>¡Hola, {greeting}! 🛵</Text>
+              <Text style={styles.hello} numberOfLines={1}>{tx.hello(greeting)}</Text>
               <NotificationsButton audience="driver" />
             </View>
             {/* With nothing in hand and nothing in the pool there is no line at all: the empty
@@ -215,9 +308,9 @@ export function DriverHome({ profile }: { profile: Me | null }) {
               <Text style={styles.poolLine}>
                 {current
                   ? (phase === 'office'
-                    ? `Entrega en curso · recoge en ${current.pickupName ?? 'el comercio'}`
-                    : `Entrega en curso · lleva el pedido a ${current.recipientName ?? 'el cliente'}`)
-                  : `${nearby.count} entrega(s) disponible(s)${nearby.filtered ? ` a menos de ${NEARBY_RADIUS_KM} km` : ''} · toca un pin`}
+                    ? tx.currentToOffice(current.pickupName ?? tx.merchantFallback)
+                    : tx.currentToClient(current.recipientName ?? tx.clientFallback))
+                  : tx.poolAvailable(nearby.count, nearby.filtered, NEARBY_RADIUS_KM)}
               </Text>
             ) : null}
           </View>
@@ -225,7 +318,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
 
         {pending > 0 ? (
           <View style={styles.pendingBanner}>
-            <Text style={styles.pendingText}>{pending} acción(es) pendiente(s) de sincronizar.</Text>
+            <Text style={styles.pendingText}>{tx.pendingSync(pending)}</Text>
           </View>
         ) : null}
 
@@ -254,7 +347,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                 >
                   {startingRide
                     ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.startRideText}>🚚 Entrega en camino</Text>}
+                    : <Text style={styles.startRideText}>{tx.startRide}</Text>}
                 </Pressable>
               ) : null}
             </>
@@ -278,7 +371,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
               <PointsMap points={[]} driver={driver} />
               <View style={styles.emptyChip} pointerEvents="none">
                 <Text style={styles.emptyChipText}>
-                  Buscando pedidos cerca de ti · la lista se actualiza sola
+                  {tx.emptyChip}
                 </Text>
               </View>
             </>
@@ -301,9 +394,9 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                   <View style={styles.sheetHead}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.sheetTitle} numberOfLines={1}>
-                        {groupSel.length} pedidos en {groupSel[0].pickupName ?? 'este punto'}
+                        {tx.groupTitle(groupSel.length, groupSel[0].pickupName ?? tx.thisSpot)}
                       </Text>
-                      <Text style={styles.sheetSub}>Elige cuál quieres ver</Text>
+                      <Text style={styles.sheetSub}>{tx.groupSub}</Text>
                     </View>
                     <Pressable onPress={() => setGroupSel(null)} hitSlop={10}>
                       <Text style={styles.sheetClose}>✕</Text>
@@ -321,9 +414,9 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                         <View style={[styles.groupPhoto, styles.sheetPhotoEmpty]}><Text style={styles.groupPhotoEmoji}>🛍️</Text></View>
                       )}
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.groupName} numberOfLines={1}>{d.deliveryNumber ?? 'Entrega'}</Text>
+                        <Text style={styles.groupName} numberOfLines={1}>{d.deliveryNumber ?? tx.delivery}</Text>
                         <Text style={styles.groupAddr} numberOfLines={1}>
-                          📍 {d.addressLine ?? 'Sin dirección'}
+                          📍 {d.addressLine ?? tx.noAddress}
                         </Text>
                       </View>
                       {d.orderTotal != null ? (
@@ -359,7 +452,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                       <View style={[styles.sheetPhoto, styles.sheetPhotoEmpty]}><Text style={styles.sheetPhotoEmoji}>🛍️</Text></View>
                     )}
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetTitle} numberOfLines={1}>{selected.pickupName ?? 'Entrega'}</Text>
+                      <Text style={styles.sheetTitle} numberOfLines={1}>{selected.pickupName ?? tx.delivery}</Text>
                       <Text style={styles.sheetSub} numberOfLines={1}>{selected.deliveryNumber ?? ''}</Text>
                     </View>
                     <Pressable onPress={() => setSelected(null)} hitSlop={10}>
@@ -369,20 +462,20 @@ export function DriverHome({ profile }: { profile: Me | null }) {
 
                   {selected.pickupAddress ? (
                     <Text style={styles.sheetLine} numberOfLines={2}>
-                      <Text style={styles.sheetLineKind}>🏪 Recoger: </Text>{selected.pickupAddress}
+                      <Text style={styles.sheetLineKind}>{tx.pickupPrefix}</Text>{selected.pickupAddress}
                     </Text>
                   ) : null}
                   <Text style={styles.sheetLine} numberOfLines={2}>
-                    <Text style={styles.sheetLineKind}>📍 Entregar: </Text>
-                    {selected.addressLine ?? 'Sin dirección'}{selected.city ? `, ${selected.city}` : ''}
+                    <Text style={styles.sheetLineKind}>{tx.deliverPrefix}</Text>
+                    {selected.addressLine ?? tx.noAddress}{selected.city ? `, ${selected.city}` : ''}
                   </Text>
 
                   {/* Who receives it: the client's name, and their phone as a straight call --
                       being able to ring before committing is often what decides taking a job. */}
                   <View style={styles.sheetClientRow}>
                     <Text style={[styles.sheetLine, { flex: 1 }]} numberOfLines={1}>
-                      <Text style={styles.sheetLineKind}>👤 Cliente: </Text>
-                      {selected.recipientName ?? 'Cliente'}
+                      <Text style={styles.sheetLineKind}>{tx.clientPrefix}</Text>
+                      {selected.recipientName ?? tx.client}
                     </Text>
                     {selected.clientPhone ? (
                       <Pressable
@@ -397,11 +490,11 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                   {/* The bag, capped at three lines so a big order cannot push the button away. */}
                   {(selected.orderItems ?? []).slice(0, 3).map((li) => (
                     <Text key={li.id} style={styles.sheetItem} numberOfLines={1}>
-                      {li.quantity}× {li.name ?? 'Producto'}
+                      {li.quantity}× {li.name ?? tx.product}
                     </Text>
                   ))}
                   {(selected.orderItems?.length ?? 0) > 3 ? (
-                    <Text style={styles.sheetItem}>… y {selected.orderItems!.length - 3} producto(s) más</Text>
+                    <Text style={styles.sheetItem}>{tx.moreItems(selected.orderItems!.length - 3)}</Text>
                   ) : null}
 
                   {selected.orderTotal != null ? (
@@ -411,7 +504,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                           {money(selected.orderTotal + (selected.orderDeliveryFee ?? 0))}
                         </Text>
                         <Text style={styles.sheetPayLabel}>
-                          a cobrar{selected.orderDeliveryFee != null ? ` · incluye envío ${money(selected.orderDeliveryFee)}` : ''}
+                          {tx.toCollect}{selected.orderDeliveryFee != null ? tx.includesShipping(money(selected.orderDeliveryFee)) : ''}
                         </Text>
                       </View>
                     </View>
@@ -421,7 +514,7 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                     style={styles.sheetCta}
                     onPress={() => { const id = selected.id; setSelected(null); router.push(`/available/${id}`); }}
                   >
-                    <Text style={styles.sheetCtaText}>Ver</Text>
+                    <Text style={styles.sheetCtaText}>{tx.see}</Text>
                   </Pressable>
                 </>
               ) : null}

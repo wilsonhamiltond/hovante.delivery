@@ -3,6 +3,27 @@ import * as api from './api';
 import type { RegisterPayload } from './api';
 import { clearToken, getToken, saveToken } from './storage';
 import { registerForPush, unregisterFromPush } from './pushNotifications';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    googleError: string;
+    facebookError: string;
+    appleError: string;
+  }
+> = {
+  es: {
+    googleError: 'No se pudo iniciar sesión con Google.',
+    facebookError: 'No se pudo iniciar sesión con Facebook.',
+    appleError: 'No se pudo iniciar sesión con Apple.',
+  },
+  en: {
+    googleError: 'Could not sign in with Google.',
+    facebookError: 'Could not sign in with Facebook.',
+    appleError: 'Could not sign in with Apple.',
+  },
+};
 
 interface AuthState {
   token: string | null;
@@ -27,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+  const tx = useStrings(S);
 
   // Asks the API who this token belongs to and whether the sign-up details are still owed. A failed
   // check counts as complete on purpose: a flaky network must not trap someone in the completion
@@ -120,19 +142,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // provider's answer and issues our JWT itself, so there is no token to exchange here, only one to
   // adopt. Same null-on-success contract as signIn.
   const signInWithGoogle = async (token: string) => {
-    if (!token) return 'No se pudo iniciar sesión con Google.';
+    if (!token) return tx.googleError;
     await adopt(token);
     return null;
   };
 
   const signInWithFacebook = async (token: string) => {
-    if (!token) return 'No se pudo iniciar sesión con Facebook.';
+    if (!token) return tx.facebookError;
     await adopt(token);
     return null;
   };
 
   const signInWithApple = async (token: string) => {
-    if (!token) return 'No se pudo iniciar sesión con Apple.';
+    if (!token) return tx.appleError;
     await adopt(token);
     return null;
   };

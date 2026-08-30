@@ -6,21 +6,88 @@ import * as api from '../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // The kinds of vehicle a courier can register. The value is what the API stores -- lowercase and
-// unaccented so it survives a round trip through any client -- while the label is what is shown.
-// "bicicleta" is the one type with no plate to give, which the API also knows.
-const TYPES = [
-  { value: 'moto', label: 'Moto' },
-  { value: 'carro', label: 'Carro' },
-  { value: 'bicicleta', label: 'Bicicleta' },
-] as const;
+// unaccented so it survives a round trip through any client -- while the label (looked up in S by
+// value) is what is shown. "bicicleta" is the one type with no plate to give, which the API also
+// knows.
+const TYPES = ['moto', 'carro', 'bicicleta'] as const;
+
+const S: Record<
+  Locale,
+  {
+    typeLabels: Record<string, string>;
+    chooseType: string;
+    plateRequired: string;
+    invalidYear: string;
+    saved: string;
+    title: string;
+    lead: string;
+    type: string;
+    plate: string;
+    platePlaceholder: string;
+    brand: string;
+    brandPlaceholder: string;
+    model: string;
+    modelPlaceholder: string;
+    year: string;
+    yearPlaceholder: string;
+    color: string;
+    colorPlaceholder: string;
+    save: string;
+  }
+> = {
+  es: {
+    typeLabels: { moto: 'Moto', carro: 'Carro', bicicleta: 'Bicicleta' },
+    chooseType: 'Elige el tipo de vehículo.',
+    plateRequired: 'Escribe la placa del vehículo.',
+    invalidYear: 'Escribe un año válido.',
+    saved: 'Vehículo guardado.',
+    title: 'Mi vehículo',
+    lead: 'Los datos de tu vehículo ayudan al comercio y al cliente a reconocerte cuando llegas.',
+    type: 'Tipo',
+    plate: 'Placa',
+    platePlaceholder: 'A123456',
+    brand: 'Marca',
+    brandPlaceholder: 'Honda, Yamaha, Toyota…',
+    model: 'Modelo',
+    modelPlaceholder: 'CG 150, Corolla…',
+    year: 'Año',
+    yearPlaceholder: '2019',
+    color: 'Color',
+    colorPlaceholder: 'Negro, rojo…',
+    save: 'Guardar vehículo',
+  },
+  en: {
+    typeLabels: { moto: 'Motorcycle', carro: 'Car', bicicleta: 'Bicycle' },
+    chooseType: 'Choose the vehicle type.',
+    plateRequired: 'Enter the vehicle’s plate number.',
+    invalidYear: 'Enter a valid year.',
+    saved: 'Vehicle saved.',
+    title: 'My vehicle',
+    lead: 'Your vehicle details help the merchant and the customer recognize you when you arrive.',
+    type: 'Type',
+    plate: 'Plate',
+    platePlaceholder: 'A123456',
+    brand: 'Make',
+    brandPlaceholder: 'Honda, Yamaha, Toyota…',
+    model: 'Model',
+    modelPlaceholder: 'CG 150, Corolla…',
+    year: 'Year',
+    yearPlaceholder: '2019',
+    color: 'Color',
+    colorPlaceholder: 'Black, red…',
+    save: 'Save vehicle',
+  },
+};
 
 // "Mi vehículo": the courier's own vehicle, reached from "Mi cuenta". One vehicle per driver, so
 // there is no list and no create-versus-edit -- the screen loads whatever is on record (or nothing,
 // for a new driver) and saving upserts it.
 export default function VehicleScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -65,13 +132,13 @@ export default function VehicleScreen() {
   const submit = async () => {
     // Mirrors what SaveMyVehicleAsync refuses, so the common mistakes are caught without a round
     // trip. The server stays the authority.
-    if (!type) return setNotice({ tone: 'error', message: 'Elige el tipo de vehículo.' });
+    if (!type) return setNotice({ tone: 'error', message: tx.chooseType });
     if (!isBicycle && !plate.trim()) {
-      return setNotice({ tone: 'error', message: 'Escribe la placa del vehículo.' });
+      return setNotice({ tone: 'error', message: tx.plateRequired });
     }
     const parsedYear = year.trim() ? Number(year.trim()) : null;
     if (parsedYear != null && (!Number.isInteger(parsedYear) || parsedYear < 1950 || parsedYear > new Date().getFullYear() + 1)) {
-      return setNotice({ tone: 'error', message: 'Escribe un año válido.' });
+      return setNotice({ tone: 'error', message: tx.invalidYear });
     }
 
     setSaving(true);
@@ -91,7 +158,7 @@ export default function VehicleScreen() {
       setNotice({ tone: 'error', message: res.message });
       return;
     }
-    setNotice({ tone: 'success', message: res.message || 'Vehículo guardado.' });
+    setNotice({ tone: 'success', message: res.message || tx.saved });
   };
 
   // Dismissing the success notice leaves the screen; dismissing an error stays put so the fields
@@ -107,7 +174,7 @@ export default function VehicleScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Mi vehículo</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -117,22 +184,22 @@ export default function VehicleScreen() {
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
               <Text style={styles.lead}>
-                Los datos de tu vehículo ayudan al comercio y al cliente a reconocerte cuando llegas.
+                {tx.lead}
               </Text>
 
-              <Text style={styles.label}>Tipo</Text>
+              <Text style={styles.label}>{tx.type}</Text>
               <View style={styles.typeRow}>
-                {TYPES.map((option) => {
-                  const selected = type === option.value;
+                {TYPES.map((value) => {
+                  const selected = type === value;
                   return (
                     <Pressable
-                      key={option.value}
+                      key={value}
                       style={[styles.typeChip, selected && styles.typeChipOn]}
-                      onPress={() => setType(option.value)}
+                      onPress={() => setType(value)}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
                     >
-                      <Text style={[styles.typeChipText, selected && styles.typeChipTextOn]}>{option.label}</Text>
+                      <Text style={[styles.typeChipText, selected && styles.typeChipTextOn]}>{tx.typeLabels[value]}</Text>
                     </Pressable>
                   );
                 })}
@@ -142,12 +209,12 @@ export default function VehicleScreen() {
                   greyed-out field still reads like something missing. */}
               {!isBicycle ? (
                 <>
-                  <Text style={[styles.label, styles.labelSpaced]}>Placa</Text>
+                  <Text style={[styles.label, styles.labelSpaced]}>{tx.plate}</Text>
                   <TextInput
                     style={styles.input}
                     value={plate}
                     onChangeText={setPlate}
-                    placeholder="A123456"
+                    placeholder={tx.platePlaceholder}
                     placeholderTextColor={t.textFaint}
                     autoCapitalize="characters"
                     autoCorrect={false}
@@ -155,41 +222,41 @@ export default function VehicleScreen() {
                 </>
               ) : null}
 
-              <Text style={[styles.label, styles.labelSpaced]}>Marca</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.brand}</Text>
               <TextInput
                 style={styles.input}
                 value={brand}
                 onChangeText={setBrand}
-                placeholder="Honda, Yamaha, Toyota…"
+                placeholder={tx.brandPlaceholder}
                 placeholderTextColor={t.textFaint}
               />
 
-              <Text style={[styles.label, styles.labelSpaced]}>Modelo</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.model}</Text>
               <TextInput
                 style={styles.input}
                 value={model}
                 onChangeText={setModel}
-                placeholder="CG 150, Corolla…"
+                placeholder={tx.modelPlaceholder}
                 placeholderTextColor={t.textFaint}
               />
 
-              <Text style={[styles.label, styles.labelSpaced]}>Año</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.year}</Text>
               <TextInput
                 style={styles.input}
                 value={year}
                 onChangeText={setYear}
-                placeholder="2019"
+                placeholder={tx.yearPlaceholder}
                 placeholderTextColor={t.textFaint}
                 keyboardType="number-pad"
                 maxLength={4}
               />
 
-              <Text style={[styles.label, styles.labelSpaced]}>Color</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.color}</Text>
               <TextInput
                 style={styles.input}
                 value={color}
                 onChangeText={setColor}
-                placeholder="Negro, rojo…"
+                placeholder={tx.colorPlaceholder}
                 placeholderTextColor={t.textFaint}
                 onSubmitEditing={submit}
                 returnKeyType="done"
@@ -200,7 +267,7 @@ export default function VehicleScreen() {
               <Pressable style={[styles.primary, saving && styles.disabled]} onPress={submit} disabled={saving}>
                 {saving
                   ? <ActivityIndicator color={t.onAccent} />
-                  : <Text style={styles.primaryText}>Guardar vehículo</Text>}
+                  : <Text style={styles.primaryText}>{tx.save}</Text>}
               </Pressable>
             </View>
           </KeyboardAvoidingView>

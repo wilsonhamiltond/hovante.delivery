@@ -5,12 +5,52 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    missingFields: string;
+    title: string;
+    subtitle: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    forgot: string;
+    signIn: string;
+    noAccount: string;
+    register: string;
+  }
+> = {
+  es: {
+    missingFields: 'Ingrese correo y contraseña.',
+    title: 'Iniciar sesión',
+    subtitle: 'Ingresa con tu correo y contraseña',
+    emailPlaceholder: 'Correo electrónico',
+    passwordPlaceholder: 'Contraseña',
+    forgot: '¿Olvidó su contraseña?',
+    signIn: 'Iniciar sesión',
+    noAccount: '¿No tienes cuenta? ',
+    register: 'Regístrate',
+  },
+  en: {
+    missingFields: 'Enter your email and password.',
+    title: 'Sign in',
+    subtitle: 'Sign in with your email and password',
+    emailPlaceholder: 'Email address',
+    passwordPlaceholder: 'Password',
+    forgot: 'Forgot your password?',
+    signIn: 'Sign in',
+    noAccount: "Don't have an account? ",
+    register: 'Sign up',
+  },
+};
 
 // Sign in with an existing account. Reached from the welcome screen's "Ya tengo cuenta"; new users
 // go through the register wizard instead.
 export default function EmailLoginScreen() {
   const { signIn } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +61,7 @@ export default function EmailLoginScreen() {
   const onSubmit = async () => {
     setError(null);
     if (!email.trim() || !password) {
-      setError('Ingrese correo y contraseña.');
+      setError(tx.missingFields);
       return;
     }
     setSubmitting(true);
@@ -38,12 +78,12 @@ export default function EmailLoginScreen() {
           <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/login"))} />
         </View>
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Text style={styles.title}>Iniciar sesión</Text>
-          <Text style={styles.subtitle}>Ingresa con tu correo y contraseña</Text>
+          <Text style={styles.title}>{tx.title}</Text>
+          <Text style={styles.subtitle}>{tx.subtitle}</Text>
 
           <TextInput
             style={styles.input}
-            placeholder="Correo electrónico"
+            placeholder={tx.emailPlaceholder}
             placeholderTextColor={t.textFaint}
             autoCapitalize="none"
             keyboardType="email-address"
@@ -59,7 +99,7 @@ export default function EmailLoginScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Contraseña"
+            placeholder={tx.passwordPlaceholder}
             placeholderTextColor={t.textFaint}
             secureTextEntry
             value={password}
@@ -74,15 +114,15 @@ export default function EmailLoginScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Link href="/forgot-password" style={styles.forgot}>¿Olvidó su contraseña?</Link>
+          <Link href="/forgot-password" style={styles.forgot}>{tx.forgot}</Link>
 
           <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
+            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>{tx.signIn}</Text>}
           </Pressable>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>¿No tienes cuenta? </Text>
-            <Link href="/login" style={styles.link}>Regístrate</Link>
+            <Text style={styles.footerText}>{tx.noAccount}</Text>
+            <Link href="/login" style={styles.link}>{tx.register}</Link>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>

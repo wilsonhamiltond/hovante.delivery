@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
+import { strings, type Locale } from './i18n';
 
 // Where the customer is *right now*, as opposed to where they usually are.
 //
@@ -57,5 +58,12 @@ export function useSessionLocation(): SessionLocationState {
   return ctx;
 }
 
+const S: Record<Locale, { sessionLocationLabel: string }> = {
+  es: { sessionLocationLabel: 'Ubicación actual' },
+  en: { sessionLocationLabel: 'Current location' },
+};
+
 /** What the header pill calls it, so it is obvious this is not one of the saved addresses. */
-export const SESSION_LOCATION_LABEL = 'Ubicación actual';
+export function sessionLocationLabel(): string {
+  return strings(S).sessionLocationLabel;
+}

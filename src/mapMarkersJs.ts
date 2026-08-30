@@ -1,4 +1,11 @@
 import { GOOGLE_MAPS_MAP_ID } from './config';
+import { strings, type Locale } from './i18n';
+
+// The one user-visible word here: the driver marker's tooltip. Read when the block is generated.
+const S: Record<Locale, { you: string }> = {
+  es: { you: 'Tú' },
+  en: { you: 'You' },
+};
 
 // Every marker in the app, as one block of JavaScript the three map documents embed.
 //
@@ -14,6 +21,7 @@ import { GOOGLE_MAPS_MAP_ID } from './config';
 // documents ask for "a numbered pin" or "the driver" and never mention either API.
 
 export function markersJs(): string {
+  const tx = strings(S);
   return `
   var MAP_ID = ${JSON.stringify(GOOGLE_MAPS_MAP_ID)};
   // Decided once the library is loaded, since it reads google.maps: both halves must be present --
@@ -219,11 +227,11 @@ export function markersJs(): string {
         + 'transform:translateY(50%)';
       el.textContent = '🛵';
       return wrapMarker(new google.maps.marker.AdvancedMarkerElement({
-        map: map, position: at, title: 'Tú', content: el, zIndex: 3,
+        map: map, position: at, title: ${JSON.stringify(tx.you)}, content: el, zIndex: 3,
       }), true);
     }
     return wrapMarker(new google.maps.Marker({
-      map: map, position: at, title: 'Tú', zIndex: 3,
+      map: map, position: at, title: ${JSON.stringify(tx.you)}, zIndex: 3,
       icon: {
         path: google.maps.SymbolPath.CIRCLE, scale: 13,
         fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3,

@@ -3,8 +3,20 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { GOOGLE_REDIRECT_URI, GOOGLE_START_URL, parseGoogleReturnUrl } from './googleAuth';
-import { EXPO_GO_SOCIAL_MESSAGE, IS_EXPO_GO } from './expoGo';
+import { expoGoSocialMessage, IS_EXPO_GO } from './expoGo';
 import { useAuth } from './auth';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { error: string; label: string }> = {
+  es: {
+    error: 'No se pudo iniciar sesión con Google.',
+    label: 'Continuar con Google',
+  },
+  en: {
+    error: 'Could not sign in with Google.',
+    label: 'Continue with Google',
+  },
+};
 
 interface Props {
   onError?: (message: string) => void;
@@ -21,13 +33,14 @@ interface Props {
 export function GoogleSignInButton({ onError, disabled }: Props) {
   const { signInWithGoogle } = useAuth();
   const [busy, setBusy] = useState(false);
+  const tx = useStrings(S);
 
   const onPress = async () => {
     // Inside Expo Go the API's return link (hovantedelivery://google-auth) points at a scheme no
     // installed app owns, so the browser opens, Google succeeds, and nothing ever comes back. Say
     // so up front rather than leaving someone staring at a page that will not close.
     if (IS_EXPO_GO) {
-      onError?.(EXPO_GO_SOCIAL_MESSAGE);
+      onError?.(expoGoSocialMessage());
       return;
     }
 
@@ -42,7 +55,7 @@ export function GoogleSignInButton({ onError, disabled }: Props) {
       if (!token) {
         // Every API-side failure -- declined consent, bad state, unverified email -- arrives as a
         // ready-to-show message on the link.
-        onError?.(error ?? 'No se pudo iniciar sesión con Google.');
+        onError?.(error ?? tx.error);
         return;
       }
 
@@ -50,7 +63,7 @@ export function GoogleSignInButton({ onError, disabled }: Props) {
       if (err) onError?.(err);
       // On success the auth gate in _layout redirects away from the login screen.
     } catch {
-      onError?.('No se pudo iniciar sesión con Google.');
+      onError?.(tx.error);
     } finally {
       setBusy(false);
     }
@@ -64,14 +77,14 @@ export function GoogleSignInButton({ onError, disabled }: Props) {
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel="Continuar con Google"
+      accessibilityLabel={tx.label}
     >
       {busy ? (
         <ActivityIndicator color="#0f172a" />
       ) : (
         <>
           <FontAwesome5 name="google" brand size={18} color="#4285F4" style={styles.logoIcon} />
-          <Text style={styles.buttonText}>Continuar con Google</Text>
+          <Text style={styles.buttonText}>{tx.label}</Text>
         </>
       )}
     </Pressable>

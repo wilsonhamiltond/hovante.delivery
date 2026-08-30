@@ -4,11 +4,18 @@ import { MapAuthError } from './MapAuthError';
 import { pointsMapHtml } from './pointsMapHtml';
 import type { DriverPosition } from './routeMapHtml';
 import type { PointsMapProps } from './PointsMap';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { frameTitle: string }> = {
+  es: { frameTitle: 'Mapa de puntos' },
+  en: { frameTitle: 'Points map' },
+};
 
 // Web: the N-marker map in a real <iframe> (this file only loads on web), listening for the map's
 // postMessage so a tapped pin reaches the host exactly like the native WebView's onMessage, and
 // pushing the driver's position in the same way RouteMap.web does.
 export function PointsMap({ points, onPointPress, driver, routeFromDriver }: PointsMapProps) {
+  const tx = useStrings(S);
   const html = useRef(pointsMapHtml(points, routeFromDriver ?? false)).current;
   const frame = useRef<HTMLIFrameElement>(null);
   const last = useRef(driver ?? null);
@@ -46,7 +53,7 @@ export function PointsMap({ points, onPointPress, driver, routeFromDriver }: Poi
       <iframe
         ref={frame}
         srcDoc={html}
-        title="Mapa de puntos"
+        title={tx.frameTitle}
         style={{ border: 0, width: '100%', height: '100%' }}
         onLoad={() => { if (last.current) push(last.current); }}
       />

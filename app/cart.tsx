@@ -16,12 +16,192 @@ import { PointsMap } from '../src/PointsMap';
 import { DEFAULT_CENTER, type DeliveryArea } from '../src/mapHtml';
 import { pointInPolygon } from '../src/geo';
 import { detectCurrentLocation } from '../src/profileForm';
-import { SESSION_LOCATION_LABEL, useSessionLocation } from '../src/sessionLocation';
-import { STEP_TITLES, stepsFor, type StepKey } from '../src/checkoutSteps';
+import { sessionLocationLabel, useSessionLocation } from '../src/sessionLocation';
+import { stepTitles, stepsFor, type StepKey } from '../src/checkoutSteps';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
+
+const S: Record<
+  Locale,
+  {
+    yourOrder: string;
+    emptyTitle: string;
+    emptySubtitle: string;
+    exploreMerchants: string;
+    branch: string;
+    branchLead: string;
+    continueLabel: string;
+    deliveryMode: string;
+    deliveryTitle: string;
+    deliverySub: string;
+    pickupTitle: string;
+    pickupSub: string;
+    paymentMethod: string;
+    cashTitle: string;
+    cashSub: string;
+    cardTitle: string;
+    cardSub: string;
+    comingSoon: string;
+    tapInsideArea: string;
+    tapMap: string;
+    myLocation: string;
+    theMerchant: string;
+    moreBranches: (n: number) => string;
+    deliveryAddress: string;
+    thisMerchant: string;
+    outsideWarn: (name: string) => string;
+    outsideTitle: string;
+    outsideBody: string;
+    locPermTitle: string;
+    locPermBody: string;
+    locTitle: string;
+    locFailed: string;
+    orderFailedTitle: string;
+    notesLabel: string;
+    notesPlaceholder: string;
+    payWithLabel: string;
+    payWithPlaceholder: (total: string) => string;
+    payWithError: (total: string) => string;
+    changeDue: (amount: string) => string;
+    detailsLabel: string;
+    cashPaymentSuffix: string;
+    payingWithSuffix: (pay: string, change: string) => string;
+    deliverAt: string;
+    pickUpAt: string;
+    noAddress: string;
+    etaFrom: (eta: string, name: string) => string;
+    fromMerchantFallback: string;
+    productsAt: (name: string | null) => string;
+    shippingLabel: string;
+    pickupNoShipping: string;
+    homeDelivery: (eta: string) => string;
+    feePending: string;
+    noteLabel: string;
+    noNote: string;
+    placeOrderLabel: string;
+    total: string;
+  }
+> = {
+  es: {
+    yourOrder: 'Tu pedido',
+    emptyTitle: 'Tu carrito está vacío',
+    emptySubtitle: 'Agrega productos de tus comercios favoritos y los verás aquí.',
+    exploreMerchants: 'Explorar comercios',
+    branch: 'Sucursal',
+    branchLead: 'Varias sucursales entregan en tu ubicación. Elige desde cuál quieres tu pedido.',
+    continueLabel: 'Continuar',
+    deliveryMode: 'Modo de entrega',
+    deliveryTitle: 'Delivery',
+    deliverySub: 'Te lo llevamos a tu ubicación',
+    pickupTitle: 'Retiro en tienda',
+    pickupSub: 'Lo recoges tú en el comercio · sin costo de envío',
+    paymentMethod: 'Método de pago',
+    cashTitle: 'Efectivo',
+    cashSub: 'Pagas al recibir tu pedido',
+    cardTitle: 'Tarjeta de crédito',
+    cardSub: 'Muy pronto',
+    comingSoon: 'Próximamente',
+    tapInsideArea: 'Toca dentro del área marcada para elegir dónde entregar',
+    tapMap: 'Toca el mapa para elegir dónde entregar',
+    myLocation: '📍 Mi ubicación',
+    theMerchant: 'El comercio',
+    moreBranches: (n) => ` y ${n} sucursal(es) más`,
+    deliveryAddress: 'Dirección de entrega',
+    thisMerchant: 'este comercio',
+    outsideWarn: (name) => `Este punto está fuera del área de entrega de ${name}. Elige uno dentro del recuadro.`,
+    outsideTitle: 'Fuera del área de entrega',
+    outsideBody: 'Este comercio solo entrega dentro del área marcada en el mapa. Elige un punto dentro del área.',
+    locPermTitle: 'Permiso de ubicación',
+    locPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locTitle: 'Ubicación',
+    locFailed: 'No se pudo obtener tu ubicación actual.',
+    orderFailedTitle: 'No se pudo crear el pedido',
+    notesLabel: 'Notas para el comercio',
+    notesPlaceholder: 'Ej: sin cebolla, tocar el timbre…',
+    payWithLabel: '¿Con cuánto vas a pagar?',
+    payWithPlaceholder: (total) => `Ej: 1000 · total ${total} · vacío si pagas exacto`,
+    payWithError: (total) => `Debe cubrir el total del pedido (${total}).`,
+    changeDue: (amount) => `Tu devuelta: ${amount}`,
+    detailsLabel: 'Detalles',
+    cashPaymentSuffix: ' · Pago en efectivo',
+    payingWithSuffix: (pay, change) => ` · Pagas con ${pay} · devuelta ${change}`,
+    deliverAt: 'Entregar en',
+    pickUpAt: 'Retirar en',
+    noAddress: 'Sin dirección',
+    etaFrom: (eta, name) => `⏱️ ${eta} desde ${name}`,
+    fromMerchantFallback: 'el comercio',
+    productsAt: (name) => `Productos · ${name}`,
+    shippingLabel: 'Envío',
+    pickupNoShipping: 'Retiro en tienda · sin costo de envío',
+    homeDelivery: (eta) => `Entrega a domicilio · ${eta}`,
+    feePending: 'Se calcula al conocer la distancia',
+    noteLabel: 'Nota',
+    noNote: 'Sin nota',
+    placeOrderLabel: 'Realizar pedido',
+    total: 'Total',
+  },
+  en: {
+    yourOrder: 'Your order',
+    emptyTitle: 'Your cart is empty',
+    emptySubtitle: "Add products from your favorite merchants and you'll see them here.",
+    exploreMerchants: 'Explore merchants',
+    branch: 'Branch',
+    branchLead: 'Several branches deliver to your location. Choose which one you want your order from.',
+    continueLabel: 'Continue',
+    deliveryMode: 'Delivery mode',
+    deliveryTitle: 'Delivery',
+    deliverySub: 'We bring it to your location',
+    pickupTitle: 'Store pickup',
+    pickupSub: 'You pick it up at the store · no delivery fee',
+    paymentMethod: 'Payment method',
+    cashTitle: 'Cash',
+    cashSub: 'You pay when you receive your order',
+    cardTitle: 'Credit card',
+    cardSub: 'Coming soon',
+    comingSoon: 'Coming soon',
+    tapInsideArea: 'Tap inside the marked area to choose where to deliver',
+    tapMap: 'Tap the map to choose where to deliver',
+    myLocation: '📍 My location',
+    theMerchant: 'The merchant',
+    moreBranches: (n) => ` and ${n} more branch(es)`,
+    deliveryAddress: 'Delivery address',
+    thisMerchant: 'this merchant',
+    outsideWarn: (name) => `This point is outside ${name}'s delivery area. Choose one inside the boundary.`,
+    outsideTitle: 'Outside the delivery area',
+    outsideBody: 'This merchant only delivers within the area marked on the map. Choose a point inside the area.',
+    locPermTitle: 'Location permission',
+    locPermBody: 'Enable the location permission to use your current location.',
+    locTitle: 'Location',
+    locFailed: 'Could not get your current location.',
+    orderFailedTitle: 'The order could not be placed',
+    notesLabel: 'Notes for the merchant',
+    notesPlaceholder: 'E.g.: no onions, ring the doorbell…',
+    payWithLabel: 'How much will you pay with?',
+    payWithPlaceholder: (total) => `E.g.: 1000 · total ${total} · leave empty for exact payment`,
+    payWithError: (total) => `It must cover the order total (${total}).`,
+    changeDue: (amount) => `Your change: ${amount}`,
+    detailsLabel: 'Details',
+    cashPaymentSuffix: ' · Cash payment',
+    payingWithSuffix: (pay, change) => ` · Paying with ${pay} · change ${change}`,
+    deliverAt: 'Deliver to',
+    pickUpAt: 'Pick up at',
+    noAddress: 'No address',
+    etaFrom: (eta, name) => `⏱️ ${eta} from ${name}`,
+    fromMerchantFallback: 'the merchant',
+    productsAt: (name) => `Products · ${name}`,
+    shippingLabel: 'Delivery fee',
+    pickupNoShipping: 'Store pickup · no delivery fee',
+    homeDelivery: (eta) => `Home delivery · ${eta}`,
+    feePending: 'Calculated once the distance is known',
+    noteLabel: 'Note',
+    noNote: 'No note',
+    placeOrderLabel: 'Place order',
+    total: 'Total',
+  },
+};
 
 // Checkout wizard: 1) review the cart, 2) choose the order's details (delivery mode + payment),
 // 3) pick the delivery location on a map, 4) add a note, 5) review and place the order.
@@ -35,6 +215,7 @@ export default function CartScreen() {
   const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
+  const tx = useStrings(S);
   // The wizard's position is held as the step's KEY, not its number: the sequence has a different
   // length per delivery mode, so an index would point at a different screen the moment the mode
   // changed under it.
@@ -74,7 +255,7 @@ export default function CartScreen() {
     // would promise one destination and the order would carry another.
     if (session.location) {
       setAddress(session.location.address);
-      setAddressLabel(SESSION_LOCATION_LABEL);
+      setAddressLabel(sessionLocationLabel());
       setCoords({ lat: session.location.latitude, lng: session.location.longitude });
       if (session.location.latitude != null) setMapKey((k) => k + 1);
       return;
@@ -191,8 +372,8 @@ export default function CartScreen() {
   };
 
   const outsideNotice = () => Alert.alert(
-    'Fuera del área de entrega',
-    'Este comercio solo entrega dentro del área marcada en el mapa. Elige un punto dentro del área.',
+    tx.outsideTitle,
+    tx.outsideBody,
   );
 
   // Device GPS, then a readable address for it -- the same shared helper the sign-up and
@@ -203,9 +384,9 @@ export default function CartScreen() {
     setLocating(false);
     if (!result.ok) {
       if (result.reason === 'permission') {
-        Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
+        Alert.alert(tx.locPermTitle, tx.locPermBody);
       } else {
-        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
+        Alert.alert(tx.locTitle, tx.locFailed);
       }
       return;
     }
@@ -236,7 +417,7 @@ export default function CartScreen() {
         : undefined,
     });
     setSubmitting(false);
-    if (!res.success) { Alert.alert('No se pudo crear el pedido', res.message); return; }
+    if (!res.success) { Alert.alert(tx.orderFailedTitle, res.message); return; }
     const orderId = res.data.id;
     cart.clear();
     // Straight to the tracking screen for the new order.
@@ -247,16 +428,16 @@ export default function CartScreen() {
     return (
       <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Header title="Tu pedido" onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
+        <Header title={tx.yourOrder} onBack={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
         <View style={styles.center}>
           {/* The emoji sat loose on the gradient at 48px, which read as a stray character. Inside a
               glass disc it becomes an illustration, matching the surfaces used everywhere else. */}
           <View style={styles.emptyBadge}>
             <Text style={styles.emptyEmoji}>🛒</Text>
           </View>
-          <Text style={styles.emptyTitle}>Tu carrito está vacío</Text>
+          <Text style={styles.emptyTitle}>{tx.emptyTitle}</Text>
           <Text style={styles.emptySubtitle}>
-            Agrega productos de tus comercios favoritos y los verás aquí.
+            {tx.emptySubtitle}
           </Text>
           {/* Sized to its own text rather than stretched edge to edge: the footer's full-width
               button means "finish this", and nothing is being finished on an empty cart. */}
@@ -266,7 +447,7 @@ export default function CartScreen() {
             accessibilityRole="button"
           >
             <FontAwesome5 name="store" size={14} solid color={t.onAccent} />
-            <Text style={styles.emptyCtaText}>Explorar comercios</Text>
+            <Text style={styles.emptyCtaText}>{tx.exploreMerchants}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -278,7 +459,7 @@ export default function CartScreen() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header
-        title={needsOfficeChoice ? 'Sucursal' : STEP_TITLES[stepKey]}
+        title={needsOfficeChoice ? tx.branch : stepTitles()[stepKey]}
         onBack={() => (needsOfficeChoice || stepIndex === 0
           ? (router.canGoBack() ? router.back() : router.replace('/home'))
           : goBack())}
@@ -294,7 +475,7 @@ export default function CartScreen() {
           <ScrollView style={styles.officeList} contentContainerStyle={styles.scroll}>
             <Text style={styles.merchant}>{cart.merchantName}</Text>
             <Text style={styles.officeLead}>
-              Varias sucursales entregan en tu ubicación. Elige desde cuál quieres tu pedido.
+              {tx.branchLead}
             </Text>
             {eligible.map((o, i) => (
               <Pressable
@@ -356,7 +537,7 @@ export default function CartScreen() {
             ))}
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>{tx.continueLabel}</Text></Pressable>
           </Footer>
         </>
       )}
@@ -368,7 +549,7 @@ export default function CartScreen() {
       {!needsOfficeChoice && stepKey === 'details' && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
-            <Text style={styles.label}>Modo de entrega</Text>
+            <Text style={styles.label}>{tx.deliveryMode}</Text>
             <Pressable
               style={[styles.optionCard, deliveryMode === 'delivery' && styles.optionActive]}
               onPress={() => setDeliveryMode('delivery')}
@@ -376,8 +557,8 @@ export default function CartScreen() {
             >
               <Text style={styles.optionIcon}>🛵</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.optionTitle}>Delivery</Text>
-                <Text style={styles.optionSub}>Te lo llevamos a tu ubicación</Text>
+                <Text style={styles.optionTitle}>{tx.deliveryTitle}</Text>
+                <Text style={styles.optionSub}>{tx.deliverySub}</Text>
               </View>
               <View style={[styles.radio, deliveryMode === 'delivery' && styles.radioActive]}>
                 {deliveryMode === 'delivery' ? <View style={styles.radioDot} /> : null}
@@ -390,34 +571,34 @@ export default function CartScreen() {
             >
               <Text style={styles.optionIcon}>🏪</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.optionTitle}>Retiro en tienda</Text>
-                <Text style={styles.optionSub}>Lo recoges tú en el comercio · sin costo de envío</Text>
+                <Text style={styles.optionTitle}>{tx.pickupTitle}</Text>
+                <Text style={styles.optionSub}>{tx.pickupSub}</Text>
               </View>
               <View style={[styles.radio, deliveryMode === 'pickup' && styles.radioActive]}>
                 {deliveryMode === 'pickup' ? <View style={styles.radioDot} /> : null}
               </View>
             </Pressable>
 
-            <Text style={styles.label}>Método de pago</Text>
+            <Text style={styles.label}>{tx.paymentMethod}</Text>
             <Pressable style={[styles.optionCard, styles.optionActive]} accessibilityRole="button">
               <Text style={styles.optionIcon}>💵</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.optionTitle}>Efectivo</Text>
-                <Text style={styles.optionSub}>Pagas al recibir tu pedido</Text>
+                <Text style={styles.optionTitle}>{tx.cashTitle}</Text>
+                <Text style={styles.optionSub}>{tx.cashSub}</Text>
               </View>
               <View style={[styles.radio, styles.radioActive]}><View style={styles.radioDot} /></View>
             </Pressable>
             <View style={[styles.optionCard, styles.optionDisabled]}>
               <Text style={styles.optionIcon}>💳</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.optionTitle}>Tarjeta de crédito</Text>
-                <Text style={styles.optionSub}>Muy pronto</Text>
+                <Text style={styles.optionTitle}>{tx.cardTitle}</Text>
+                <Text style={styles.optionSub}>{tx.cardSub}</Text>
               </View>
-              <View style={styles.soonBadge}><Text style={styles.soonBadgeText}>Próximamente</Text></View>
+              <View style={styles.soonBadge}><Text style={styles.soonBadgeText}>{tx.comingSoon}</Text></View>
             </View>
           </ScrollView>
           <Footer total={cart.total}>
-            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>Continuar</Text></Pressable>
+            <Pressable style={styles.primary} onPress={goNext}><Text style={styles.primaryText}>{tx.continueLabel}</Text></Pressable>
           </Footer>
         </>
       )}
@@ -429,11 +610,11 @@ export default function CartScreen() {
           <View style={styles.locRow}>
             <Text style={styles.hint}>
               {areas.length > 0
-                ? 'Toca dentro del área marcada para elegir dónde entregar'
-                : 'Toca el mapa para elegir dónde entregar'}
+                ? tx.tapInsideArea
+                : tx.tapMap}
             </Text>
             <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-              {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
+              {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>{tx.myLocation}</Text>}
             </Pressable>
           </View>
           <LocationPicker
@@ -454,22 +635,21 @@ export default function CartScreen() {
             <View style={styles.legend}>
               <View style={styles.legendDot} />
               <Text style={styles.legendText}>
-                {areas[0].officeName ?? cart.merchantName ?? 'El comercio'}
-                {areas.length > 1 ? ` y ${areas.length - 1} sucursal(es) más` : ''}
+                {areas[0].officeName ?? cart.merchantName ?? tx.theMerchant}
+                {areas.length > 1 ? tx.moreBranches(areas.length - 1) : ''}
               </Text>
             </View>
           ) : null}
           <View style={styles.labelRow}>
-            <Text style={styles.labelText}>Dirección de entrega</Text>
+            <Text style={styles.labelText}>{tx.deliveryAddress}</Text>
             {addressLabel ? <Text style={styles.labelBadge}>{addressLabel}</Text> : null}
           </View>
-          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder="Dirección de entrega" placeholderTextColor={t.textFaint} multiline />
+          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder={tx.deliveryAddress} placeholderTextColor={t.textFaint} multiline />
           {/* A saved address or a GPS fix can land outside the area without any tap being refused,
               so the step is gated on the point itself rather than only on the map's own check. */}
           {areas.length > 0 && !insideArea(coords.lat, coords.lng) ? (
             <Text style={styles.outsideWarn}>
-              Este punto está fuera del área de entrega de {cart.merchantName ?? 'este comercio'}.
-              Elige uno dentro del recuadro.
+              {tx.outsideWarn(cart.merchantName ?? tx.thisMerchant)}
             </Text>
           ) : null}
           <Pressable
@@ -477,7 +657,7 @@ export default function CartScreen() {
             disabled={!address.trim() || !insideArea(coords.lat, coords.lng)}
             onPress={goNext}
           >
-            <Text style={styles.primaryText}>Continuar</Text>
+            <Text style={styles.primaryText}>{tx.continueLabel}</Text>
           </Pressable>
         </View>
       )}
@@ -485,28 +665,28 @@ export default function CartScreen() {
       {!needsOfficeChoice && stepKey === 'note' && (
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
-            <Text style={styles.label}>Notas para el comercio</Text>
-            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Ej: sin cebolla, tocar el timbre…" placeholderTextColor={t.textFaint} multiline />
+            <Text style={styles.label}>{tx.notesLabel}</Text>
+            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder={tx.notesPlaceholder} placeholderTextColor={t.textFaint} multiline />
 
             {/* Cash only: with what bill will they pay, so whoever hands the order over brings the
                 change. Empty is fine -- it reads as exact payment. */}
             {paymentType === 'cash' ? (
               <>
-                <Text style={styles.label}>¿Con cuánto vas a pagar?</Text>
+                <Text style={styles.label}>{tx.payWithLabel}</Text>
                 <TextInput
                   style={styles.payWithInput}
                   value={payWith}
                   onChangeText={setPayWith}
-                  placeholder={`Ej: 1000 · total ${money(grandTotal)} · vacío si pagas exacto`}
+                  placeholder={tx.payWithPlaceholder(money(grandTotal))}
                   placeholderTextColor={t.textFaint}
                   keyboardType="numeric"
                 />
                 {payWithNum != null && !payWithValid ? (
                   <Text style={styles.payWithError}>
-                    Debe cubrir el total del pedido ({money(grandTotal)}).
+                    {tx.payWithError(money(grandTotal))}
                   </Text>
                 ) : changeDue != null && changeDue > 0 ? (
-                  <Text style={styles.payWithChange}>Tu devuelta: {money(changeDue)}</Text>
+                  <Text style={styles.payWithChange}>{tx.changeDue(money(changeDue))}</Text>
                 ) : null}
               </>
             ) : null}
@@ -517,7 +697,7 @@ export default function CartScreen() {
               onPress={goNext}
               disabled={!payWithValid}
             >
-              <Text style={styles.primaryText}>Continuar</Text>
+              <Text style={styles.primaryText}>{tx.continueLabel}</Text>
             </Pressable>
           </Footer>
         </>
@@ -546,7 +726,7 @@ export default function CartScreen() {
                   address: selectedOffice?.address ?? null,
                   // A lone pin needs no number on it, unlike the numbered branch chooser.
                   label: '🏪',
-                  title: selectedOffice?.name ?? cart.merchantName ?? 'El comercio',
+                  title: selectedOffice?.name ?? cart.merchantName ?? tx.theMerchant,
                   color: '#0b2a6b',
                 }]}
               />
@@ -554,36 +734,36 @@ export default function CartScreen() {
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
             {/* What was chosen on the details step, echoed so the review really reviews it. */}
-            <Text style={styles.label}>Detalles</Text>
+            <Text style={styles.label}>{tx.detailsLabel}</Text>
             <View style={styles.addrCard}>
               <Text style={styles.pin}>{deliveryMode === 'delivery' ? '🛵' : '🏪'}</Text>
               <Text style={styles.addrText}>
-                {deliveryMode === 'delivery' ? 'Delivery' : 'Retiro en tienda'} · Pago en efectivo
+                {deliveryMode === 'delivery' ? tx.deliveryTitle : tx.pickupTitle}{tx.cashPaymentSuffix}
                 {changeDue != null && changeDue > 0
-                  ? ` · Pagas con ${money(payWithNum!)} · devuelta ${money(changeDue)}`
+                  ? tx.payingWithSuffix(money(payWithNum!), money(changeDue))
                   : ''}
               </Text>
             </View>
 
-            <Text style={styles.label}>{deliveryMode === 'delivery' ? 'Entregar en' : 'Retirar en'}</Text>
+            <Text style={styles.label}>{deliveryMode === 'delivery' ? tx.deliverAt : tx.pickUpAt}</Text>
             <View style={styles.addrCard}>
               <Text style={styles.pin}>📍</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.addrText}>
                   {deliveryMode === 'delivery'
-                    ? (address || 'Sin dirección')
-                    : (selectedOffice?.address ?? selectedOffice?.name ?? cart.merchantName ?? 'El comercio')}
+                    ? (address || tx.noAddress)
+                    : (selectedOffice?.address ?? selectedOffice?.name ?? cart.merchantName ?? tx.theMerchant)}
                 </Text>
                 {deliveryMode === 'delivery' && eta ? (
                   <Text style={styles.etaText}>
-                    ⏱️ {formatEta(eta)} desde {selectedOffice?.name ?? 'el comercio'}
+                    {tx.etaFrom(formatEta(eta), selectedOffice?.name ?? tx.fromMerchantFallback)}
                   </Text>
                 ) : null}
               </View>
             </View>
 
             {/* …the products in the middle… */}
-            <Text style={styles.label}>Productos · {cart.merchantName}</Text>
+            <Text style={styles.label}>{tx.productsAt(cart.merchantName)}</Text>
             {cart.lines.map((l) => (
               <View key={l.product.id} style={styles.reviewLine}>
                 <Text style={styles.reviewQty}>{l.quantity}×</Text>
@@ -593,25 +773,25 @@ export default function CartScreen() {
             ))}
 
             {/* …the delivery cost for the route about to be driven (or none, on pickup)… */}
-            <Text style={styles.label}>Envío</Text>
+            <Text style={styles.label}>{tx.shippingLabel}</Text>
             <View style={styles.reviewLine}>
               <Text style={styles.reviewName}>
                 {deliveryMode === 'pickup'
-                  ? 'Retiro en tienda · sin costo de envío'
+                  ? tx.pickupNoShipping
                   : deliveryFee != null && eta
-                    ? `Entrega a domicilio · ${formatEta(eta)}`
-                    : 'Se calcula al conocer la distancia'}
+                    ? tx.homeDelivery(formatEta(eta))
+                    : tx.feePending}
               </Text>
               {deliveryFee != null ? <Text style={styles.reviewPrice}>{money(deliveryFee)}</Text> : null}
             </View>
 
             {/* …and the note at the bottom. */}
-            <Text style={styles.label}>Nota</Text>
-            <View style={styles.noteCard}><Text style={styles.noteText}>{notes.trim() || 'Sin nota'}</Text></View>
+            <Text style={styles.label}>{tx.noteLabel}</Text>
+            <View style={styles.noteCard}><Text style={styles.noteText}>{notes.trim() || tx.noNote}</Text></View>
           </ScrollView>
           <Footer total={cart.total + (deliveryFee ?? 0)}>
             <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={placeOrder} disabled={submitting}>
-              {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>Realizar pedido</Text>}
+              {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{tx.placeOrderLabel}</Text>}
             </Pressable>
           </Footer>
         </>
@@ -634,10 +814,11 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
 // Driven by the sequence in force, not a fixed list: a pickup order really has four steps, and a
 // stepper still promising five would count down to one that never arrives.
 function Stepper({ steps, current }: { steps: StepKey[]; current: number }) {
+  const titles = stepTitles();
   return (
     <View style={styles.stepperRow}>
       {steps.map((key, i) => {
-        const label = STEP_TITLES[key];
+        const label = titles[key];
         const n = i + 1;
         const active = i === current;
         const done = i < current;
@@ -655,9 +836,10 @@ function Stepper({ steps, current }: { steps: StepKey[]; current: number }) {
 }
 
 function Footer({ total, children }: { total: number; children: ReactNode }) {
+  const tx = useStrings(S);
   return (
     <View style={styles.footer}>
-      <View style={styles.totalRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(total)}</Text></View>
+      <View style={styles.totalRow}><Text style={styles.totalLabel}>{tx.total}</Text><Text style={styles.totalValue}>{money(total)}</Text></View>
       {children}
     </View>
   );

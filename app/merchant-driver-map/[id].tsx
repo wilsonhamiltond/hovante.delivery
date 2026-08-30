@@ -7,24 +7,65 @@ import type { MerchantOffice, Order } from '../../src/api';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { strings, useStrings, type Locale } from '../../src/i18n';
 
 // The merchant watching their courier approach: the driver's last reported position and the
 // street route from it to the branch the order is collected from. The driver's side of this
 // (delivery-map) runs on the device's own GPS; here the position is the one the driver's app
 // REPORTS upstream, so the screen polls the order for a fresh fix rather than asking the OS.
 
+const S: Record<
+  Locale,
+  {
+    justNow: string;
+    agoMin: (mins: number) => string;
+    agoHours: (hours: number, mins: number) => string;
+    driverFallback: string;
+    notFound: string;
+    noOfficeLocation: string;
+    enRoute: (driver: string, office: string) => string;
+    reported: (ago: string) => string;
+    noReportYet: string;
+  }
+> = {
+  es: {
+    justNow: 'hace un momento',
+    agoMin: (mins) => `hace ${mins} min`,
+    agoHours: (hours, mins) => `hace ${hours} h ${mins} min`,
+    driverFallback: 'Repartidor',
+    notFound: 'Pedido no encontrado.',
+    noOfficeLocation: 'Tu comercio no tiene una sucursal con ubicación en el mapa.',
+    enRoute: (driver, office) => `🛵 ${driver} en camino a ${office}`,
+    reported: (ago) => ` · reportado ${ago}`,
+    noReportYet: 'El repartidor aún no reporta su ubicación. El mapa se actualizará solo.',
+  },
+  en: {
+    justNow: 'a moment ago',
+    agoMin: (mins) => `${mins} min ago`,
+    agoHours: (hours, mins) => `${hours} h ${mins} min ago`,
+    driverFallback: 'Driver',
+    notFound: 'Order not found.',
+    noOfficeLocation: 'Your business has no branch with a location on the map.',
+    enRoute: (driver, office) => `🛵 ${driver} on the way to ${office}`,
+    reported: (ago) => ` · reported ${ago}`,
+    noReportYet: 'The driver has not reported their location yet. The map will update on its own.',
+  },
+};
+
 const fmtAgo = (iso?: string | null): string | null => {
   if (!iso) return null;
+  const tx = strings(S);
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return 'hace un momento';
-  if (mins < 60) return `hace ${mins} min`;
+  if (mins < 1) return tx.justNow;
+  if (mins < 60) return tx.agoMin(mins);
   const hours = Math.floor(mins / 60);
-  return `hace ${hours} h ${mins % 60} min`;
+  return tx.agoHours(hours, mins % 60);
 };
 
 export default function MerchantDriverMapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const tx = useStrings(S);
   const [order, setOrder] = useState<Order | null>(null);
   const [offices, setOffices] = useState<MerchantOffice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,17 +112,17 @@ export default function MerchantDriverMapScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
-        <Text style={styles.title}>{order?.orderNumber ?? 'Repartidor'}</Text>
+        <Text style={styles.title}>{order?.orderNumber ?? tx.driverFallback}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : !order ? (
-        <View style={styles.center}><Text style={styles.muted}>{error ?? 'Pedido no encontrado.'}</Text></View>
+        <View style={styles.center}><Text style={styles.muted}>{error ?? tx.notFound}</Text></View>
       ) : !office ? (
         <View style={styles.center}>
-          <Text style={styles.muted}>Tu comercio no tiene una sucursal con ubicación en el mapa.</Text>
+          <Text style={styles.muted}>{tx.noOfficeLocation}</Text>
         </View>
       ) : (
         <>
@@ -102,12 +143,12 @@ export default function MerchantDriverMapScreen() {
           <View style={styles.footer}>
             {driver ? (
               <Text style={styles.footerText}>
-                🛵 {order.driverName ?? 'Repartidor'} en camino a {office.name}
-                {reportedAgo ? ` · reportado ${reportedAgo}` : ''}
+                {tx.enRoute(order.driverName ?? tx.driverFallback, office.name)}
+                {reportedAgo ? tx.reported(reportedAgo) : ''}
               </Text>
             ) : (
               <Text style={styles.footerText}>
-                El repartidor aún no reporta su ubicación. El mapa se actualizará solo.
+                {tx.noReportYet}
               </Text>
             )}
           </View>

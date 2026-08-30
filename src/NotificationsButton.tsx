@@ -3,6 +3,18 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useNotices, type Audience } from './notifications';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { bell: string; bellUnread: (n: number) => string }> = {
+  es: {
+    bell: 'Notificaciones',
+    bellUnread: (n) => `Notificaciones, ${n} sin leer`,
+  },
+  en: {
+    bell: 'Notifications',
+    bellUnread: (n) => `Notifications, ${n} unread`,
+  },
+};
 
 // The bell, wherever a home has one -- customer, driver or merchant. Each passes the audience it
 // belongs to, because the same button counts three different things: order updates, delivery
@@ -17,13 +29,14 @@ export function NotificationsButton({ audience, style }: {
 }) {
   const router = useRouter();
   const { unread } = useNotices(audience);
+  const tx = useStrings(S);
 
   return (
     <Pressable
       style={[styles.btn, style]}
       onPress={() => router.push('/notifications')}
       accessibilityRole="button"
-      accessibilityLabel={unread > 0 ? `Notificaciones, ${unread} sin leer` : 'Notificaciones'}
+      accessibilityLabel={unread > 0 ? tx.bellUnread(unread) : tx.bell}
     >
       <FontAwesome5 name="bell" size={14} color={t.text} />
       {unread > 0 ? (

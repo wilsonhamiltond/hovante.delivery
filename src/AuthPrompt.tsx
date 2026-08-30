@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { GRADIENT, t } from './theme';
+import { useStrings, type Locale } from './i18n';
 
 // The "necesitas una cuenta" popup, asked whenever a GUEST taps something account-based (the
 // Pedidos/Cuenta tabs, checkout past the cart review, saving an address). One shared modal behind
@@ -12,6 +13,29 @@ import { GRADIENT, t } from './theme';
 // Same backdrop/card/ring-icon language as ConfirmDialog and NoticeDialog. "Iniciar sesión" opens
 // the welcome screen, which already offers every way in -- Google, Apple, correo, and the register
 // wizard -- so the popup does not need a register button of its own.
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    message: string;
+    signIn: string;
+    cancel: string;
+  }
+> = {
+  es: {
+    title: 'Inicia sesión para continuar',
+    message: 'Esta parte de la app necesita una cuenta. Entra con la tuya o crea una nueva.',
+    signIn: 'Iniciar sesión',
+    cancel: 'Cancelar',
+  },
+  en: {
+    title: 'Sign in to continue',
+    message: 'This part of the app needs an account. Sign in with yours or create a new one.',
+    signIn: 'Sign in',
+    cancel: 'Cancel',
+  },
+};
 
 interface AuthPromptState {
   /** Show the popup. The guest decides there: sign in or cancel. */
@@ -23,6 +47,7 @@ const AuthPromptContext = createContext<AuthPromptState | undefined>(undefined);
 export function AuthPromptProvider({ children }: { children: React.ReactNode }) {
   const [visible, setVisible] = useState(false);
   const router = useRouter();
+  const tx = useStrings(S);
 
   const close = () => setVisible(false);
   const go = (path: '/login') => {
@@ -48,21 +73,19 @@ export function AuthPromptProvider({ children }: { children: React.ReactNode }) 
               <FontAwesome5 name="user" solid size={20} color={t.text} />
             </View>
 
-            <Text style={styles.title}>Inicia sesión para continuar</Text>
-            <Text style={styles.message}>
-              Esta parte de la app necesita una cuenta. Entra con la tuya o crea una nueva.
-            </Text>
+            <Text style={styles.title}>{tx.title}</Text>
+            <Text style={styles.message}>{tx.message}</Text>
 
             <Pressable
               style={styles.primary}
               onPress={() => go('/login')}
               accessibilityRole="button"
-              accessibilityLabel="Iniciar sesión"
+              accessibilityLabel={tx.signIn}
             >
-              <Text style={styles.primaryText}>Iniciar sesión</Text>
+              <Text style={styles.primaryText}>{tx.signIn}</Text>
             </Pressable>
-            <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Cancelar">
-              <Text style={styles.cancel}>Cancelar</Text>
+            <Pressable onPress={close} accessibilityRole="button" accessibilityLabel={tx.cancel}>
+              <Text style={styles.cancel}>{tx.cancel}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

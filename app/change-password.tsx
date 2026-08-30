@@ -6,10 +6,67 @@ import * as api from '../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // Server-side minimum (UserService.ChangePasswordAsync). Checked here too so the mistake is caught
 // before a round trip, but the server remains the authority.
 const MIN_LENGTH = 7;
+
+const S: Record<
+  Locale,
+  {
+    enterCurrent: string;
+    enterNew: string;
+    newTooShort: (min: number) => string;
+    newMustDiffer: string;
+    passwordsMismatch: string;
+    updated: string;
+    title: string;
+    lead: string;
+    currentLabel: string;
+    currentPlaceholder: string;
+    newLabel: string;
+    newPlaceholder: (min: number) => string;
+    repeatLabel: string;
+    repeatPlaceholder: string;
+    save: string;
+  }
+> = {
+  es: {
+    enterCurrent: 'Escribe tu contraseña actual.',
+    enterNew: 'Escribe tu nueva contraseña.',
+    newTooShort: (min) => `La nueva contraseña debe tener al menos ${min} caracteres.`,
+    newMustDiffer: 'La nueva contraseña debe ser distinta de la actual.',
+    passwordsMismatch: 'Las contraseñas no coinciden.',
+    updated: 'Tu contraseña fue actualizada.',
+    title: 'Contraseña',
+    lead: 'Escribe tu contraseña actual y la nueva. Seguirás con la sesión iniciada.',
+    currentLabel: 'Contraseña actual',
+    currentPlaceholder: 'Tu contraseña actual',
+    newLabel: 'Nueva contraseña',
+    newPlaceholder: (min) => `Al menos ${min} caracteres`,
+    repeatLabel: 'Repetir nueva contraseña',
+    repeatPlaceholder: 'Escríbela otra vez',
+    save: 'Guardar contraseña',
+  },
+  en: {
+    enterCurrent: 'Enter your current password.',
+    enterNew: 'Enter your new password.',
+    newTooShort: (min) => `The new password must be at least ${min} characters long.`,
+    newMustDiffer: 'The new password must be different from the current one.',
+    passwordsMismatch: 'The passwords do not match.',
+    updated: 'Your password was updated.',
+    title: 'Password',
+    lead: "Enter your current password and the new one. You'll stay signed in.",
+    currentLabel: 'Current password',
+    currentPlaceholder: 'Your current password',
+    newLabel: 'New password',
+    newPlaceholder: (min) => `At least ${min} characters`,
+    repeatLabel: 'Repeat new password',
+    repeatPlaceholder: 'Type it again',
+    save: 'Save password',
+  },
+};
 
 // Change the password of the signed-in account, reached from "Mi cuenta".
 //
@@ -18,6 +75,7 @@ const MIN_LENGTH = 7;
 // check a moment with an unlocked handset would be enough to lock the owner out of their account.
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -29,16 +87,16 @@ export default function ChangePasswordScreen() {
   const submit = async () => {
     // Checked in the order the fields appear on screen, so the message always points at the first
     // thing to fix rather than the last thing checked.
-    if (!current) return setNotice({ tone: 'error', message: 'Escribe tu contraseña actual.' });
-    if (!next) return setNotice({ tone: 'error', message: 'Escribe tu nueva contraseña.' });
+    if (!current) return setNotice({ tone: 'error', message: tx.enterCurrent });
+    if (!next) return setNotice({ tone: 'error', message: tx.enterNew });
     if (next.length < MIN_LENGTH) {
-      return setNotice({ tone: 'error', message: `La nueva contraseña debe tener al menos ${MIN_LENGTH} caracteres.` });
+      return setNotice({ tone: 'error', message: tx.newTooShort(MIN_LENGTH) });
     }
     if (next === current) {
-      return setNotice({ tone: 'error', message: 'La nueva contraseña debe ser distinta de la actual.' });
+      return setNotice({ tone: 'error', message: tx.newMustDiffer });
     }
     if (next !== confirm) {
-      return setNotice({ tone: 'error', message: 'Las contraseñas no coinciden.' });
+      return setNotice({ tone: 'error', message: tx.passwordsMismatch });
     }
 
     setSubmitting(true);
@@ -51,7 +109,7 @@ export default function ChangePasswordScreen() {
     }
     // The token is not invalidated by the change, so the session continues -- nothing to sign out
     // of and back into.
-    setNotice({ tone: 'success', message: 'Tu contraseña fue actualizada.' });
+    setNotice({ tone: 'success', message: tx.updated });
   };
 
   // Dismissing the success notice leaves the screen; dismissing an error stays put so the fields
@@ -67,46 +125,46 @@ export default function ChangePasswordScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Contraseña</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
             <Text style={styles.lead}>
-              Escribe tu contraseña actual y la nueva. Seguirás con la sesión iniciada.
+              {tx.lead}
             </Text>
 
-            <Text style={styles.label}>Contraseña actual</Text>
+            <Text style={styles.label}>{tx.currentLabel}</Text>
             <TextInput
               style={styles.input}
               value={current}
               onChangeText={setCurrent}
-              placeholder="Tu contraseña actual"
+              placeholder={tx.currentPlaceholder}
               placeholderTextColor={t.textFaint}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="current-password"
             />
 
-            <Text style={[styles.label, styles.labelSpaced]}>Nueva contraseña</Text>
+            <Text style={[styles.label, styles.labelSpaced]}>{tx.newLabel}</Text>
             <TextInput
               style={styles.input}
               value={next}
               onChangeText={setNext}
-              placeholder={`Al menos ${MIN_LENGTH} caracteres`}
+              placeholder={tx.newPlaceholder(MIN_LENGTH)}
               placeholderTextColor={t.textFaint}
               secureTextEntry
               autoCapitalize="none"
               autoComplete="new-password"
             />
 
-            <Text style={[styles.label, styles.labelSpaced]}>Repetir nueva contraseña</Text>
+            <Text style={[styles.label, styles.labelSpaced]}>{tx.repeatLabel}</Text>
             <TextInput
               style={styles.input}
               value={confirm}
               onChangeText={setConfirm}
-              placeholder="Escríbela otra vez"
+              placeholder={tx.repeatPlaceholder}
               placeholderTextColor={t.textFaint}
               secureTextEntry
               autoCapitalize="none"
@@ -121,7 +179,7 @@ export default function ChangePasswordScreen() {
             <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={submit} disabled={submitting}>
               {submitting
                 ? <ActivityIndicator color={t.onAccent} />
-                : <Text style={styles.primaryText}>Guardar contraseña</Text>}
+                : <Text style={styles.primaryText}>{tx.save}</Text>}
             </Pressable>
           </View>
         </KeyboardAvoidingView>

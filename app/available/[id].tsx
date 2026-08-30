@@ -9,6 +9,7 @@ import { formatEta, useRouteEta } from '../../src/eta';
 import { useCoarsePosition, useDriverPosition } from '../../src/position';
 import { BackButton } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { useStrings, type Locale } from '../../src/i18n';
 
 // What a driver reads before committing to a job from the pickup pool: what it pays, where it
 // starts, where it ends and how far away it is. Taking it is the one action here, and only from
@@ -16,10 +17,97 @@ import { GradientBackground, t } from '../../src/theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
+const S: Record<
+  Locale,
+  {
+    notAvailableTitle: string;
+    back: string;
+    gone: string;
+    seeOthers: string;
+    delivery: string;
+    available: string;
+    orderLabel: string;
+    product: string;
+    noItems: string;
+    products: string;
+    shipping: string;
+    totalToCollect: string;
+    toPickupEta: (eta: string) => string;
+    toClientEta: (eta: string) => string;
+    pickupKind: string;
+    merchant: string;
+    mapBtn: string;
+    pickupTitle: string;
+    deliverKind: string;
+    client: string;
+    noAddress: string;
+    deliverTitle: string;
+    notePrefix: string;
+    take: string;
+    takeHint: string;
+  }
+> = {
+  es: {
+    notAvailableTitle: 'No disponible',
+    back: 'Disponibles',
+    gone: 'Esta entrega ya no está disponible.',
+    seeOthers: 'Ver otras entregas',
+    delivery: 'Entrega',
+    available: 'Disponible',
+    orderLabel: 'PEDIDO',
+    product: 'Producto',
+    noItems: 'Sin detalle de productos.',
+    products: 'Productos',
+    shipping: 'Envío',
+    totalToCollect: 'TOTAL A COBRAR',
+    toPickupEta: (eta) => `🛵 A la recogida: ${eta}`,
+    toClientEta: (eta) => `📦 A la entrega: ${eta}`,
+    pickupKind: '1 · RECOGER EN',
+    merchant: 'Comercio',
+    mapBtn: '🗺️ Mapa',
+    pickupTitle: 'Recoger',
+    deliverKind: '2 · ENTREGAR A',
+    client: 'Cliente',
+    noAddress: 'Sin dirección',
+    deliverTitle: 'Entregar',
+    notePrefix: 'Nota: ',
+    take: 'Tomar entrega',
+    takeHint: 'Al tomarla, la entrega pasa a tu ruta y deja de estar disponible para otros repartidores.',
+  },
+  en: {
+    notAvailableTitle: 'Not available',
+    back: 'Available',
+    gone: 'This delivery is no longer available.',
+    seeOthers: 'See other deliveries',
+    delivery: 'Delivery',
+    available: 'Available',
+    orderLabel: 'ORDER',
+    product: 'Product',
+    noItems: 'No item details.',
+    products: 'Products',
+    shipping: 'Delivery fee',
+    totalToCollect: 'TOTAL TO COLLECT',
+    toPickupEta: (eta) => `🛵 To the pickup: ${eta}`,
+    toClientEta: (eta) => `📦 To the drop-off: ${eta}`,
+    pickupKind: '1 · PICK UP AT',
+    merchant: 'Merchant',
+    mapBtn: '🗺️ Map',
+    pickupTitle: 'Pick up',
+    deliverKind: '2 · DELIVER TO',
+    client: 'Customer',
+    noAddress: 'No address',
+    deliverTitle: 'Deliver',
+    notePrefix: 'Note: ',
+    take: 'Take delivery',
+    takeHint: 'Once you take it, the delivery moves to your route and is no longer available to other drivers.',
+  },
+};
+
 export default function AvailableDeliveryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [taking, setTaking] = useState(false);
@@ -74,7 +162,7 @@ export default function AvailableDeliveryScreen() {
     if (!res.success) {
       // Another driver got there first. Back to the pool, which refetches on focus, rather than
       // leaving them looking at a job that is no longer theirs to take.
-      Alert.alert('No disponible', res.message);
+      Alert.alert(tx.notAvailableTitle, res.message);
       router.replace('/home');
       return;
     }
@@ -97,7 +185,7 @@ export default function AvailableDeliveryScreen() {
   // centred title here would only repeat them.
   const header = (
     <View style={styles.header}>
-      <BackButton onPress={goBack} label="Disponibles" />
+      <BackButton onPress={goBack} label={tx.back} />
     </View>
   );
 
@@ -114,9 +202,9 @@ export default function AvailableDeliveryScreen() {
       <GradientBackground><SafeAreaView style={styles.safe}>
         {header}
         <View style={styles.center}>
-          <Text style={styles.muted}>Esta entrega ya no está disponible.</Text>
+          <Text style={styles.muted}>{tx.gone}</Text>
           <Pressable style={[styles.action, styles.primary, { marginTop: 16, paddingHorizontal: 24 }]} onPress={() => router.replace('/home')}>
-            <Text style={styles.actionText}>Ver otras entregas</Text>
+            <Text style={styles.actionText}>{tx.seeOthers}</Text>
           </Pressable>
         </View>
       </SafeAreaView></GradientBackground>
@@ -129,8 +217,8 @@ export default function AvailableDeliveryScreen() {
       {header}
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.rowBetween}>
-          <Text style={styles.number}>{delivery.deliveryNumber ?? 'Entrega'}</Text>
-          <View style={styles.chip}><Text style={styles.chipText}>Disponible</Text></View>
+          <Text style={styles.number}>{delivery.deliveryNumber ?? tx.delivery}</Text>
+          <View style={styles.chip}><Text style={styles.chipText}>{tx.available}</Text></View>
         </View>
 
         {/* The order itself: every line, then the delivery charge, then what it all comes to at the
@@ -138,29 +226,29 @@ export default function AvailableDeliveryScreen() {
             taking it, and can check the handover against it at the counter. */}
         {delivery.orderTotal != null ? (
           <View style={styles.payCard}>
-            <Text style={styles.payLabel}>PEDIDO</Text>
+            <Text style={styles.payLabel}>{tx.orderLabel}</Text>
 
             {items.length > 0 ? items.map((it) => (
               <View key={it.id} style={styles.lineRow}>
                 <Text style={styles.lineQty}>{it.quantity}×</Text>
-                <Text style={styles.lineName} numberOfLines={2}>{it.name ?? 'Producto'}</Text>
+                <Text style={styles.lineName} numberOfLines={2}>{it.name ?? tx.product}</Text>
                 <Text style={styles.lineAmount}>{money(it.lineTotal)}</Text>
               </View>
             )) : (
               // An order whose lines did not come back is still worth showing the money for -- the
               // subtotal below is the honest summary of it.
-              <Text style={styles.lineNone}>Sin detalle de productos.</Text>
+              <Text style={styles.lineNone}>{tx.noItems}</Text>
             )}
 
             <View style={styles.payRule} />
 
             <View style={styles.lineRow}>
-              <Text style={styles.sumLabel}>Productos</Text>
+              <Text style={styles.sumLabel}>{tx.products}</Text>
               <Text style={styles.sumAmount}>{money(delivery.orderTotal)}</Text>
             </View>
             {delivery.orderDeliveryFee != null ? (
               <View style={styles.lineRow}>
-                <Text style={styles.sumLabel}>Envío</Text>
+                <Text style={styles.sumLabel}>{tx.shipping}</Text>
                 <Text style={styles.sumAmount}>{money(delivery.orderDeliveryFee)}</Text>
               </View>
             ) : null}
@@ -168,7 +256,7 @@ export default function AvailableDeliveryScreen() {
             <View style={styles.payRule} />
 
             <View style={styles.lineRow}>
-              <Text style={[styles.payLabel, { flex: 1 }]}>TOTAL A COBRAR</Text>
+              <Text style={[styles.payLabel, { flex: 1 }]}>{tx.totalToCollect}</Text>
               <Text style={styles.payValue}>{money(delivery.orderTotal + (delivery.orderDeliveryFee ?? 0))}</Text>
             </View>
           </View>
@@ -178,20 +266,20 @@ export default function AvailableDeliveryScreen() {
             hides on its own -- a stop with no pin on one end leaves the other still worth reading. */}
         {toPickup || toClient ? (
           <View style={styles.etaBlock}>
-            {toPickup ? <Text style={styles.eta}>🛵 A la recogida: {formatEta(toPickup)}</Text> : null}
-            {toClient ? <Text style={styles.eta}>📦 A la entrega: {formatEta(toClient)}</Text> : null}
+            {toPickup ? <Text style={styles.eta}>{tx.toPickupEta(formatEta(toPickup))}</Text> : null}
+            {toClient ? <Text style={styles.eta}>{tx.toClientEta(formatEta(toClient))}</Text> : null}
           </View>
         ) : null}
 
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>1 · RECOGER EN</Text>
-            <Text style={styles.stopName}>{delivery.pickupName ?? 'Comercio'}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{tx.pickupKind}</Text>
+            <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
               {delivery.pickupAddress || delivery.pickupLatitude != null ? (
-                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.pickupName ?? 'Recoger' })}>
-                  <Text style={styles.smallBtnText}>🗺️ Mapa</Text>
+                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.pickupName ?? tx.pickupTitle })}>
+                  <Text style={styles.smallBtnText}>{tx.mapBtn}</Text>
                 </Pressable>
               ) : null}
               {delivery.pickupPhone ? (
@@ -204,13 +292,13 @@ export default function AvailableDeliveryScreen() {
         ) : null}
 
         <View style={[styles.stopCard, { borderLeftColor: '#16a34a' }]}>
-          <Text style={[styles.stopKind, { color: '#15803d' }]}>2 · ENTREGAR A</Text>
-          <Text style={styles.stopName}>{delivery.recipientName ?? 'Cliente'}</Text>
-          <Text style={styles.stopAddress}>{delivery.addressLine ?? 'Sin dirección'}{delivery.city ? `, ${delivery.city}` : ''}</Text>
+          <Text style={[styles.stopKind, { color: '#15803d' }]}>{tx.deliverKind}</Text>
+          <Text style={styles.stopName}>{delivery.recipientName ?? tx.client}</Text>
+          <Text style={styles.stopAddress}>{delivery.addressLine ?? tx.noAddress}{delivery.city ? `, ${delivery.city}` : ''}</Text>
           <View style={styles.stopActions}>
             {delivery.latitude != null || delivery.addressLine ? (
-              <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, title: delivery.recipientName ?? 'Entregar' })}>
-                <Text style={styles.smallBtnText}>🗺️ Mapa</Text>
+              <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, title: delivery.recipientName ?? tx.deliverTitle })}>
+                <Text style={styles.smallBtnText}>{tx.mapBtn}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -219,12 +307,12 @@ export default function AvailableDeliveryScreen() {
               moment the job is actually theirs. */}
         </View>
 
-        {delivery.notes ? <Text style={styles.notes}>Nota: {delivery.notes}</Text> : null}
+        {delivery.notes ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
 
         <Pressable style={[styles.action, styles.success]} disabled={taking} onPress={take}>
-          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Tomar entrega</Text>}
+          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.take}</Text>}
         </Pressable>
-        <Text style={styles.hint}>Al tomarla, la entrega pasa a tu ruta y deja de estar disponible para otros repartidores.</Text>
+        <Text style={styles.hint}>{tx.takeHint}</Text>
       </ScrollView>
     </SafeAreaView>
     </GradientBackground>

@@ -10,12 +10,34 @@ import { DriverHome } from '../src/DriverHome';
 import { MerchantHome } from '../src/MerchantHome';
 import { LogoSplash } from '../src/LogoSplash';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    noAccessTitle: string;
+    noAccessBody: string;
+    signOut: string;
+  }
+> = {
+  es: {
+    noAccessTitle: 'Esta cuenta no tiene acceso a la app',
+    noAccessBody: 'Pide a tu administrador que active "Acceso App Delivery" para tu usuario.',
+    signOut: 'Cerrar sesión',
+  },
+  en: {
+    noAccessTitle: 'This account has no access to the app',
+    noAccessBody: 'Ask your administrator to enable "Acceso App Delivery" for your user.',
+    signOut: 'Sign out',
+  },
+};
 
 // Routes the home by role: a merchant (ERP account) gets their orders screen, a driver gets
 // DriverHome (the pool map), a customer gets ClientHome (the marketplace). Each screen loads its
 // own data; this only resolves who is signed in.
 export default function HomeScreen() {
   const { token, signOut } = useAuth();
+  const tx = useStrings(S);
   const [profile, setProfile] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   // Bumped to ask for the profile again after a failed attempt; see the retry effect below.
@@ -64,11 +86,11 @@ export default function HomeScreen() {
       <GradientBackground>
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.title}>Esta cuenta no tiene acceso a la app</Text>
+          <Text style={styles.title}>{tx.noAccessTitle}</Text>
           <Text style={styles.error}>
-            Pide a tu administrador que active "Acceso App Delivery" para tu usuario.
+            {tx.noAccessBody}
           </Text>
-          <Pressable onPress={signOut}><Text style={styles.link}>Cerrar sesión</Text></Pressable>
+          <Pressable onPress={signOut}><Text style={styles.link}>{tx.signOut}</Text></Pressable>
         </View>
       </SafeAreaView>
       </GradientBackground>

@@ -5,36 +5,59 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from './auth';
 import { useAuthPrompt } from './AuthPrompt';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
 
 export type TabKey = 'home' | 'explore' | 'orders' | 'account' | 'route' | 'history' | 'products';
 type Variant = 'client' | 'driver' | 'merchant';
 
+// Every tab's label, keyed by TabKey: the same key always reads the same across variants.
+const S: Record<Locale, Record<TabKey, string>> = {
+  es: {
+    home: 'Inicio',
+    explore: 'Explorar',
+    orders: 'Pedidos',
+    account: 'Cuenta',
+    route: 'Mi ruta',
+    history: 'Historial',
+    products: 'Productos',
+  },
+  en: {
+    home: 'Home',
+    explore: 'Explore',
+    orders: 'Orders',
+    account: 'Account',
+    route: 'My route',
+    history: 'History',
+    products: 'Products',
+  },
+};
+
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its
 // own set of destinations; "Cuenta" is shared and adapts to who is signed in.
-const TABS: Record<Variant, { key: TabKey; label: string; icon: string; route: string }[]> = {
+const TABS: Record<Variant, { key: TabKey; icon: string; route: string }[]> = {
   client: [
-    { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
+    { key: 'home', icon: 'home', route: '/home' },
     // Clients only -- the driver bar below has no equivalent.
-    { key: 'explore', label: 'Explorar', icon: 'compass', route: '/explore' },
-    { key: 'orders', label: 'Pedidos', icon: 'receipt', route: '/orders' },
+    { key: 'explore', icon: 'compass', route: '/explore' },
+    { key: 'orders', icon: 'receipt', route: '/orders' },
     // No Direcciones tab: the address book is reached from Cuenta > Direcciones instead, which
     // keeps the bar to the three things a customer actually moves between while ordering.
-    { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
+    { key: 'account', icon: 'user', route: '/account' },
   ],
   driver: [
     // The home is the pool map (finding the NEXT job); Mi ruta is the work already in hand.
-    { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
-    { key: 'route', label: 'Mi ruta', icon: 'route', route: '/route' },
-    { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/history' },
-    { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
+    { key: 'home', icon: 'home', route: '/home' },
+    { key: 'route', icon: 'route', route: '/route' },
+    { key: 'history', icon: 'clipboard-list', route: '/history' },
+    { key: 'account', icon: 'user', route: '/account' },
   ],
   // The merchant's counter view: the queue still to be dealt with, what they sell, the orders
   // already finished, and the shared account tab.
   merchant: [
-    { key: 'home', label: 'Inicio', icon: 'home', route: '/home' },
-    { key: 'products', label: 'Productos', icon: 'box', route: '/merchant-products' },
-    { key: 'history', label: 'Historial', icon: 'clipboard-list', route: '/merchant-history' },
-    { key: 'account', label: 'Cuenta', icon: 'user', route: '/account' },
+    { key: 'home', icon: 'home', route: '/home' },
+    { key: 'products', icon: 'box', route: '/merchant-products' },
+    { key: 'history', icon: 'clipboard-list', route: '/merchant-history' },
+    { key: 'account', icon: 'user', route: '/account' },
   ],
 };
 
@@ -52,6 +75,7 @@ export function BottomNav({ active, variant = 'client' }: { active: TabKey; vari
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const { promptLogin } = useAuthPrompt();
+  const tx = useStrings(S);
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
@@ -69,10 +93,10 @@ export function BottomNav({ active, variant = 'client' }: { active: TabKey; vari
             }}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={tab.label}
+            accessibilityLabel={tx[tab.key]}
           >
             <FontAwesome5 name={tab.icon} size={18} solid color={on ? t.text : t.textFaint} />
-            <Text style={[styles.label, on && styles.labelActive]} numberOfLines={1}>{tab.label}</Text>
+            <Text style={[styles.label, on && styles.labelActive]} numberOfLines={1}>{tx[tab.key]}</Text>
           </Pressable>
         );
       })}

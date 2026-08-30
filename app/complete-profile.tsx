@@ -15,8 +15,87 @@ import { PhoneInput } from '../src/PhoneInput';
 import { DEFAULT_COUNTRY } from '../src/countries';
 import type { CountryCode } from 'libphonenumber-js';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
-const STEPS = ['Datos', 'Ubicación'];
+const S: Record<
+  Locale,
+  {
+    steps: string[];
+    locPermTitle: string;
+    locPermBody: string;
+    locTitle: string;
+    locFailed: string;
+    enterPhone: string;
+    invalidPhone: string;
+    chooseAddressLabel: string;
+    writeAddressLabel: string;
+    pickOnMap: string;
+    knownNameLead: (name: string) => string;
+    verifiedLead: string;
+    phoneLabel: string;
+    notNow: string;
+    otherAccount: string;
+    addressNameLabel: string;
+    customLabelPlaceholder: string;
+    tapMap: string;
+    myLocation: string;
+    addressFieldLabel: string;
+    addressFieldPlaceholder: string;
+    finish: string;
+    continueLabel: string;
+  }
+> = {
+  es: {
+    steps: ['Datos', 'Ubicación'],
+    locPermTitle: 'Permiso de ubicación',
+    locPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locTitle: 'Ubicación',
+    locFailed: 'No se pudo obtener tu ubicación actual.',
+    enterPhone: 'Ingresa tu teléfono.',
+    invalidPhone: 'Escribe un número de teléfono válido para el país seleccionado.',
+    chooseAddressLabel: 'Elige un nombre para tu dirección.',
+    writeAddressLabel: 'Escribe el nombre de tu dirección.',
+    pickOnMap: 'Elige tu ubicación en el mapa.',
+    knownNameLead: (name) => `Hola, ${name}. Tu nombre y correo ya vienen de tu cuenta. Solo falta un teléfono de contacto.`,
+    verifiedLead: 'Tu cuenta ya está verificada. Solo falta un teléfono de contacto.',
+    phoneLabel: 'Teléfono',
+    notNow: 'Ahora no, quiero explorar',
+    otherAccount: 'Usar otra cuenta',
+    addressNameLabel: 'Nombre de la dirección',
+    customLabelPlaceholder: 'Ej. Casa de mamá',
+    tapMap: 'Toca el mapa para elegir tu ubicación',
+    myLocation: '📍 Mi ubicación',
+    addressFieldLabel: 'Dirección',
+    addressFieldPlaceholder: 'Se llena al elegir en el mapa',
+    finish: 'Terminar',
+    continueLabel: 'Continuar',
+  },
+  en: {
+    steps: ['Details', 'Location'],
+    locPermTitle: 'Location permission',
+    locPermBody: 'Enable the location permission to use your current location.',
+    locTitle: 'Location',
+    locFailed: 'Could not get your current location.',
+    enterPhone: 'Enter your phone number.',
+    invalidPhone: 'Enter a valid phone number for the selected country.',
+    chooseAddressLabel: 'Choose a name for your address.',
+    writeAddressLabel: 'Type a name for your address.',
+    pickOnMap: 'Pick your location on the map.',
+    knownNameLead: (name) => `Hi, ${name}. Your name and email already come from your account. We just need a contact phone number.`,
+    verifiedLead: 'Your account is already verified. We just need a contact phone number.',
+    phoneLabel: 'Phone',
+    notNow: 'Not now, I want to browse',
+    otherAccount: 'Use another account',
+    addressNameLabel: 'Address name',
+    customLabelPlaceholder: "e.g. Mom's house",
+    tapMap: 'Tap the map to pick your location',
+    myLocation: '📍 My location',
+    addressFieldLabel: 'Address',
+    addressFieldPlaceholder: 'Filled in when you pick on the map',
+    finish: 'Finish',
+    continueLabel: 'Continue',
+  },
+};
 
 // Finishes an account created by a social sign-in. The provider (Apple, Google, Facebook) proved
 // the email, supplied the name and stays the credential, so the sign-up wizard's earlier steps
@@ -28,6 +107,7 @@ const STEPS = ['Datos', 'Ubicación'];
 export default function CompleteProfileScreen() {
   const router = useRouter();
   const { refreshProfile, signOut } = useAuth();
+  const tx = useStrings(S);
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -82,9 +162,9 @@ export default function CompleteProfileScreen() {
     setLocating(false);
     if (!result.ok) {
       if (result.reason === 'permission') {
-        Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
+        Alert.alert(tx.locPermTitle, tx.locPermBody);
       } else {
-        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
+        Alert.alert(tx.locTitle, tx.locFailed);
       }
       return;
     }
@@ -101,8 +181,8 @@ export default function CompleteProfileScreen() {
     if (step === 1) {
       // The name is never validated: it was never on screen, and the server keeps whatever the
       // account already holds when it arrives blank.
-      if (!phone.trim()) return setError('Ingresa tu teléfono.');
-      if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
+      if (!phone.trim()) return setError(tx.enterPhone);
+      if (!isCompletePhone(phone, phoneCountry)) return setError(tx.invalidPhone);
       return setStep(2);
     }
     return submit();
@@ -110,9 +190,9 @@ export default function CompleteProfileScreen() {
 
   const submit = async () => {
     // Checked in the order the fields appear on the step.
-    if (!labelChoice) return setError('Elige un nombre para tu dirección.');
-    if (!addressLabel) return setError('Escribe el nombre de tu dirección.');
-    if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
+    if (!labelChoice) return setError(tx.chooseAddressLabel);
+    if (!addressLabel) return setError(tx.writeAddressLabel);
+    if (!address.trim()) return setError(tx.pickOnMap);
 
     setSubmitting(true);
     const person = splitDisplayName(fullName);
@@ -145,12 +225,12 @@ export default function CompleteProfileScreen() {
           ) : (
             <View style={{ width: BACK_BUTTON_WIDTH }} />
           )}
-          <Text style={styles.title}>{STEPS[step - 1]}</Text>
+          <Text style={styles.title}>{tx.steps[step - 1]}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.stepperRow}>
-          {STEPS.map((label, i) => {
+          {tx.steps.map((label, i) => {
             const n = i + 1;
             const active = n === step;
             const done = n < step;
@@ -172,10 +252,10 @@ export default function CompleteProfileScreen() {
                 and surname); the email-derived single-word stand-in reads as noise, not a name. */}
             <Text style={styles.lead}>
               {splitDisplayName(fullName).lastName
-                ? `Hola, ${splitDisplayName(fullName).name}. Tu nombre y correo ya vienen de tu cuenta. Solo falta un teléfono de contacto.`
-                : 'Tu cuenta ya está verificada. Solo falta un teléfono de contacto.'}
+                ? tx.knownNameLead(splitDisplayName(fullName).name)
+                : tx.verifiedLead}
             </Text>
-            <Text style={styles.label}>Teléfono</Text>
+            <Text style={styles.label}>{tx.phoneLabel}</Text>
             <PhoneInput
               country={phoneCountry}
               national={phone}
@@ -186,18 +266,18 @@ export default function CompleteProfileScreen() {
                 (guideline 5.1.1: only account-based features may demand them). Checkout brings
                 anyone who skipped back here. */}
             <Pressable onPress={() => router.replace('/home')} style={styles.signOut} accessibilityRole="button">
-              <Text style={styles.signOutText}>Ahora no, quiero explorar</Text>
+              <Text style={styles.signOutText}>{tx.notNow}</Text>
             </Pressable>
 
             <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
-              <Text style={styles.signOutText}>Usar otra cuenta</Text>
+              <Text style={styles.signOutText}>{tx.otherAccount}</Text>
             </Pressable>
           </ScrollView>
         )}
 
         {step === 2 && (
           <View style={styles.mapStep}>
-            <Text style={[styles.label, styles.labelFirst]}>Nombre de la dirección</Text>
+            <Text style={[styles.label, styles.labelFirst]}>{tx.addressNameLabel}</Text>
             <View style={styles.choiceRow}>
               {LABEL_CHOICES.map((choice) => {
                 const active = labelChoice === choice;
@@ -216,12 +296,12 @@ export default function CompleteProfileScreen() {
             </View>
             {labelChoice === 'Otro' ? (
               <TextInput style={styles.input} placeholderTextColor={t.textFaint}
-                placeholder="Ej. Casa de mamá" value={customLabel} onChangeText={setCustomLabel} />
+                placeholder={tx.customLabelPlaceholder} value={customLabel} onChangeText={setCustomLabel} />
             ) : null}
             <View style={[styles.locRow, styles.locRowSpaced]}>
-              <Text style={styles.lead}>Toca el mapa para elegir tu ubicación</Text>
+              <Text style={styles.lead}>{tx.tapMap}</Text>
               <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-                {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
+                {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>{tx.myLocation}</Text>}
               </Pressable>
             </View>
             <LocationPicker
@@ -230,9 +310,9 @@ export default function CompleteProfileScreen() {
               longitude={coords.lng ?? DEFAULT_CENTER.lng}
               onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
             />
-            <Text style={styles.label}>Dirección</Text>
+            <Text style={styles.label}>{tx.addressFieldLabel}</Text>
             <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
-              placeholder="Se llena al elegir en el mapa" value={address} onChangeText={setAddress} multiline />
+              placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress} multiline />
           </View>
         )}
 
@@ -240,7 +320,7 @@ export default function CompleteProfileScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={next} disabled={submitting}>
             {submitting ? <ActivityIndicator color={t.onAccent} /> : (
-              <Text style={styles.primaryText}>{step === 2 ? 'Terminar' : 'Continuar'}</Text>
+              <Text style={styles.primaryText}>{step === 2 ? tx.finish : tx.continueLabel}</Text>
             )}
           </Pressable>
         </View>

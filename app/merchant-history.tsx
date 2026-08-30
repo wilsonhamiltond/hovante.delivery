@@ -7,6 +7,24 @@ import { GradientBackground, t } from '../src/theme';
 import { MerchantTopBar } from '../src/MerchantTopBar';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 import { MerchantOrderCard } from '../src/MerchantOrderCard';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    empty: string;
+  }
+> = {
+  es: {
+    title: 'Historial de pedidos',
+    empty: 'Aún no tienes pedidos terminados.',
+  },
+  en: {
+    title: 'Order history',
+    empty: 'You have no finished orders yet.',
+  },
+};
 
 // The merchant's finished orders (delivered, rejected, failed) as an infinite scroll: the first 10
 // arrive with the screen, and each time the end comes into view the next page is appended. The
@@ -17,6 +35,7 @@ const HISTORY_PAGE = 10;
 
 export default function MerchantHistoryScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,7 +88,7 @@ export default function MerchantHistoryScreen() {
       {/* The same "🏪 comercio" bar the home wears; the top safe area rides inside it. */}
       <MerchantTopBar />
       <View style={styles.header}>
-        <Text style={styles.title}>Historial de pedidos</Text>
+        <Text style={styles.title}>{tx.title}</Text>
       </View>
 
       {loading ? (
@@ -85,7 +104,7 @@ export default function MerchantHistoryScreen() {
           // No onAct: every order here has already finished, so the counter's actions do not apply.
           renderItem={({ item }) => <MerchantOrderCard order={item} onOpen={open} />}
           ListHeaderComponent={error ? <Text style={styles.error}>{error}</Text> : null}
-          ListEmptyComponent={<Text style={styles.empty}>Aún no tienes pedidos terminados.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{tx.empty}</Text>}
           ListFooterComponent={
             loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={t.text} /> : null
           }

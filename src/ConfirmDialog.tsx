@@ -1,6 +1,12 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { GRADIENT, t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { cancel: string }> = {
+  es: { cancel: 'Cancelar' },
+  en: { cancel: 'Cancel' },
+};
 
 interface Props {
   visible: boolean;
@@ -19,6 +25,7 @@ interface Props {
 // buttons never render there), and the red confirm keeps the convention that solid red is the
 // press that actually destroys.
 export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm, onCancel }: Props) {
+  const tx = useStrings(S);
   return (
     <Modal
       visible={visible}
@@ -46,8 +53,8 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm
           >
             <Text style={styles.confirmText}>{confirmLabel}</Text>
           </Pressable>
-          <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancelar">
-            <Text style={styles.cancel}>Cancelar</Text>
+          <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={tx.cancel}>
+            <Text style={styles.cancel}>{tx.cancel}</Text>
           </Pressable>
         </Pressable>
       </Pressable>

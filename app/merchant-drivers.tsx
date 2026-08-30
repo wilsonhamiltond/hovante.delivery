@@ -9,6 +9,81 @@ import { GradientBackground, t } from '../src/theme';
 import { BackButton } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { ConfirmDialog } from '../src/ConfirmDialog';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    searchMinChars: string;
+    driverFallback: string;
+    publicOrders: string;
+    publicOn: string;
+    publicOff: string;
+    yourTeam: string;
+    emptyTeam: string;
+    removeLabel: (name: string) => string;
+    remove: string;
+    addDriver: string;
+    searchPlaceholder: string;
+    searchDriver: string;
+    noMatches: string;
+    onYourTeam: string;
+    addLabel: (name: string) => string;
+    add: string;
+    removeTitle: string;
+    removeMessage: (name: string) => string;
+    thisDriver: string;
+    removeConfirm: string;
+  }
+> = {
+  es: {
+    title: 'Repartidores',
+    searchMinChars: 'Escribe al menos 2 caracteres para buscar.',
+    driverFallback: 'Repartidor',
+    publicOrders: 'Pedidos públicos',
+    publicOn: 'Cualquier repartidor de la plataforma puede tomar tus pedidos.',
+    publicOff: 'Solo los repartidores de tu equipo pueden ver y tomar tus pedidos.',
+    yourTeam: 'Tu equipo',
+    emptyTeam: 'Aún no tienes repartidores en tu equipo. Búscalos abajo por nombre, teléfono, correo o cédula.',
+    removeLabel: (name) => `Quitar a ${name}`,
+    remove: 'Quitar',
+    addDriver: 'Agregar repartidor',
+    searchPlaceholder: 'Nombre, teléfono, correo o cédula',
+    searchDriver: 'Buscar repartidor',
+    noMatches: 'Ningún repartidor coincide con la búsqueda.',
+    onYourTeam: 'En tu equipo',
+    addLabel: (name) => `Agregar a ${name}`,
+    add: 'Agregar',
+    removeTitle: 'Quitar repartidor',
+    removeMessage: (name) => `¿Quitar a "${name}" de tu equipo?`,
+    thisDriver: 'este repartidor',
+    removeConfirm: 'Sí, quitar',
+  },
+  en: {
+    title: 'Drivers',
+    searchMinChars: 'Type at least 2 characters to search.',
+    driverFallback: 'Driver',
+    publicOrders: 'Public orders',
+    publicOn: 'Any driver on the platform can take your orders.',
+    publicOff: 'Only the drivers on your team can see and take your orders.',
+    yourTeam: 'Your team',
+    emptyTeam: 'You have no drivers on your team yet. Search for them below by name, phone, email, or ID number.',
+    removeLabel: (name) => `Remove ${name}`,
+    remove: 'Remove',
+    addDriver: 'Add driver',
+    searchPlaceholder: 'Name, phone, email, or ID number',
+    searchDriver: 'Search for a driver',
+    noMatches: 'No drivers match your search.',
+    onYourTeam: 'On your team',
+    addLabel: (name) => `Add ${name}`,
+    add: 'Add',
+    removeTitle: 'Remove driver',
+    removeMessage: (name) => `Remove "${name}" from your team?`,
+    thisDriver: 'this driver',
+    removeConfirm: 'Yes, remove',
+  },
+};
 
 // The merchant's fleet ("Repartidores"), reached from Cuenta. Two things live here because they
 // answer the same question -- who delivers my orders:
@@ -17,6 +92,7 @@ import { ConfirmDialog } from '../src/ConfirmDialog';
 //    when the switch is off (and who see nothing but their fleets' orders in any case).
 export default function MerchantDriversScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<MerchantDriver[]>([]);
   const [allowPublic, setAllowPublic] = useState<boolean | null>(null);
@@ -60,7 +136,7 @@ export default function MerchantDriversScreen() {
   const search = async () => {
     const term = query.trim();
     if (term.length < 2) {
-      setNotice({ tone: 'error', message: 'Escribe al menos 2 caracteres para buscar.' });
+      setNotice({ tone: 'error', message: tx.searchMinChars });
       return;
     }
     setSearching(true);
@@ -99,14 +175,14 @@ export default function MerchantDriversScreen() {
   };
 
   const driverLine = (d: MerchantDriver) =>
-    [d.phone, d.email, d.document].filter(Boolean).join(' · ') || 'Repartidor';
+    [d.phone, d.email, d.document].filter(Boolean).join(' · ') || tx.driverFallback;
 
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/account'))} />
-        <Text style={styles.title}>Repartidores</Text>
+        <Text style={styles.title}>{tx.title}</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -118,11 +194,9 @@ export default function MerchantDriversScreen() {
           <View style={styles.card}>
             <View style={styles.switchRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Pedidos públicos</Text>
+                <Text style={styles.cardTitle}>{tx.publicOrders}</Text>
                 <Text style={styles.hint}>
-                  {allowPublic
-                    ? 'Cualquier repartidor de la plataforma puede tomar tus pedidos.'
-                    : 'Solo los repartidores de tu equipo pueden ver y tomar tus pedidos.'}
+                  {allowPublic ? tx.publicOn : tx.publicOff}
                 </Text>
               </View>
               {savingPublic
@@ -139,17 +213,17 @@ export default function MerchantDriversScreen() {
           </View>
 
           {/* The team. */}
-          <Text style={styles.sectionTitle}>Tu equipo</Text>
+          <Text style={styles.sectionTitle}>{tx.yourTeam}</Text>
           {team.length === 0 ? (
             <Text style={styles.empty}>
-              Aún no tienes repartidores en tu equipo. Búscalos abajo por nombre, teléfono, correo o cédula.
+              {tx.emptyTeam}
             </Text>
           ) : team.map((d) => (
             <View key={d.driverUserId} style={styles.card}>
               <View style={styles.driverRow}>
                 <FontAwesome5 name="motorcycle" size={16} color={t.text} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.driverName}>{d.name || 'Repartidor'}</Text>
+                  <Text style={styles.driverName}>{d.name || tx.driverFallback}</Text>
                   <Text style={styles.hint}>{driverLine(d)}</Text>
                 </View>
                 {busyId === d.driverUserId
@@ -160,9 +234,9 @@ export default function MerchantDriversScreen() {
                       onPress={() => setToRemove(d)}
                       disabled={busyId != null}
                       accessibilityRole="button"
-                      accessibilityLabel={`Quitar a ${d.name ?? 'repartidor'}`}
+                      accessibilityLabel={tx.removeLabel(d.name ?? tx.driverFallback.toLowerCase())}
                     >
-                      <Text style={styles.pillDangerText}>Quitar</Text>
+                      <Text style={styles.pillDangerText}>{tx.remove}</Text>
                     </Pressable>
                   )}
               </View>
@@ -170,13 +244,13 @@ export default function MerchantDriversScreen() {
           ))}
 
           {/* Search + add. */}
-          <Text style={styles.sectionTitle}>Agregar repartidor</Text>
+          <Text style={styles.sectionTitle}>{tx.addDriver}</Text>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.input}
               value={query}
               onChangeText={setQuery}
-              placeholder="Nombre, teléfono, correo o cédula"
+              placeholder={tx.searchPlaceholder}
               placeholderTextColor={t.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
@@ -188,7 +262,7 @@ export default function MerchantDriversScreen() {
               onPress={search}
               disabled={searching}
               accessibilityRole="button"
-              accessibilityLabel="Buscar repartidor"
+              accessibilityLabel={tx.searchDriver}
             >
               {searching
                 ? <ActivityIndicator size="small" color={t.onAccent} />
@@ -197,29 +271,29 @@ export default function MerchantDriversScreen() {
           </View>
 
           {results != null && results.length === 0 ? (
-            <Text style={styles.empty}>Ningún repartidor coincide con la búsqueda.</Text>
+            <Text style={styles.empty}>{tx.noMatches}</Text>
           ) : null}
           {(results ?? []).map((d) => (
             <View key={d.driverUserId} style={styles.card}>
               <View style={styles.driverRow}>
                 <FontAwesome5 name="motorcycle" size={16} color={t.text} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.driverName}>{d.name || 'Repartidor'}</Text>
+                  <Text style={styles.driverName}>{d.name || tx.driverFallback}</Text>
                   <Text style={styles.hint}>{driverLine(d)}</Text>
                 </View>
                 {busyId === d.driverUserId
                   ? <ActivityIndicator size="small" color={t.text} />
                   : d.linked ? (
-                    <Text style={styles.linkedBadge}>En tu equipo</Text>
+                    <Text style={styles.linkedBadge}>{tx.onYourTeam}</Text>
                   ) : (
                     <Pressable
                       style={[styles.pill, styles.pillAccent]}
                       onPress={() => add(d)}
                       disabled={busyId != null}
                       accessibilityRole="button"
-                      accessibilityLabel={`Agregar a ${d.name ?? 'repartidor'}`}
+                      accessibilityLabel={tx.addLabel(d.name ?? tx.driverFallback.toLowerCase())}
                     >
-                      <Text style={styles.pillAccentText}>Agregar</Text>
+                      <Text style={styles.pillAccentText}>{tx.add}</Text>
                     </Pressable>
                   )}
               </View>
@@ -230,9 +304,9 @@ export default function MerchantDriversScreen() {
 
       <ConfirmDialog
         visible={toRemove != null}
-        title="Quitar repartidor"
-        message={`¿Quitar a "${toRemove?.name || 'este repartidor'}" de tu equipo?`}
-        confirmLabel="Sí, quitar"
+        title={tx.removeTitle}
+        message={tx.removeMessage(toRemove?.name || tx.thisDriver)}
+        confirmLabel={tx.removeConfirm}
         onConfirm={() => { if (toRemove) remove(toRemove); }}
         onCancel={() => setToRemove(null)}
       />

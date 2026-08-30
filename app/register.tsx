@@ -16,8 +16,147 @@ import { PhoneInput } from '../src/PhoneInput';
 import { DEFAULT_COUNTRY } from '../src/countries';
 import type { CountryCode } from 'libphonenumber-js';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
-const STEPS = ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'];
+const S: Record<
+  Locale,
+  {
+    steps: string[];
+    enterEmail: string;
+    enterCode: string;
+    codeResent: string;
+    enterFullName: string;
+    writeFullName: string;
+    enterPhone: string;
+    invalidPhone: string;
+    choosePassword: string;
+    passwordTooShort: string;
+    confirmYourPassword: string;
+    passwordsMismatch: string;
+    locPermTitle: string;
+    locPermBody: string;
+    locTitle: string;
+    locFailed: string;
+    chooseAddressLabel: string;
+    writeAddressLabel: string;
+    pickOnMap: string;
+    step1Lead: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    step2Lead: (email: string) => string;
+    resendPrompt: string;
+    step3Lead: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    phoneLabel: string;
+    step4Lead: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    confirmLabel: string;
+    confirmPlaceholder: string;
+    addressNameLabel: string;
+    customLabelPlaceholder: string;
+    tapMap: string;
+    myLocation: string;
+    addressFieldLabel: string;
+    addressFieldPlaceholder: string;
+    sendCode: string;
+    verify: string;
+    createAccount: string;
+    continueLabel: string;
+  }
+> = {
+  es: {
+    steps: ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'],
+    enterEmail: 'Ingresa tu correo.',
+    enterCode: 'Ingresa el código de 6 dígitos.',
+    codeResent: 'Te enviamos un código nuevo.',
+    enterFullName: 'Ingresa tu nombre y apellido.',
+    writeFullName: 'Escribe tu nombre y tu apellido.',
+    enterPhone: 'Ingresa tu teléfono.',
+    invalidPhone: 'Escribe un número de teléfono válido para el país seleccionado.',
+    choosePassword: 'Elige una contraseña.',
+    passwordTooShort: 'La contraseña debe tener al menos 7 caracteres.',
+    confirmYourPassword: 'Confirma tu contraseña.',
+    passwordsMismatch: 'Las contraseñas no coinciden.',
+    locPermTitle: 'Permiso de ubicación',
+    locPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locTitle: 'Ubicación',
+    locFailed: 'No se pudo obtener tu ubicación actual.',
+    chooseAddressLabel: 'Elige un nombre para tu dirección.',
+    writeAddressLabel: 'Escribe el nombre de tu dirección.',
+    pickOnMap: 'Elige tu ubicación en el mapa.',
+    step1Lead: 'Empecemos por tu correo. Te enviaremos un código para verificarlo.',
+    emailLabel: 'Correo electrónico',
+    emailPlaceholder: 'tucorreo@ejemplo.com',
+    step2Lead: (email) => `Escribe el código de 6 dígitos que enviamos a ${email}.`,
+    resendPrompt: '¿No te llegó? Reenviar código',
+    step3Lead: 'Cuéntanos quién eres y cómo contactarte.',
+    nameLabel: 'Nombre y apellido',
+    namePlaceholder: 'Ana Pérez',
+    phoneLabel: 'Teléfono',
+    step4Lead: 'Protege tu cuenta. Escribe la misma contraseña dos veces.',
+    passwordLabel: 'Contraseña',
+    passwordPlaceholder: 'Mínimo 7 caracteres',
+    confirmLabel: 'Confirmar contraseña',
+    confirmPlaceholder: 'Repite tu contraseña',
+    addressNameLabel: 'Nombre de la dirección',
+    customLabelPlaceholder: 'Ej. Casa de mamá',
+    tapMap: 'Toca el mapa para elegir tu ubicación',
+    myLocation: '📍 Mi ubicación',
+    addressFieldLabel: 'Dirección',
+    addressFieldPlaceholder: 'Se llena al elegir en el mapa',
+    sendCode: 'Enviar código',
+    verify: 'Verificar',
+    createAccount: 'Crear cuenta',
+    continueLabel: 'Continuar',
+  },
+  en: {
+    steps: ['Email', 'Code', 'Account', 'Password', 'Location'],
+    enterEmail: 'Enter your email.',
+    enterCode: 'Enter the 6-digit code.',
+    codeResent: 'We sent you a new code.',
+    enterFullName: 'Enter your first and last name.',
+    writeFullName: 'Write both your first and last name.',
+    enterPhone: 'Enter your phone number.',
+    invalidPhone: 'Enter a valid phone number for the selected country.',
+    choosePassword: 'Choose a password.',
+    passwordTooShort: 'The password must be at least 7 characters long.',
+    confirmYourPassword: 'Confirm your password.',
+    passwordsMismatch: 'The passwords do not match.',
+    locPermTitle: 'Location permission',
+    locPermBody: 'Enable the location permission to use your current location.',
+    locTitle: 'Location',
+    locFailed: 'Could not get your current location.',
+    chooseAddressLabel: 'Choose a name for your address.',
+    writeAddressLabel: 'Type a name for your address.',
+    pickOnMap: 'Pick your location on the map.',
+    step1Lead: "Let's start with your email. We'll send you a code to verify it.",
+    emailLabel: 'Email address',
+    emailPlaceholder: 'you@example.com',
+    step2Lead: (email) => `Enter the 6-digit code we sent to ${email}.`,
+    resendPrompt: "Didn't get it? Resend code",
+    step3Lead: 'Tell us who you are and how to reach you.',
+    nameLabel: 'First and last name',
+    namePlaceholder: 'Jane Smith',
+    phoneLabel: 'Phone',
+    step4Lead: 'Protect your account. Type the same password twice.',
+    passwordLabel: 'Password',
+    passwordPlaceholder: 'At least 7 characters',
+    confirmLabel: 'Confirm password',
+    confirmPlaceholder: 'Type your password again',
+    addressNameLabel: 'Address name',
+    customLabelPlaceholder: "e.g. Mom's house",
+    tapMap: 'Tap the map to pick your location',
+    myLocation: '📍 My location',
+    addressFieldLabel: 'Address',
+    addressFieldPlaceholder: 'Filled in when you pick on the map',
+    sendCode: 'Send code',
+    verify: 'Verify',
+    createAccount: 'Create account',
+    continueLabel: 'Continue',
+  },
+};
 
 // Sign-up wizard, reached from the welcome screen's "Continuar con correo o teléfono":
 // 1) the email, which we mail a code to, 2) that code, 3) contact details and who you are,
@@ -29,6 +168,7 @@ const STEPS = ['Correo', 'Código', 'Cuenta', 'Contraseña', 'Ubicación'];
 export default function RegisterScreen() {
   const { signUp } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [step, setStep] = useState(1);
   // Every message the wizard produces -- field validations and whatever the API answers -- goes
   // through one popup. `setError` reads the same as before at each call site; only the presentation
@@ -70,7 +210,7 @@ export default function RegisterScreen() {
   // Step 1: ask the API to mail a code. It refuses an address that already has an account, so the
   // person finds out here rather than after filling in everything else.
   const sendCode = async () => {
-    if (!email.trim()) return setError('Ingresa tu correo.');
+    if (!email.trim()) return setError(tx.enterEmail);
     setSubmitting(true);
     const res = await api.sendEmailCode(email.trim());
     setSubmitting(false);
@@ -81,7 +221,7 @@ export default function RegisterScreen() {
 
   // Step 2: prove the address. The API records the verification; register later requires it.
   const verifyCode = async () => {
-    if (code.length !== 6) return setError('Ingresa el código de 6 dígitos.');
+    if (code.length !== 6) return setError(tx.enterCode);
     setSubmitting(true);
     const res = await api.verifyEmailCode(email.trim(), code);
     setSubmitting(false);
@@ -94,7 +234,7 @@ export default function RegisterScreen() {
     setSubmitting(true);
     const res = await api.sendEmailCode(email.trim());
     setSubmitting(false);
-    if (res.success) showInfo('Te enviamos un código nuevo.');
+    if (res.success) showInfo(tx.codeResent);
     else setError(res.message);
   };
 
@@ -103,19 +243,19 @@ export default function RegisterScreen() {
     if (step === 1) return sendCode();
     if (step === 2) return verifyCode();
     if (step === 3) {
-      if (!fullName.trim()) return setError('Ingresa tu nombre y apellido.');
+      if (!fullName.trim()) return setError(tx.enterFullName);
       // The account keeps a surname of its own, so one word is not enough to fill it.
-      if (!splitDisplayName(fullName).lastName) return setError('Escribe tu nombre y tu apellido.');
-      if (!phone.trim()) return setError('Ingresa tu teléfono.');
+      if (!splitDisplayName(fullName).lastName) return setError(tx.writeFullName);
+      if (!phone.trim()) return setError(tx.enterPhone);
       // Validity is per country: what is a whole number in one is half of one in another.
-      if (!isCompletePhone(phone, phoneCountry)) return setError('Escribe un número de teléfono válido para el país seleccionado.');
+      if (!isCompletePhone(phone, phoneCountry)) return setError(tx.invalidPhone);
       return setStep(4);
     }
     if (step === 4) {
-      if (!password) return setError('Elige una contraseña.');
-      if (password.length < 7) return setError('La contraseña debe tener al menos 7 caracteres.');
-      if (!confirmPassword) return setError('Confirma tu contraseña.');
-      if (password !== confirmPassword) return setError('Las contraseñas no coinciden.');
+      if (!password) return setError(tx.choosePassword);
+      if (password.length < 7) return setError(tx.passwordTooShort);
+      if (!confirmPassword) return setError(tx.confirmYourPassword);
+      if (password !== confirmPassword) return setError(tx.passwordsMismatch);
       return setStep(5);
     }
     return submit();
@@ -128,9 +268,9 @@ export default function RegisterScreen() {
     setLocating(false);
     if (!result.ok) {
       if (result.reason === 'permission') {
-        Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
+        Alert.alert(tx.locPermTitle, tx.locPermBody);
       } else {
-        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
+        Alert.alert(tx.locTitle, tx.locFailed);
       }
       return;
     }
@@ -144,9 +284,9 @@ export default function RegisterScreen() {
 
   const submit = async () => {
     // Checked in the order the fields appear on the step.
-    if (!labelChoice) return setError('Elige un nombre para tu dirección.');
-    if (!addressLabel) return setError('Escribe el nombre de tu dirección.');
-    if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
+    if (!labelChoice) return setError(tx.chooseAddressLabel);
+    if (!addressLabel) return setError(tx.writeAddressLabel);
+    if (!address.trim()) return setError(tx.pickOnMap);
     setSubmitting(true);
     // First word is the name, everything after it the surname -- the same split used to pre-fill a
     // social sign-up from the provider's display name.
@@ -174,12 +314,12 @@ export default function RegisterScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>{STEPS[step - 1]}</Text>
+          <Text style={styles.title}>{tx.steps[step - 1]}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.stepperRow}>
-          {STEPS.map((label, i) => {
+          {tx.steps.map((label, i) => {
             const n = i + 1;
             const active = n === step;
             const done = n < step;
@@ -196,9 +336,9 @@ export default function RegisterScreen() {
 
         {step === 1 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Empecemos por tu correo. Te enviaremos un código para verificarlo.</Text>
-            <Text style={styles.label}>Correo electrónico</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="tucorreo@ejemplo.com"
+            <Text style={styles.lead}>{tx.step1Lead}</Text>
+            <Text style={styles.label}>{tx.emailLabel}</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.emailPlaceholder}
               autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail}
               // Enter (web) or the keyboard's action key (native) is the "Enviar código" button
               // below: same handler, same validation. Guarded like the button, so a double
@@ -209,7 +349,7 @@ export default function RegisterScreen() {
 
         {step === 2 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Escribe el código de 6 dígitos que enviamos a {email.trim()}.</Text>
+            <Text style={styles.lead}>{tx.step2Lead(email.trim())}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholderTextColor={t.textFaint}
@@ -221,18 +361,18 @@ export default function RegisterScreen() {
               onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
             />
             <Pressable onPress={resend} disabled={submitting} style={styles.resend}>
-              <Text style={styles.resendText}>¿No te llegó? Reenviar código</Text>
+              <Text style={styles.resendText}>{tx.resendPrompt}</Text>
             </Pressable>
           </ScrollView>
         )}
 
         {step === 3 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Cuéntanos quién eres y cómo contactarte.</Text>
-            <Text style={styles.label}>Nombre y apellido</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Ana Pérez"
+            <Text style={styles.lead}>{tx.step3Lead}</Text>
+            <Text style={styles.label}>{tx.nameLabel}</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.namePlaceholder}
               autoCapitalize="words" value={fullName} onChangeText={setFullName} />
-            <Text style={styles.label}>Teléfono</Text>
+            <Text style={styles.label}>{tx.phoneLabel}</Text>
             <PhoneInput
               country={phoneCountry}
               national={phone}
@@ -243,19 +383,19 @@ export default function RegisterScreen() {
 
         {step === 4 && (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.lead}>Protege tu cuenta. Escribe la misma contraseña dos veces.</Text>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Mínimo 7 caracteres"
+            <Text style={styles.lead}>{tx.step4Lead}</Text>
+            <Text style={styles.label}>{tx.passwordLabel}</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.passwordPlaceholder}
               secureTextEntry value={password} onChangeText={setPassword} />
-            <Text style={styles.label}>Confirmar contraseña</Text>
-            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder="Repite tu contraseña"
+            <Text style={styles.label}>{tx.confirmLabel}</Text>
+            <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.confirmPlaceholder}
               secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
           </ScrollView>
         )}
 
         {step === 5 && (
           <View style={styles.mapStep}>
-            <Text style={[styles.label, styles.labelFirst]}>Nombre de la dirección</Text>
+            <Text style={[styles.label, styles.labelFirst]}>{tx.addressNameLabel}</Text>
             <View style={styles.choiceRow}>
               {LABEL_CHOICES.map((choice) => {
                 const active = labelChoice === choice;
@@ -274,12 +414,12 @@ export default function RegisterScreen() {
             </View>
             {labelChoice === 'Otro' ? (
               <TextInput style={styles.input} placeholderTextColor={t.textFaint}
-                placeholder="Ej. Casa de mamá" value={customLabel} onChangeText={setCustomLabel} />
+                placeholder={tx.customLabelPlaceholder} value={customLabel} onChangeText={setCustomLabel} />
             ) : null}
             <View style={[styles.locRow, styles.locRowSpaced]}>
-              <Text style={styles.lead}>Toca el mapa para elegir tu ubicación</Text>
+              <Text style={styles.lead}>{tx.tapMap}</Text>
               <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-                {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
+                {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>{tx.myLocation}</Text>}
               </Pressable>
             </View>
             <LocationPicker
@@ -288,9 +428,9 @@ export default function RegisterScreen() {
               longitude={coords.lng ?? DEFAULT_CENTER.lng}
               onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
             />
-            <Text style={styles.label}>Dirección</Text>
+            <Text style={styles.label}>{tx.addressFieldLabel}</Text>
             <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
-              placeholder="Se llena al elegir en el mapa" value={address} onChangeText={setAddress} multiline />
+              placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress} multiline />
           </View>
         )}
 
@@ -298,7 +438,7 @@ export default function RegisterScreen() {
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={next} disabled={submitting}>
             {submitting ? <ActivityIndicator color={t.onAccent} /> : (
               <Text style={styles.primaryText}>
-                {step === 1 ? 'Enviar código' : step === 2 ? 'Verificar' : step === 5 ? 'Crear cuenta' : 'Continuar'}
+                {step === 1 ? tx.sendCode : step === 2 ? tx.verify : step === 5 ? tx.createAccount : tx.continueLabel}
               </Text>
             )}
           </Pressable>

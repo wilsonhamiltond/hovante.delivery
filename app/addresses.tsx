@@ -10,6 +10,78 @@ import { GradientBackground, t } from '../src/theme';
 import { BackButton } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { ConfirmDialog } from '../src/ConfirmDialog';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    addA11y: string;
+    add: string;
+    savedTitle: string;
+    savedHint: string;
+    pastTitle: string;
+    pastHint: string;
+    empty: string;
+    principal: string;
+    usageMeta: (times: number, date: string) => string;
+    savedFallback: string;
+    deleteLabel: string;
+    deleteA11y: (address: string) => string;
+    makePrimaryLabel: string;
+    makePrimaryA11y: (address: string) => string;
+    editLabel: string;
+    editA11y: (address: string) => string;
+    confirmTitle: string;
+    confirmMessage: (address: string) => string;
+    confirmLabel: string;
+  }
+> = {
+  es: {
+    title: 'Direcciones',
+    addA11y: 'Agregar dirección',
+    add: 'Agregar',
+    savedTitle: 'Tus direcciones',
+    savedHint: 'Guardadas en tu cuenta',
+    pastTitle: 'De pedidos anteriores',
+    pastHint: 'Usadas para pedir, sin guardar',
+    empty: 'Aún no tienes direcciones. Las que uses para pedir aparecerán aquí.',
+    principal: 'Principal',
+    usageMeta: (times, date) => `${times === 1 ? 'Usada 1 vez' : `Usada ${times} veces`} · Último pedido ${date}`,
+    savedFallback: 'Guardada',
+    deleteLabel: 'Eliminar',
+    deleteA11y: (address) => `Eliminar ${address}`,
+    makePrimaryLabel: 'Hacer principal',
+    makePrimaryA11y: (address) => `Hacer principal ${address}`,
+    editLabel: 'Editar',
+    editA11y: (address) => `Editar ${address}`,
+    confirmTitle: 'Eliminar dirección',
+    confirmMessage: (address) => `¿Eliminar "${address}"?`,
+    confirmLabel: 'Sí, eliminar',
+  },
+  en: {
+    title: 'Addresses',
+    addA11y: 'Add address',
+    add: 'Add',
+    savedTitle: 'Your addresses',
+    savedHint: 'Saved to your account',
+    pastTitle: 'From past orders',
+    pastHint: 'Used to order, not saved',
+    empty: "You don't have any addresses yet. The ones you order with will appear here.",
+    principal: 'Primary',
+    usageMeta: (times, date) => `${times === 1 ? 'Used 1 time' : `Used ${times} times`} · Last order ${date}`,
+    savedFallback: 'Saved',
+    deleteLabel: 'Delete',
+    deleteA11y: (address) => `Delete ${address}`,
+    makePrimaryLabel: 'Make primary',
+    makePrimaryA11y: (address) => `Make ${address} primary`,
+    editLabel: 'Edit',
+    editA11y: (address) => `Edit ${address}`,
+    confirmTitle: 'Delete address',
+    confirmMessage: (address) => `Delete "${address}"?`,
+    confirmLabel: 'Yes, delete',
+  },
+};
 
 const fmtDate = (iso: string): string => {
   const d = new Date(iso);
@@ -22,6 +94,7 @@ const fmtDate = (iso: string): string => {
 export default function AddressesScreen() {
   const router = useRouter();
   const session = useSessionLocation();
+  const tx = useStrings(S);
   const [items, setItems] = useState<AddressHistory[]>([]);
   const [loading, setLoading] = useState(true);
   // Which row is mid-action, so only its own button shows a spinner.
@@ -110,9 +183,9 @@ export default function AddressesScreen() {
   // the rows without buttons read as saved addresses whose actions failed to render -- and there
   // was no way to tell which of them the account would actually deliver to.
   const sections = useMemo(() => [
-    { key: 'saved', title: 'Tus direcciones', hint: 'Guardadas en tu cuenta', data: items.filter((a) => a.isSaved) },
-    { key: 'past', title: 'De pedidos anteriores', hint: 'Usadas para pedir, sin guardar', data: items.filter((a) => !a.isSaved) },
-  ].filter((s) => s.data.length > 0), [items]);
+    { key: 'saved', title: tx.savedTitle, hint: tx.savedHint, data: items.filter((a) => a.isSaved) },
+    { key: 'past', title: tx.pastTitle, hint: tx.pastHint, data: items.filter((a) => !a.isSaved) },
+  ].filter((s) => s.data.length > 0), [items, tx]);
 
   return (
     <GradientBackground>
@@ -121,15 +194,15 @@ export default function AddressesScreen() {
         {/* Reached from Cuenta > Direcciones rather than a tab, so it goes back like every other
             pushed screen. The replace fallback covers a deep link that arrives with no stack. */}
         <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/account'))} />
-        <Text style={styles.title}>Direcciones</Text>
+        <Text style={styles.title}>{tx.title}</Text>
         <Pressable
           style={styles.addBtn}
           onPress={() => router.push('/address-new')}
           accessibilityRole="button"
-          accessibilityLabel="Agregar dirección"
+          accessibilityLabel={tx.addA11y}
         >
           <FontAwesome5 name="plus" size={12} color={t.onAccent} />
-          <Text style={styles.addBtnText}>Agregar</Text>
+          <Text style={styles.addBtnText}>{tx.add}</Text>
         </Pressable>
       </View>
 
@@ -149,7 +222,7 @@ export default function AddressesScreen() {
               <Text style={styles.sectionHint}>{section.hint}</Text>
             </View>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>Aún no tienes direcciones. Las que uses para pedir aparecerán aquí.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{tx.empty}</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.pin}>📍</Text>
@@ -157,14 +230,14 @@ export default function AddressesScreen() {
                 <View style={styles.addressRow}>
                   <Text style={[styles.address, { flex: 1 }]}>{item.address}</Text>
                   {item.isDefault ? (
-                    <View style={styles.badge}><Text style={styles.badgeText}>Principal</Text></View>
+                    <View style={styles.badge}><Text style={styles.badgeText}>{tx.principal}</Text></View>
                   ) : null}
                 </View>
                 {/* A saved address that has never been ordered to has no usage line to show. */}
                 <Text style={styles.meta}>
                   {item.lastUsedAt
-                    ? `${item.timesUsed === 1 ? 'Usada 1 vez' : `Usada ${item.timesUsed} veces`} · Último pedido ${fmtDate(item.lastUsedAt)}`
-                    : item.label ?? 'Guardada'}
+                    ? tx.usageMeta(item.timesUsed, fmtDate(item.lastUsedAt))
+                    : item.label ?? tx.savedFallback}
                 </Text>
 
                 {/* A saved address can be promoted, edited and deleted. A past-order one is text
@@ -179,10 +252,10 @@ export default function AddressesScreen() {
                       onPress={() => setPendingDelete(item)}
                       disabled={busyId != null}
                       accessibilityRole="button"
-                      accessibilityLabel={`Eliminar ${item.address}`}
+                      accessibilityLabel={tx.deleteA11y(item.address)}
                     >
                       <FontAwesome5 name="trash" size={11} color={t.danger} />
-                      <Text style={[styles.actionBtnText, styles.deleteBtnText]}>Eliminar</Text>
+                      <Text style={[styles.actionBtnText, styles.deleteBtnText]}>{tx.deleteLabel}</Text>
                     </Pressable>
                   ) : (
                     <>
@@ -192,10 +265,10 @@ export default function AddressesScreen() {
                             onPress={() => makePrimary(item)}
                             disabled={busyId != null}
                             accessibilityRole="button"
-                            accessibilityLabel={`Hacer principal ${item.address}`}
+                            accessibilityLabel={tx.makePrimaryA11y(item.address)}
                           >
                             <FontAwesome5 name="star" size={11} color={t.text} />
-                            <Text style={styles.actionBtnText}>Hacer principal</Text>
+                            <Text style={styles.actionBtnText}>{tx.makePrimaryLabel}</Text>
                           </Pressable>
                         ) : null}
                         <Pressable
@@ -203,10 +276,10 @@ export default function AddressesScreen() {
                           onPress={() => edit(item)}
                           disabled={busyId != null}
                           accessibilityRole="button"
-                          accessibilityLabel={`Editar ${item.address}`}
+                          accessibilityLabel={tx.editA11y(item.address)}
                         >
                           <FontAwesome5 name="pen" size={11} color={t.text} />
-                          <Text style={styles.actionBtnText}>Editar</Text>
+                          <Text style={styles.actionBtnText}>{tx.editLabel}</Text>
                         </Pressable>
                         {/* The principal address cannot be deleted from here: it is the one every
                             checkout preselects, so removing it would leave the account without a
@@ -218,10 +291,10 @@ export default function AddressesScreen() {
                             onPress={() => setPendingDelete(item)}
                             disabled={busyId != null}
                             accessibilityRole="button"
-                            accessibilityLabel={`Eliminar ${item.address}`}
+                            accessibilityLabel={tx.deleteA11y(item.address)}
                           >
                             <FontAwesome5 name="trash" size={11} color={t.danger} />
-                            <Text style={[styles.actionBtnText, styles.deleteBtnText]}>Eliminar</Text>
+                            <Text style={[styles.actionBtnText, styles.deleteBtnText]}>{tx.deleteLabel}</Text>
                           </Pressable>
                         ) : null}
                       </>
@@ -237,9 +310,9 @@ export default function AddressesScreen() {
           restore from the app. */}
       <ConfirmDialog
         visible={pendingDelete != null}
-        title="Eliminar dirección"
-        message={`¿Eliminar "${pendingDelete?.address ?? ''}"?`}
-        confirmLabel="Sí, eliminar"
+        title={tx.confirmTitle}
+        message={tx.confirmMessage(pendingDelete?.address ?? '')}
+        confirmLabel={tx.confirmLabel}
         onConfirm={() => { if (pendingDelete) remove(pendingDelete); }}
         onCancel={() => setPendingDelete(null)}
       />

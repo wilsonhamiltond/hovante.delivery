@@ -1,5 +1,6 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
+import { strings, type Locale } from './i18n';
 
 // Whether the app is running inside the Expo Go client rather than as its own installed build.
 //
@@ -16,7 +17,21 @@ import { Platform } from 'react-native';
 export const IS_EXPO_GO =
   Platform.OS !== 'web' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-/** What to tell someone who taps a social sign-in inside Expo Go. */
-export const EXPO_GO_SOCIAL_MESSAGE =
-  'El inicio de sesión con Google, Facebook y Apple no funciona dentro de Expo Go. '
-  + 'Usa la app instalada (el APK), o entra con tu correo y contraseña.';
+const S: Record<Locale, { socialMessage: string }> = {
+  es: {
+    socialMessage:
+      'El inicio de sesión con Google, Facebook y Apple no funciona dentro de Expo Go. '
+      + 'Usa la app instalada (el APK), o entra con tu correo y contraseña.',
+  },
+  en: {
+    socialMessage:
+      'Signing in with Google, Facebook, and Apple does not work inside Expo Go. '
+      + 'Use the installed app (the APK), or sign in with your email and password.',
+  },
+};
+
+/** What to tell someone who taps a social sign-in inside Expo Go. A function (not a constant) so
+ * a language switch is picked up at the moment the message is shown. */
+export function expoGoSocialMessage(): string {
+  return strings(S).socialMessage;
+}

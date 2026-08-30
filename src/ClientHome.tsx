@@ -7,7 +7,7 @@ import type { Me, Order } from './api';
 import { useAuthPrompt } from './AuthPrompt';
 import { useCart } from './cart';
 import { detectCurrentLocation } from './profileForm';
-import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
+import { sessionLocationLabel, useSessionLocation } from './sessionLocation';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { CartButton } from './CartButton';
 import { NotificationsButton } from './NotificationsButton';
@@ -17,6 +17,7 @@ import { emojiFor } from './categoryEmoji';
 import { LogoSplash } from './LogoSplash';
 import { orderStatusChip } from './orderStatus';
 import { Skeleton } from './Skeleton';
+import { useStrings, type Locale } from './i18n';
 
 // The client home: the delivery location, search, and the orders the customer has in flight. The
 // catalogue itself -- business categories and the product grid -- lives in the Explorar tab
@@ -48,11 +49,119 @@ const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
 // The chip's label and colour come from orderStatus.ts, shared with the orders list and the
 // tracking screen -- see the note there on why this is not four separate ladders any more.
 
+const S: Record<
+  Locale,
+  {
+    currentLocationFallback: string;
+    deliverTo: string;
+    addAddress: string;
+    searchPlaceholder: string;
+    viewOrder: string;
+    helloName: (name: string) => string;
+    hello: string;
+    currentOrders: string;
+    merchant: string;
+    deliveryFee: (amount: string) => string;
+    noCurrentOrders: string;
+    guestBrowsing: string;
+    signIn: string;
+    guestToOrder: string;
+    latestOffers: string;
+    viewOffer: (name: string, percent: number) => string;
+    oneLeft: string;
+    someLeft: (n: number) => string;
+    topOrdered: string;
+    viewItemAt: (name: string, company: string | null | undefined) => string;
+    sold: (n: number) => string;
+    topMerchants: string;
+    viewMerchantProducts: (name: string) => string;
+    soldThisWeek: (n: number) => string;
+    addressAlertTitle: string;
+    locationAlertTitle: string;
+    locationPermBody: string;
+    locationFailBody: string;
+    sheetSubtitle: string;
+    close: string;
+    noSavedAddresses: string;
+    addNewAddress: string;
+  }
+> = {
+  es: {
+    currentLocationFallback: 'Tu ubicación actual',
+    deliverTo: 'Enviar a',
+    addAddress: 'Agrega tu dirección',
+    searchPlaceholder: 'Buscar productos',
+    viewOrder: 'Ver pedido',
+    helloName: (name) => `¡Hola, ${name}! 👋`,
+    hello: '¡Hola! 👋',
+    currentOrders: 'Tus pedidos en curso',
+    merchant: 'Comercio',
+    deliveryFee: (amount) => `Envío ${amount}`,
+    noCurrentOrders: 'No tienes pedidos en curso.',
+    guestBrowsing: 'Estás explorando como invitado.',
+    signIn: 'Inicia sesión',
+    guestToOrder: ' para hacer pedidos.',
+    latestOffers: 'Últimas ofertas',
+    viewOffer: (name, percent) => `Ver ${name}, ${percent}% de descuento`,
+    oneLeft: 'Queda 1',
+    someLeft: (n) => `Quedan ${n}`,
+    topOrdered: 'Lo más pedido',
+    viewItemAt: (name, company) => `Ver ${name} en ${company ?? 'el comercio'}`,
+    sold: (n) => `${n} vendidos`,
+    topMerchants: 'Comercios más pedidos',
+    viewMerchantProducts: (name) => `Ver productos de ${name}`,
+    soldThisWeek: (n) => `${n} vendidos esta semana`,
+    addressAlertTitle: 'Dirección',
+    locationAlertTitle: 'Ubicación',
+    locationPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locationFailBody: 'No se pudo obtener tu ubicación. Inténtalo de nuevo.',
+    sheetSubtitle: 'Elige dónde quieres recibir tu pedido',
+    close: 'Cerrar',
+    noSavedAddresses: 'Todavía no tienes direcciones guardadas.',
+    addNewAddress: 'Agregar nueva dirección',
+  },
+  en: {
+    currentLocationFallback: 'Your current location',
+    deliverTo: 'Deliver to',
+    addAddress: 'Add your address',
+    searchPlaceholder: 'Search products',
+    viewOrder: 'View order',
+    helloName: (name) => `Hi, ${name}! 👋`,
+    hello: 'Hi! 👋',
+    currentOrders: 'Your orders in progress',
+    merchant: 'Merchant',
+    deliveryFee: (amount) => `Delivery ${amount}`,
+    noCurrentOrders: 'You have no orders in progress.',
+    guestBrowsing: "You're browsing as a guest.",
+    signIn: 'Sign in',
+    guestToOrder: ' to place orders.',
+    latestOffers: 'Latest deals',
+    viewOffer: (name, percent) => `View ${name}, ${percent}% off`,
+    oneLeft: '1 left',
+    someLeft: (n) => `${n} left`,
+    topOrdered: 'Most ordered',
+    viewItemAt: (name, company) => `View ${name} at ${company ?? 'the merchant'}`,
+    sold: (n) => `${n} sold`,
+    topMerchants: 'Most ordered merchants',
+    viewMerchantProducts: (name) => `View products from ${name}`,
+    soldThisWeek: (n) => `${n} sold this week`,
+    addressAlertTitle: 'Address',
+    locationAlertTitle: 'Location',
+    locationPermBody: 'Enable the location permission to use your current location.',
+    locationFailBody: "We couldn't get your location. Please try again.",
+    sheetSubtitle: 'Choose where you want to receive your order',
+    close: 'Close',
+    noSavedAddresses: "You don't have any saved addresses yet.",
+    addNewAddress: 'Add a new address',
+  },
+};
+
 export function ClientHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
   const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
+  const tx = useStrings(S);
   // Whether the GPS lookup behind the sheet's "Ubicación actual" row is in flight.
   const [locating, setLocating] = useState(false);
   // Typed here, searched in Explorar: submitting hands the text to that tab rather than filtering
@@ -143,7 +252,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   const topCompanies = useMemo(() => {
     const byCompany = new Map<string, { id: string | null; name: string; logoUrl: string | null; sold: number }>();
     for (const item of topItems) {
-      const name = item.companyName ?? 'Comercio';
+      const name = item.companyName ?? tx.merchant;
       // Fall back to the name as the key: an item with no companyId still belongs to a merchant,
       // and dropping it would understate that merchant's total.
       const key = item.companyId ?? name;
@@ -154,7 +263,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
       byCompany.set(key, row);
     }
     return [...byCompany.values()].sort((a, b) => b.sold - a.sold).slice(0, TOP_CAROUSEL_SIZE);
-  }, [topItems]);
+  }, [topItems, tx]);
 
   // Re-shown on every change to the cart, so adding a second item brings it back for another five
   // seconds rather than leaving the first timer to expire mid-shop.
@@ -185,7 +294,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     const detection = detectCurrentLocation().then((result) => {
       if (!active || !result.ok) return;
       session.setLocation({
-        address: result.location.address ?? 'Tu ubicación actual',
+        address: result.location.address ?? tx.currentLocationFallback,
         latitude: result.location.lat,
         longitude: result.location.lng,
       });
@@ -214,7 +323,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
   // button for it just now -- so it wins until they choose a saved address again.
   const address = (session.location?.address ?? (chosen ? chosen.address : profile?.address))?.trim();
   const addressLabel = session.location
-    ? SESSION_LOCATION_LABEL
+    ? sessionLocationLabel()
     : (chosen ? chosen.label : profile?.addressLabel)?.trim();
 
   const openAddresses = () => {
@@ -248,7 +357,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     setAddrBusy(item.id);
     const res = await api.setDefaultAddress(item.id);
     setAddrBusy(null);
-    if (!res.success) { Alert.alert('Dirección', res.message); return; }
+    if (!res.success) { Alert.alert(tx.addressAlertTitle, res.message); return; }
     setChosen({ label: item.label, address: item.address, latitude: item.latitude, longitude: item.longitude });
     setAddrOpen(false);
   };
@@ -268,13 +377,13 @@ export function ClientHome({ profile }: { profile: Me | null }) {
     const result = await detectCurrentLocation();
     setLocating(false);
     if (!result.ok) {
-      Alert.alert('Ubicación', result.reason === 'permission'
-        ? 'Activa el permiso de ubicación para usar tu ubicación actual.'
-        : 'No se pudo obtener tu ubicación. Inténtalo de nuevo.');
+      Alert.alert(tx.locationAlertTitle, result.reason === 'permission'
+        ? tx.locationPermBody
+        : tx.locationFailBody);
       return;
     }
     session.setLocation({
-      address: result.location.address ?? 'Tu ubicación actual',
+      address: result.location.address ?? tx.currentLocationFallback,
       latitude: result.location.lat,
       longitude: result.location.lng,
     });
@@ -303,11 +412,11 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                 truncates instead of pushing the chevron off the edge. */}
             <Pressable style={styles.addressRow} onPress={openAddresses} accessibilityRole="button">
               <View style={styles.addressPin}><Text style={styles.pin}>📍</Text></View>
-              <Text style={styles.deliverLabel}>Enviar a</Text>
+              <Text style={styles.deliverLabel}>{tx.deliverTo}</Text>
               <Text style={styles.address} numberOfLines={1}>
                 {/* The name the customer gave it ("Casa"); the raw address only stands in when
                     there is no saved label to show. */}
-                {addressLabel || address || 'Agrega tu dirección'}
+                {addressLabel || address || tx.addAddress}
               </Text>
               {/* A real icon rather than the "⌄" glyph, which sits off the baseline and needed a
                   negative margin to look level. */}
@@ -327,7 +436,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar productos"
+              placeholder={tx.searchPlaceholder}
               placeholderTextColor={t.textFaint}
               value={search}
               onChangeText={setSearch}
@@ -343,7 +452,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           {cart.count > 0 && cartBarVisible ? (
             <Pressable style={styles.cartBar} onPress={() => router.push('/cart')}>
               <View style={styles.cartCount}><Text style={styles.cartCountText}>{cart.count}</Text></View>
-              <Text style={styles.cartBarText}>Ver pedido</Text>
+              <Text style={styles.cartBarText}>{tx.viewOrder}</Text>
               <Text style={styles.cartBarTotal}>{money(cart.total)}</Text>
             </Pressable>
           ) : null}
@@ -357,14 +466,14 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hello}>{greeting ? `¡Hola, ${greeting}! 👋` : '¡Hola! 👋'}</Text>
+        <Text style={styles.hello}>{greeting ? tx.helloName(greeting) : tx.hello}</Text>
 
         {/* Current orders; tap one to track it. Skeleton chips while the first load is out, so
             the section holds its place instead of flashing "no tienes pedidos" at someone whose
             orders are still on the wire. */}
         {profile && !ordersLoaded ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
+            <Text style={styles.ordersTitle}>{tx.currentOrders}</Text>
             <View style={styles.skeletonRow}>
               {[0, 1].map((i) => (
                 <View key={i} style={styles.orderChip}>
@@ -377,7 +486,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           </View>
         ) : orders.length > 0 ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
+            <Text style={styles.ordersTitle}>{tx.currentOrders}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ordersRow}>
               {orders.map((o) => (
                 <Pressable key={o.id} style={styles.orderChip} onPress={() => router.push(`/order/${o.id}`)}>
@@ -385,7 +494,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     <Text style={styles.orderChipNumber}>{o.orderNumber}</Text>
                     <Text style={styles.orderChipArrow}>›</Text>
                   </View>
-                  <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? 'Comercio'}</Text>
+                  <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? tx.merchant}</Text>
                   {/* The same badge the orders list and the tracking screen wear, so one order
                       never reads as two different states in two places. */}
                   {(() => {
@@ -399,7 +508,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   {/* Grand total (products + envío), with the fee named so the number is explained.
                       Orders without a stored fee keep showing the products total alone. */}
                   {o.deliveryFee != null ? (
-                    <Text style={styles.orderChipFee}>Envío {money(o.deliveryFee)}</Text>
+                    <Text style={styles.orderChipFee}>{tx.deliveryFee(money(o.deliveryFee))}</Text>
                   ) : null}
                   <Text style={styles.orderChipTotal}>{money(o.total + (o.deliveryFee ?? 0))}</Text>
                 </Pressable>
@@ -408,14 +517,14 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           </View>
         ) : profile ? (
           // Without the grid this screen would otherwise be a greeting on an empty page.
-          <Text style={styles.empty}>No tienes pedidos en curso.</Text>
+          <Text style={styles.empty}>{tx.noCurrentOrders}</Text>
         ) : (
           // A guest: say how to become able to order, instead of "no orders" about an account
           // that does not exist. The tap asks with the popup, so cancelling stays right here.
           <Pressable onPress={promptLogin} accessibilityRole="button">
             <Text style={styles.empty}>
-              Estás explorando como invitado.{' '}
-              <Text style={styles.emptyLink}>Inicia sesión</Text> para hacer pedidos.
+              {tx.guestBrowsing}{' '}
+              <Text style={styles.emptyLink}>{tx.signIn}</Text>{tx.guestToOrder}
             </Text>
           </Pressable>
         )}
@@ -426,7 +535,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             percentage, so nothing here recomputes a discount. */}
         {offers.length > 0 ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Últimas ofertas</Text>
+            <Text style={styles.ordersTitle}>{tx.latestOffers}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -440,7 +549,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   style={styles.topCard}
                   onPress={() => router.push({ pathname: '/explore', params: { q: offer.name } })}
                   accessibilityRole="button"
-                  accessibilityLabel={`Ver ${offer.name}, ${offer.discountPercent}% de descuento`}
+                  accessibilityLabel={tx.viewOffer(offer.name, offer.discountPercent)}
                 >
                   <View style={styles.topThumb}>
                     {/* The item's own photo once the merchant has set one; the category icon
@@ -459,7 +568,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     ) : null}
                   </View>
                   <Text style={styles.topName} numberOfLines={2}>{offer.name}</Text>
-                  <Text style={styles.topCompany} numberOfLines={1}>{offer.companyName ?? 'Comercio'}</Text>
+                  <Text style={styles.topCompany} numberOfLines={1}>{offer.companyName ?? tx.merchant}</Text>
                   <View style={styles.offerPrices}>
                     <Text style={styles.topPrice}>{money(offer.offerPrice)}</Text>
                     {offer.offerPrice < offer.price ? (
@@ -472,8 +581,8 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   {offer.remainingQuantity != null && offer.remainingQuantity <= OFFER_SCARCITY_THRESHOLD ? (
                     <Text style={styles.offerLeft}>
                       {offer.remainingQuantity === 1
-                        ? 'Queda 1'
-                        : `Quedan ${offer.remainingQuantity}`}
+                        ? tx.oneLeft
+                        : tx.someLeft(offer.remainingQuantity)}
                     </Text>
                   ) : null}
                 </Pressable>
@@ -490,7 +599,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             while the first load is out, so the rail holds its place instead of appearing late. */}
         {!topLoaded ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Lo más pedido</Text>
+            <Text style={styles.ordersTitle}>{tx.topOrdered}</Text>
             <View style={styles.skeletonRow}>
               {[0, 1, 2].map((i) => (
                 <View key={i} style={styles.topCard}>
@@ -503,7 +612,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           </View>
         ) : topItems.length > 0 ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Lo más pedido</Text>
+            <Text style={styles.ordersTitle}>{tx.topOrdered}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -527,7 +636,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                       imagePath: item.imagePath ?? null,
                       imageUrl: item.imageUrl ?? null,
                       companyId: item.companyId ?? '',
-                      companyName: item.companyName ?? 'Comercio',
+                      companyName: item.companyName ?? tx.merchant,
                       categories: [],
                     });
                     router.push({
@@ -538,7 +647,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     });
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Ver ${item.name} en ${item.companyName ?? 'el comercio'}`}
+                  accessibilityLabel={tx.viewItemAt(item.name, item.companyName)}
                 >
                   {/* The item's own photo once the merchant has set one, exactly as the catalogue
                       tiles do; the category's icon does the work for the ones that have none. */}
@@ -550,11 +659,11 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     )}
                   </View>
                   <Text style={styles.topName} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.topCompany} numberOfLines={1}>{item.companyName ?? 'Comercio'}</Text>
+                  <Text style={styles.topCompany} numberOfLines={1}>{item.companyName ?? tx.merchant}</Text>
                   <View style={styles.topFooter}>
                     <Text style={styles.topPrice}>{money(item.price)}</Text>
                     {item.orderedCount ? (
-                      <Text style={styles.topCount}>{item.orderedCount} vendidos</Text>
+                      <Text style={styles.topCount}>{tx.sold(item.orderedCount)}</Text>
                     ) : null}
                   </View>
                 </Pressable>
@@ -570,7 +679,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           // Same fetch as "lo más pedido" (the companies are that response grouped a second way),
           // so it shares the flag -- and the same hold-its-place reasoning.
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Comercios más pedidos</Text>
+            <Text style={styles.ordersTitle}>{tx.topMerchants}</Text>
             <View style={styles.skeletonRow}>
               {[0, 1, 2].map((i) => (
                 <View key={i} style={styles.topCard}>
@@ -583,7 +692,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           </View>
         ) : topCompanies.length > 0 ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Comercios más pedidos</Text>
+            <Text style={styles.ordersTitle}>{tx.topMerchants}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -600,7 +709,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                     params: { companyId: company.id ?? '', companyName: company.name },
                   })}
                   accessibilityRole="button"
-                  accessibilityLabel={`Ver productos de ${company.name}`}
+                  accessibilityLabel={tx.viewMerchantProducts(company.name)}
                 >
                   <View style={styles.companyAvatar}>
                     {company.logoUrl ? (
@@ -613,7 +722,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                   </View>
                   <Text style={styles.topName} numberOfLines={2}>{company.name}</Text>
                   {company.sold > 0 ? (
-                    <Text style={styles.topCount}>{company.sold} vendidos esta semana</Text>
+                    <Text style={styles.topCount}>{tx.soldThisWeek(company.sold)}</Text>
                   ) : null}
                 </Pressable>
               ))}
@@ -630,15 +739,15 @@ export function ClientHome({ profile }: { profile: Me | null }) {
 
             <View style={styles.sheetHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Enviar a</Text>
-                <Text style={styles.sheetSubtitle}>Elige dónde quieres recibir tu pedido</Text>
+                <Text style={styles.sheetTitle}>{tx.deliverTo}</Text>
+                <Text style={styles.sheetSubtitle}>{tx.sheetSubtitle}</Text>
               </View>
               {/* An explicit way out: tapping the backdrop works, but is not discoverable. */}
               <Pressable
                 style={styles.sheetClose}
                 onPress={() => setAddrOpen(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar"
+                accessibilityLabel={tx.close}
               >
                 <Text style={styles.sheetCloseIcon}>✕</Text>
               </Pressable>
@@ -656,7 +765,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
                 <FontAwesome5 name="location-arrow" size={13} solid color={t.text} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetLabel}>{SESSION_LOCATION_LABEL}</Text>
+                <Text style={styles.sheetLabel}>{sessionLocationLabel()}</Text>
               </View>
               {locating ? (
                 <ActivityIndicator color={t.text} size="small" />
@@ -668,7 +777,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
             </Pressable>
 
             {addresses.length === 0 ? (
-              <Text style={styles.sheetEmpty}>Todavía no tienes direcciones guardadas.</Text>
+              <Text style={styles.sheetEmpty}>{tx.noSavedAddresses}</Text>
             ) : null}
 
             {addresses.map((item) => {
@@ -720,7 +829,7 @@ export function ClientHome({ profile }: { profile: Me | null }) {
 
             <Pressable style={styles.sheetAdd} onPress={addAddress} accessibilityRole="button">
               <View style={styles.sheetAddIconWrap}><Text style={styles.sheetAddIcon}>＋</Text></View>
-              <Text style={styles.sheetAddText}>Agregar nueva dirección</Text>
+              <Text style={styles.sheetAddText}>{tx.addNewAddress}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

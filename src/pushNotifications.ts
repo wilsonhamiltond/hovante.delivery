@@ -3,6 +3,14 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import * as api from './api';
+import { strings, type Locale } from './i18n';
+
+// The one user-visible string here: the Android channel's name, shown in the system's
+// notification settings. Read at call time so re-registering under a new language renames it.
+const S: Record<Locale, { channelName: string }> = {
+  es: { channelName: 'Entregas' },
+  en: { channelName: 'Deliveries' },
+};
 
 // Push notifications for drivers: the app hands its NATIVE device token to the API, and the API
 // pushes through Amazon SNS mobile push when there is work worth waking someone for.
@@ -53,7 +61,7 @@ export function configureNotificationHandler() {
 async function ensureAndroidChannel() {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
-    name: 'Entregas',
+    name: strings(S).channelName,
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#1d4ed8',

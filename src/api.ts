@@ -1,6 +1,33 @@
 import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 import { pointInPolygon } from './geo';
+import { strings, type Locale } from './i18n';
+
+// Only the fallback error messages a screen shows to the user live here -- headers, URLs and
+// payload fields are protocol, not text. Read through strings() at call time so a language
+// switch is picked up by the next request.
+const S: Record<
+  Locale,
+  {
+    networkError: string;
+    serverError: (status: number) => string;
+    noSession: string;
+    sessionExpired: string;
+  }
+> = {
+  es: {
+    networkError: 'No se pudo conectar con el servidor.',
+    serverError: (status) => `Error del servidor (${status}).`,
+    noSession: 'Sesión no iniciada.',
+    sessionExpired: 'Tu sesión expiró. Vuelve a iniciar sesión.',
+  },
+  en: {
+    networkError: 'Could not connect to the server.',
+    serverError: (status) => `Server error (${status}).`,
+    noSession: 'You are not signed in.',
+    sessionExpired: 'Your session expired. Please sign in again.',
+  },
+};
 
 // Puts a picked image into a FormData as an actual FILE, on both hosts.
 //
@@ -65,7 +92,9 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
-export const SESSION_EXPIRED = 'Tu sesión expiró. Vuelve a iniciar sesión.';
+// The Spanish (source-language) text, kept as a stable constant for callers and tests that
+// compare against it; the responses below carry the localized reading of the same message.
+export const SESSION_EXPIRED = S.es.sessionExpired;
 
 // Checked before the body is parsed, because an expired token comes back as a bare 401 with no
 // { success, message } envelope -- which is what used to surface as "Error del servidor (401)".
@@ -201,13 +230,13 @@ async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
     });
   } catch {
     // fetch only rejects on a network-level failure (server down, CORS, no connection).
-    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
+    return { success: false, message: strings(S).networkError, data: null as T };
   }
 
   // 4xx/5xx still carry the { success, message } envelope, so parse before deciding.
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
-  return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
+  return { success: false, message: strings(S).serverError(res.status), data: null as T };
 }
 
 // Sign in with Apple, NATIVE flow: the system sheet (expo-apple-authentication) already proved who
@@ -291,13 +320,13 @@ async function get<T>(path: string): Promise<ApiResponse<T>> {
       headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : undefined,
     });
   } catch {
-    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
+    return { success: false, message: strings(S).networkError, data: null as T };
   }
   captureRotatedToken(res);
-  if (sessionExpired(res)) return { success: false, message: SESSION_EXPIRED, data: null as T };
+  if (sessionExpired(res)) return { success: false, message: strings(S).sessionExpired, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
-  return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
+  return { success: false, message: strings(S).serverError(res.status), data: null as T };
 }
 
 // The last profile fetched, kept so a screen can know the signed-in role synchronously.
@@ -365,7 +394,7 @@ export function updateProfile(payload: { name: string; lastName: string; phone: 
 // a FormData and the Content-Type header must be left unset for fetch to add the multipart boundary
 // itself. Returns the stored image's public URL as `data`.
 export async function uploadProfileImage(uri: string, mimeType: string, fileName: string): Promise<ApiResponse<string>> {
-  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as unknown as string };
+  if (!currentToken) return { success: false, message: strings(S).noSession, data: null as unknown as string };
 
   const form = new FormData();
   await appendImage(form, uri, mimeType, fileName);
@@ -378,15 +407,15 @@ export async function uploadProfileImage(uri: string, mimeType: string, fileName
       body: form,
     });
   } catch {
-    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
+    return { success: false, message: strings(S).networkError, data: null as unknown as string };
   }
   captureRotatedToken(res);
   if (sessionExpired(res)) {
-    return { success: false, message: SESSION_EXPIRED, data: null as unknown as string };
+    return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
   }
   const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
   if (json) return json;
-  return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
+  return { success: false, message: strings(S).serverError(res.status), data: null as unknown as string };
 }
 
 // Whether an account still owes us the sign-up details. A social account is minted with just the
@@ -642,7 +671,7 @@ export function deleteMerchantProduct(id: string) {
 export async function uploadProductImage(
   id: string, uri: string, mimeType: string, fileName: string,
 ): Promise<ApiResponse<string>> {
-  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as unknown as string };
+  if (!currentToken) return { success: false, message: strings(S).noSession, data: null as unknown as string };
 
   const form = new FormData();
   await appendImage(form, uri, mimeType, fileName);
@@ -655,15 +684,15 @@ export async function uploadProductImage(
       body: form,
     });
   } catch {
-    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as unknown as string };
+    return { success: false, message: strings(S).networkError, data: null as unknown as string };
   }
   captureRotatedToken(res);
   if (sessionExpired(res)) {
-    return { success: false, message: SESSION_EXPIRED, data: null as unknown as string };
+    return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
   }
   const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
   if (json) return json;
-  return { success: false, message: `Error del servidor (${res.status}).`, data: null as unknown as string };
+  return { success: false, message: strings(S).serverError(res.status), data: null as unknown as string };
 }
 
 // One locale's rendering of a product (en/fr); Spanish is the item's own name/description. The
@@ -1090,7 +1119,7 @@ export function unregisterDevice(token: string) {
 // retried action -- e.g. the offline queue flushing something that actually went through -- be
 // recognised by the server and not applied twice.
 async function sendAuth<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown, idempotencyKey?: string): Promise<ApiResponse<T>> {
-  if (!currentToken) return { success: false, message: 'Sesión no iniciada.', data: null as T };
+  if (!currentToken) return { success: false, message: strings(S).noSession, data: null as T };
   let res: Response;
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${currentToken}` };
@@ -1102,13 +1131,13 @@ async function sendAuth<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body
       body: method === 'DELETE' ? undefined : JSON.stringify(body ?? {}),
     });
   } catch {
-    return { success: false, message: 'No se pudo conectar con el servidor.', data: null as T };
+    return { success: false, message: strings(S).networkError, data: null as T };
   }
   captureRotatedToken(res);
-  if (sessionExpired(res)) return { success: false, message: SESSION_EXPIRED, data: null as T };
+  if (sessionExpired(res)) return { success: false, message: strings(S).sessionExpired, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
-  return { success: false, message: `Error del servidor (${res.status}).`, data: null as T };
+  return { success: false, message: strings(S).serverError(res.status), data: null as T };
 }
 
 function postAuth<T>(path: string, body: unknown, idempotencyKey?: string) {

@@ -5,6 +5,125 @@ import { useFocusEffect } from 'expo-router';
 import * as api from './api';
 import type { Delivery, Order } from './api';
 import { orderStatusChip } from './orderStatus';
+import { strings, type Locale } from './i18n';
+
+// Everything the inbox says, per audience. Read through strings() inside each function (never at
+// module load), so a language switch shows on the next reading of the same orders.
+const S: Record<
+  Locale,
+  {
+    inTransit: string;
+    assigned: string;
+    delivered: string;
+    failed: string;
+    returned: string;
+    cancelled: string;
+    pending: string;
+    confirmed: string;
+    preparing: string;
+    readyPickup: string;
+    readyFindingDriver: string;
+    changed: string;
+    yourOrder: string;
+    driverDelivered: string;
+    driverInTransit: string;
+    driverAssigned: string;
+    driverPending: string;
+    driverFailed: string;
+    driverReturned: string;
+    driverCancelled: string;
+    driverChanged: string;
+    deliveryFallback: string;
+    clientFallback: string;
+    merchantAssigned: string;
+    merchantInTransit: string;
+    merchantDelivered: string;
+    merchantFailed: string;
+    merchantReturned: string;
+    merchantCancelled: string;
+    merchantPending: string;
+    merchantConfirmed: string;
+    merchantPreparing: string;
+    merchantReadyPickup: string;
+    merchantReadyDriver: string;
+    merchantChanged: string;
+  }
+> = {
+  es: {
+    inTransit: 'Tu pedido va en camino.',
+    assigned: 'Un repartidor tomó tu pedido.',
+    delivered: '¡Tu pedido fue entregado!',
+    failed: 'La entrega no pudo completarse.',
+    returned: 'Tu pedido fue devuelto al comercio.',
+    cancelled: 'Tu pedido fue cancelado.',
+    pending: 'Esperando que el comercio confirme tu pedido.',
+    confirmed: 'El comercio aceptó tu pedido.',
+    preparing: 'El comercio está preparando tu pedido.',
+    readyPickup: 'Tu pedido está listo para recoger.',
+    readyFindingDriver: 'Tu pedido está listo, buscando repartidor.',
+    changed: 'Tu pedido cambió de estado.',
+    yourOrder: 'Tu pedido',
+    driverDelivered: 'Entrega completada.',
+    driverInTransit: 'Vas en camino al cliente.',
+    driverAssigned: 'Tomaste esta entrega. Pasa a recogerla.',
+    driverPending: 'Entrega asignada, pendiente de recoger.',
+    driverFailed: 'Esta entrega fue marcada como fallida.',
+    driverReturned: 'Pedido devuelto al comercio.',
+    driverCancelled: 'Esta entrega fue cancelada.',
+    driverChanged: 'Esta entrega cambió de estado.',
+    deliveryFallback: 'Entrega',
+    clientFallback: 'Cliente',
+    merchantAssigned: 'Un repartidor viene a recogerlo.',
+    merchantInTransit: 'El repartidor salió con el pedido.',
+    merchantDelivered: 'Entregado al cliente.',
+    merchantFailed: 'La entrega falló.',
+    merchantReturned: 'El pedido fue devuelto.',
+    merchantCancelled: 'El cliente canceló este pedido.',
+    merchantPending: '¡Pedido nuevo! Confírmalo para empezar.',
+    merchantConfirmed: 'Confirmado. Prepáralo cuando puedas.',
+    merchantPreparing: 'En preparación.',
+    merchantReadyPickup: 'Listo. El cliente pasa a recogerlo.',
+    merchantReadyDriver: 'Listo. Esperando repartidor.',
+    merchantChanged: 'Este pedido cambió de estado.',
+  },
+  en: {
+    inTransit: 'Your order is on the way.',
+    assigned: 'A driver picked up your order.',
+    delivered: 'Your order was delivered!',
+    failed: 'The delivery could not be completed.',
+    returned: 'Your order was returned to the store.',
+    cancelled: 'Your order was cancelled.',
+    pending: 'Waiting for the store to confirm your order.',
+    confirmed: 'The store accepted your order.',
+    preparing: 'The store is preparing your order.',
+    readyPickup: 'Your order is ready for pickup.',
+    readyFindingDriver: 'Your order is ready, finding a driver.',
+    changed: 'Your order changed status.',
+    yourOrder: 'Your order',
+    driverDelivered: 'Delivery completed.',
+    driverInTransit: 'You are on your way to the customer.',
+    driverAssigned: 'You took this delivery. Go pick it up.',
+    driverPending: 'Delivery assigned, waiting for pickup.',
+    driverFailed: 'This delivery was marked as failed.',
+    driverReturned: 'Order returned to the store.',
+    driverCancelled: 'This delivery was cancelled.',
+    driverChanged: 'This delivery changed status.',
+    deliveryFallback: 'Delivery',
+    clientFallback: 'Customer',
+    merchantAssigned: 'A driver is coming to pick it up.',
+    merchantInTransit: 'The driver left with the order.',
+    merchantDelivered: 'Delivered to the customer.',
+    merchantFailed: 'The delivery failed.',
+    merchantReturned: 'The order was returned.',
+    merchantCancelled: 'The customer cancelled this order.',
+    merchantPending: 'New order! Confirm it to get started.',
+    merchantConfirmed: 'Confirmed. Prepare it when you can.',
+    merchantPreparing: 'Being prepared.',
+    merchantReadyPickup: 'Ready. The customer is coming to collect it.',
+    merchantReadyDriver: 'Ready. Waiting for a driver.',
+    merchantChanged: 'This order changed status.',
+  },
+};
 
 // The customer's notification inbox, derived from their own orders rather than stored anywhere.
 //
@@ -41,24 +160,25 @@ function stateKey(o: Order): string {
 // What the customer is told, per state. The chip's own words carry the state itself, so this is
 // the sentence around it -- what it means for them.
 function bodyFor(o: Order): string {
+  const tx = strings(S);
   switch (o.deliveryStatus) {
-    case 'IN_TRANSIT': return 'Tu pedido va en camino.';
-    case 'ASSIGNED': return 'Un repartidor tomó tu pedido.';
-    case 'DELIVERED': return '¡Tu pedido fue entregado!';
-    case 'FAILED': return 'La entrega no pudo completarse.';
-    case 'RETURNED': return 'Tu pedido fue devuelto al comercio.';
+    case 'IN_TRANSIT': return tx.inTransit;
+    case 'ASSIGNED': return tx.assigned;
+    case 'DELIVERED': return tx.delivered;
+    case 'FAILED': return tx.failed;
+    case 'RETURNED': return tx.returned;
   }
-  if (o.status === 'CANCELLED') return 'Tu pedido fue cancelado.';
+  if (o.status === 'CANCELLED') return tx.cancelled;
   switch (o.status) {
-    case 'PENDING': return 'Esperando que el comercio confirme tu pedido.';
-    case 'CONFIRMED': return 'El comercio aceptó tu pedido.';
-    case 'PREPARING': return 'El comercio está preparando tu pedido.';
+    case 'PENDING': return tx.pending;
+    case 'CONFIRMED': return tx.confirmed;
+    case 'PREPARING': return tx.preparing;
     case 'READY': return o.pickupAtStore
-      ? 'Tu pedido está listo para recoger.'
-      : 'Tu pedido está listo, buscando repartidor.';
-    case 'DELIVERED': return '¡Tu pedido fue entregado!';
+      ? tx.readyPickup
+      : tx.readyFindingDriver;
+    case 'DELIVERED': return tx.delivered;
   }
-  return 'Tu pedido cambió de estado.';
+  return tx.changed;
 }
 
 /**
@@ -73,7 +193,7 @@ export function notices(orders: Order[], now: number = Date.now()): Notice[] {
         id: `${o.id}:${stateKey(o)}`,
         orderId: o.id,
         title: `${o.orderNumber} · ${chip.label}`,
-        body: `${o.merchantName ?? 'Tu pedido'} — ${bodyFor(o)}`,
+        body: `${o.merchantName ?? strings(S).yourOrder} — ${bodyFor(o)}`,
         color: chip.color,
         // The confirm stamp is the closest thing the order carries to "when this happened"; before
         // that, when it was placed.
@@ -87,16 +207,17 @@ export function notices(orders: Order[], now: number = Date.now()): Notice[] {
 // pool of unclaimed work is deliberately NOT here -- that is the home map's job, and a pin they
 // have not taken is an offer, not news about their day.
 function driverBody(d: Delivery): string {
+  const tx = strings(S);
   switch (d.status) {
-    case 'DELIVERED': return 'Entrega completada.';
-    case 'IN_TRANSIT': return 'Vas en camino al cliente.';
-    case 'ASSIGNED': return 'Tomaste esta entrega. Pasa a recogerla.';
-    case 'PENDING': return 'Entrega asignada, pendiente de recoger.';
-    case 'FAILED': return 'Esta entrega fue marcada como fallida.';
-    case 'RETURNED': return 'Pedido devuelto al comercio.';
-    case 'CANCELLED': return 'Esta entrega fue cancelada.';
+    case 'DELIVERED': return tx.driverDelivered;
+    case 'IN_TRANSIT': return tx.driverInTransit;
+    case 'ASSIGNED': return tx.driverAssigned;
+    case 'PENDING': return tx.driverPending;
+    case 'FAILED': return tx.driverFailed;
+    case 'RETURNED': return tx.driverReturned;
+    case 'CANCELLED': return tx.driverCancelled;
   }
-  return 'Esta entrega cambió de estado.';
+  return tx.driverChanged;
 }
 
 const DRIVER_COLORS: Record<string, string> = {
@@ -109,7 +230,7 @@ export function driverNotices(deliveries: Delivery[]): Notice[] {
     .map((d) => ({
       id: `${d.id}:${d.status}`,
       orderId: d.id,
-      title: `${d.deliveryNumber ?? 'Entrega'} · ${d.recipientName ?? 'Cliente'}`,
+      title: `${d.deliveryNumber ?? strings(S).deliveryFallback} · ${d.recipientName ?? strings(S).clientFallback}`,
       body: driverBody(d),
       color: DRIVER_COLORS[d.status] ?? '#64748b',
       // The latest stamp the delivery carries; falling back to when it was created.
@@ -121,24 +242,25 @@ export function driverNotices(deliveries: Delivery[]): Notice[] {
 // What a counter needs told: an order landed, or the street moved one along. Same orders the
 // merchant home lists, read as events.
 function merchantBody(o: Order): string {
+  const tx = strings(S);
   switch (o.deliveryStatus) {
-    case 'ASSIGNED': return 'Un repartidor viene a recogerlo.';
-    case 'IN_TRANSIT': return 'El repartidor salió con el pedido.';
-    case 'DELIVERED': return 'Entregado al cliente.';
-    case 'FAILED': return 'La entrega falló.';
-    case 'RETURNED': return 'El pedido fue devuelto.';
+    case 'ASSIGNED': return tx.merchantAssigned;
+    case 'IN_TRANSIT': return tx.merchantInTransit;
+    case 'DELIVERED': return tx.merchantDelivered;
+    case 'FAILED': return tx.merchantFailed;
+    case 'RETURNED': return tx.merchantReturned;
   }
-  if (o.status === 'CANCELLED') return 'El cliente canceló este pedido.';
+  if (o.status === 'CANCELLED') return tx.merchantCancelled;
   switch (o.status) {
-    case 'PENDING': return '¡Pedido nuevo! Confírmalo para empezar.';
-    case 'CONFIRMED': return 'Confirmado. Prepáralo cuando puedas.';
-    case 'PREPARING': return 'En preparación.';
+    case 'PENDING': return tx.merchantPending;
+    case 'CONFIRMED': return tx.merchantConfirmed;
+    case 'PREPARING': return tx.merchantPreparing;
     case 'READY': return o.pickupAtStore
-      ? 'Listo. El cliente pasa a recogerlo.'
-      : 'Listo. Esperando repartidor.';
-    case 'DELIVERED': return 'Entregado al cliente.';
+      ? tx.merchantReadyPickup
+      : tx.merchantReadyDriver;
+    case 'DELIVERED': return tx.merchantDelivered;
   }
-  return 'Este pedido cambió de estado.';
+  return tx.merchantChanged;
 }
 
 export function merchantNotices(orders: Order[], now: number = Date.now()): Notice[] {
@@ -148,7 +270,7 @@ export function merchantNotices(orders: Order[], now: number = Date.now()): Noti
       return {
         id: `${o.id}:${stateKey(o)}`,
         orderId: o.id,
-        title: `${o.orderNumber} · ${o.customerName ?? 'Cliente'}`,
+        title: `${o.orderNumber} · ${o.customerName ?? strings(S).clientFallback}`,
         body: merchantBody(o),
         color: chip.color,
         at: o.confirmedAt ?? o.createdAt,

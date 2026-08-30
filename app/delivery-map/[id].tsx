@@ -11,6 +11,48 @@ import { useCoarsePosition, useDriverPosition } from '../../src/position';
 import { useDriverPositionReporter } from '../../src/positionReport';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { useStrings, type Locale } from '../../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    routeTitle: string;
+    notFound: string;
+    pickupTitle: string;
+    deliverTitle: string;
+    totalEta: (eta: string) => string;
+    yourLocation: string;
+    liveAccuracy: (m: number) => string;
+    live: string;
+    pickupAt: string;
+    deliverTo: string;
+  }
+> = {
+  es: {
+    routeTitle: 'Ruta',
+    notFound: 'Entrega no encontrada.',
+    pickupTitle: 'Recoger',
+    deliverTitle: 'Entregar',
+    totalEta: (eta) => `⏱️ Total ${eta}`,
+    yourLocation: 'Tu ubicación',
+    liveAccuracy: (m) => `En vivo · ±${m} m`,
+    live: 'En vivo',
+    pickupAt: 'Recoger en',
+    deliverTo: 'Entregar a',
+  },
+  en: {
+    routeTitle: 'Route',
+    notFound: 'Delivery not found.',
+    pickupTitle: 'Pick up',
+    deliverTitle: 'Deliver',
+    totalEta: (eta) => `⏱️ Total ${eta}`,
+    yourLocation: 'Your location',
+    liveAccuracy: (m) => `Live · ±${m} m`,
+    live: 'Live',
+    pickupAt: 'Pick up at',
+    deliverTo: 'Deliver to',
+  },
+};
 
 // A map of one delivery's two stops -- where to pick up (merchant) and where to deliver (client) --
 // plus the driver themselves, tracked live while the screen is open.
@@ -18,6 +60,7 @@ export default function DeliveryMapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const router = useRouter();
+  const tx = useStrings(S);
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   // The driver's own dot, refreshed as they ride. Null until the first fix, and for good if the
@@ -60,14 +103,14 @@ export default function DeliveryMapScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} />
-        <Text style={styles.title}>{delivery?.deliveryNumber ?? 'Ruta'}</Text>
+        <Text style={styles.title}>{delivery?.deliveryNumber ?? tx.routeTitle}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : !delivery ? (
-        <View style={styles.center}><Text style={styles.muted}>Entrega no encontrada.</Text></View>
+        <View style={styles.center}><Text style={styles.muted}>{tx.notFound}</Text></View>
       ) : (
         <>
           <RouteMap
@@ -75,14 +118,14 @@ export default function DeliveryMapScreen() {
             // address is only the geocoding fallback for offices that predate coordinates.
             // Each stop wears its own face where there is one -- the shop's logo on the office,
             // the customer's photo on the door -- and falls back to the numbered teardrop.
-            pickup={{ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? 'Recoger', color: '#f59e0b', imageUrl: delivery.pickupImageUrl }}
-            client={{ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, label: '2', title: delivery.recipientName ?? 'Entregar', color: '#16a34a', imageUrl: delivery.customerImageUrl }}
+            pickup={{ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, label: '1', title: delivery.pickupName ?? tx.pickupTitle, color: '#f59e0b', imageUrl: delivery.pickupImageUrl }}
+            client={{ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, label: '2', title: delivery.recipientName ?? tx.deliverTitle, color: '#16a34a', imageUrl: delivery.customerImageUrl }}
             driver={driver}
           />
           {/* The legend reads in ride order -- you, then the office, then the client -- with each
               leg's estimate on the line between the two stops it joins. */}
           <View style={styles.legend}>
-            {total ? <Text style={styles.eta}>⏱️ Total {formatEta(total)}</Text> : null}
+            {total ? <Text style={styles.eta}>{tx.totalEta(formatEta(total))}</Text> : null}
 
             {/* Only once there is a fix: a legend entry for a dot that is not on the map would have
                 the driver looking for something that is not there. */}
@@ -91,11 +134,11 @@ export default function DeliveryMapScreen() {
                 <View style={styles.legendItem}>
                   <View style={[styles.dot, { backgroundColor: '#2563eb' }]}><Text style={styles.dotEmoji}>🛵</Text></View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.legendKind}>Tu ubicación</Text>
+                    <Text style={styles.legendKind}>{tx.yourLocation}</Text>
                     {/* The precision is named rather than implied. A fix good to 800 m drawn as a
                         confident dot is worse than no dot -- the driver would trust it. */}
                     <Text style={styles.legendName}>
-                      {driver.accuracyM != null ? `En vivo · ±${Math.round(driver.accuracyM)} m` : 'En vivo'}
+                      {driver.accuracyM != null ? tx.liveAccuracy(Math.round(driver.accuracyM)) : tx.live}
                     </Text>
                   </View>
                 </View>
@@ -106,7 +149,7 @@ export default function DeliveryMapScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.dot, { backgroundColor: '#f59e0b' }]}><Text style={styles.dotText}>1</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.legendKind}>Recoger en</Text>
+                <Text style={styles.legendKind}>{tx.pickupAt}</Text>
                 <Text style={styles.legendName} numberOfLines={1}>{delivery.pickupName ?? '—'}</Text>
                 {delivery.pickupAddress ? <Text style={styles.legendAddr} numberOfLines={1}>{delivery.pickupAddress}</Text> : null}
               </View>
@@ -117,7 +160,7 @@ export default function DeliveryMapScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.dot, { backgroundColor: '#16a34a' }]}><Text style={styles.dotText}>2</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.legendKind}>Entregar a</Text>
+                <Text style={styles.legendKind}>{tx.deliverTo}</Text>
                 <Text style={styles.legendName} numberOfLines={1}>{delivery.recipientName ?? '—'}</Text>
                 {delivery.addressLine ? <Text style={styles.legendAddr} numberOfLines={1}>{delivery.addressLine}</Text> : null}
               </View>

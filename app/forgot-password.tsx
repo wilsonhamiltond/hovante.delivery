@@ -4,9 +4,46 @@ import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as api from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    enterEmail: string;
+    title: string;
+    subtitle: string;
+    emailPlaceholder: string;
+    sendCode: string;
+    haveCode: string;
+    remembered: string;
+    signIn: string;
+  }
+> = {
+  es: {
+    enterEmail: 'Ingrese su correo electrónico.',
+    title: 'Restablecer contraseña',
+    subtitle: 'Ingrese su correo y le enviaremos un código para crear una nueva contraseña.',
+    emailPlaceholder: 'Correo electrónico',
+    sendCode: 'Enviar código',
+    haveCode: 'Ya tengo un código',
+    remembered: '¿La recordó? ',
+    signIn: 'Iniciar sesión',
+  },
+  en: {
+    enterEmail: 'Enter your email address.',
+    title: 'Reset password',
+    subtitle: "Enter your email and we'll send you a code to create a new password.",
+    emailPlaceholder: 'Email address',
+    sendCode: 'Send code',
+    haveCode: 'I already have a code',
+    remembered: 'Remembered it? ',
+    signIn: 'Sign in',
+  },
+};
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -14,7 +51,7 @@ export default function ForgotPasswordScreen() {
   const onSubmit = async () => {
     setError(null);
     if (!email.trim()) {
-      setError('Ingrese su correo electrónico.');
+      setError(tx.enterEmail);
       return;
     }
     setSubmitting(true);
@@ -39,15 +76,15 @@ export default function ForgotPasswordScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Text style={styles.title}>Restablecer contraseña</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <Text style={styles.subtitle}>
-            Ingrese su correo y le enviaremos un código para crear una nueva contraseña.
+            {tx.subtitle}
           </Text>
         </View>
 
         <TextInput
           style={styles.input}
-          placeholder="Correo electrónico"
+          placeholder={tx.emailPlaceholder}
           placeholderTextColor={t.textFaint}
           autoCapitalize="none"
           keyboardType="email-address"
@@ -63,7 +100,7 @@ export default function ForgotPasswordScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>Enviar código</Text>}
+          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>{tx.sendCode}</Text>}
         </Pressable>
 
         {/* Kept, but moved to the entry step: someone who still has a code from an earlier email
@@ -74,13 +111,13 @@ export default function ForgotPasswordScreen() {
             primary button's sat centred, and it left the padding around the text untappable. */}
         <Link href="/reset-password" asChild>
           <Pressable style={styles.altButton} accessibilityRole="button">
-            <Text style={styles.altButtonText}>Ya tengo un código</Text>
+            <Text style={styles.altButtonText}>{tx.haveCode}</Text>
           </Pressable>
         </Link>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>¿La recordó? </Text>
-          <Link href="/email-login" style={styles.link}>Iniciar sesión</Link>
+          <Text style={styles.footerText}>{tx.remembered}</Text>
+          <Link href="/email-login" style={styles.link}>{tx.signIn}</Link>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

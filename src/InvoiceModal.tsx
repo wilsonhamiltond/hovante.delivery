@@ -5,9 +5,69 @@ import type { OrderInvoice } from './api';
 import { invoiceHtml } from './invoiceHtml';
 import { printHtml } from './printHtml';
 import { t } from './theme';
+import { strings, useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    dateLocale: string;
+    title: string;
+    docTypeFallback: string;
+    printError: string;
+    dateLabel: string;
+    customer: string;
+    customerDoc: string;
+    unitEach: (price: string) => string;
+    taxPct: (pct: number) => string;
+    subtotal: string;
+    tax: string;
+    total: string;
+    print: string;
+    emailWillSend: (email: string) => string;
+    noEmail: string;
+    close: string;
+  }
+> = {
+  es: {
+    dateLocale: 'es-DO',
+    title: 'Factura',
+    docTypeFallback: 'Factura',
+    printError: 'No se pudo abrir la impresión en este dispositivo.',
+    dateLabel: 'Fecha:',
+    customer: 'Cliente',
+    customerDoc: 'RNC/Cédula:',
+    unitEach: (price) => `${price} c/u`,
+    taxPct: (pct) => ` · Imp. ${pct}%`,
+    subtotal: 'Subtotal',
+    tax: 'Impuesto',
+    total: 'Total',
+    print: 'Imprimir',
+    emailWillSend: (email) => `La factura se envía a ${email} al entregar el pedido.`,
+    noEmail: 'El cliente no tiene correo registrado; la factura no se enviará por correo.',
+    close: 'Cerrar',
+  },
+  en: {
+    dateLocale: 'en-US',
+    title: 'Invoice',
+    docTypeFallback: 'Invoice',
+    printError: 'Printing could not be opened on this device.',
+    dateLabel: 'Date:',
+    customer: 'Customer',
+    customerDoc: 'RNC/ID:',
+    unitEach: (price) => `${price} each`,
+    taxPct: (pct) => ` · Tax ${pct}%`,
+    subtotal: 'Subtotal',
+    tax: 'Tax',
+    total: 'Total',
+    print: 'Print',
+    emailWillSend: (email) => `The invoice is emailed to ${email} when the order is delivered.`,
+    noEmail: 'The customer has no email on file; the invoice will not be sent by email.',
+    close: 'Close',
+  },
+};
 
 const fmtDate = (iso: string | null | undefined): string =>
-  iso ? new Date(iso).toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+  iso ? new Date(iso).toLocaleDateString(strings(S).dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
 
 // The order's invoice, opened by tapping its number on the order detail. Fetched on open (one
 // order-scoped call; the server assembles company, NCF and lines) and shown the way it prints:
@@ -18,6 +78,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
   visible: boolean;
   onClose: () => void;
 }) {
+  const tx = useStrings(S);
   const [invoice, setInvoice] = useState<OrderInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -41,7 +102,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
     try {
       await printHtml(invoiceHtml(invoice));
     } catch {
-      setError('No se pudo abrir la impresión en este dispositivo.');
+      setError(tx.printError);
     } finally {
       setPrinting(false);
     }
@@ -54,7 +115,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.title}>Factura</Text>
+          <Text style={styles.title}>{tx.title}</Text>
 
           {!invoice && !error ? <ActivityIndicator color={t.text} style={{ marginVertical: 24 }} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -67,17 +128,17 @@ export function InvoiceModal({ orderId, visible, onClose }: {
                   {invoice.companyRnc ? <Text style={styles.mutedInk}>RNC: {invoice.companyRnc}</Text> : null}
                 </View>
                 <View style={styles.headRight}>
-                  <Text style={styles.docType}>{invoice.documentTypeName ?? 'Factura'}</Text>
+                  <Text style={styles.docType}>{invoice.documentTypeName ?? tx.docTypeFallback}</Text>
                   <Text style={styles.ink}>No.: {invoice.docNumber ?? '-'}</Text>
                   {invoice.ncf ? <Text style={styles.ink}>NCF: {invoice.ncf}</Text> : null}
                   {invoice.ncfTypeName ? <Text style={styles.mutedInk}>{invoice.ncfTypeName}</Text> : null}
-                  <Text style={styles.mutedInk}>Fecha: {fmtDate(invoice.issueDate)}</Text>
+                  <Text style={styles.mutedInk}>{tx.dateLabel} {fmtDate(invoice.issueDate)}</Text>
                 </View>
               </View>
 
-              <Text style={styles.sectionLabel}>Cliente</Text>
+              <Text style={styles.sectionLabel}>{tx.customer}</Text>
               <Text style={styles.ink}>{invoice.customerName || '-'}</Text>
-              {invoice.customerDocument ? <Text style={styles.mutedInk}>RNC/Cédula: {invoice.customerDocument}</Text> : null}
+              {invoice.customerDocument ? <Text style={styles.mutedInk}>{tx.customerDoc} {invoice.customerDocument}</Text> : null}
               {invoice.customerPhone ? <Text style={styles.mutedInk}>{invoice.customerPhone}</Text> : null}
               {invoice.customerAddress ? <Text style={styles.mutedInk}>{invoice.customerAddress}</Text> : null}
 
@@ -88,7 +149,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.ink} numberOfLines={2}>{li.description ?? ''}</Text>
                     <Text style={styles.mutedInk}>
-                      {money(li.unitPrice)} c/u{li.taxPct ? ` · Imp. ${li.taxPct}%` : ''}
+                      {tx.unitEach(money(li.unitPrice))}{li.taxPct ? tx.taxPct(li.taxPct) : ''}
                     </Text>
                   </View>
                   <Text style={styles.lineTotal}>{money(li.total)}</Text>
@@ -96,8 +157,8 @@ export function InvoiceModal({ orderId, visible, onClose }: {
               ))}
 
               <View style={styles.rule} />
-              <View style={styles.totRow}><Text style={styles.mutedInk}>Subtotal</Text><Text style={styles.ink}>{money(invoice.subtotal)}</Text></View>
-              <View style={styles.totRow}><Text style={styles.mutedInk}>Impuesto</Text><Text style={styles.ink}>{money(invoice.taxTotal)}</Text></View>
+              <View style={styles.totRow}><Text style={styles.mutedInk}>{tx.subtotal}</Text><Text style={styles.ink}>{money(invoice.subtotal)}</Text></View>
+              <View style={styles.totRow}><Text style={styles.mutedInk}>{tx.tax}</Text><Text style={styles.ink}>{money(invoice.taxTotal)}</Text></View>
               {invoice.taxes.map((tx, i) => (
                 <View key={i} style={styles.totRow}>
                   <Text style={styles.mutedInk}>{tx.name} ({tx.rate}%)</Text>
@@ -107,7 +168,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
                 </View>
               ))}
               <View style={styles.totRow}>
-                <Text style={styles.grand}>Total</Text>
+                <Text style={styles.grand}>{tx.total}</Text>
                 <Text style={styles.grand}>{money(invoice.grandTotal)}</Text>
               </View>
 
@@ -122,7 +183,7 @@ export function InvoiceModal({ orderId, visible, onClose }: {
           >
             {printing
               ? <ActivityIndicator color={t.onAccent} />
-              : <Text style={styles.primaryText}>🖨️  Imprimir</Text>}
+              : <Text style={styles.primaryText}>🖨️  {tx.print}</Text>}
           </Pressable>
 
           {/* No send button on purpose: the server mails the invoice to the customer's own email
@@ -130,13 +191,13 @@ export function InvoiceModal({ orderId, visible, onClose }: {
           {invoice ? (
             <Text style={styles.noEmail}>
               {invoice.customerEmail
-                ? `La factura se envía a ${invoice.customerEmail} al entregar el pedido.`
-                : 'El cliente no tiene correo registrado; la factura no se enviará por correo.'}
+                ? tx.emailWillSend(invoice.customerEmail)
+                : tx.noEmail}
             </Text>
           ) : null}
 
           <Pressable onPress={onClose}>
-            <Text style={styles.cancel}>Cerrar</Text>
+            <Text style={styles.cancel}>{tx.close}</Text>
           </Pressable>
         </Pressable>
       </Pressable>

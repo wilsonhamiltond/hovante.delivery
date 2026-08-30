@@ -11,6 +11,45 @@ import { BottomNav } from './BottomNav';
 import { MerchantOrderCard } from './MerchantOrderCard';
 import { QueueTimeModal } from './QueueTimeModal';
 import { clearAllNotifications, presentedNotificationCount } from './pushNotifications';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    companyFallback: string;
+    subtitle: (fresh: number, working: number) => string;
+    markAllSeenLabel: string;
+    markAllSeen: (count: number) => string;
+    allClear: string;
+    allClearBody: string;
+    allClearHint: string;
+    inProgress: string;
+    fresh: string;
+  }
+> = {
+  es: {
+    companyFallback: 'Tu comercio',
+    subtitle: (fresh, working) => `${fresh} nuevo(s) · ${working} en marcha`,
+    markAllSeenLabel: 'Marcar todas las notificaciones como vistas',
+    markAllSeen: (count) => `Marcar todo visto · ${count} notificación${count === 1 ? '' : 'es'}`,
+    allClear: 'Todo al día',
+    allClearBody: 'No hay pedidos esperando en el mostrador. Los nuevos aparecen aquí solos, sin recargar ni volver a entrar.',
+    allClearHint: 'Los pedidos ya terminados están en Historial.',
+    inProgress: 'En marcha',
+    fresh: 'Nuevos',
+  },
+  en: {
+    companyFallback: 'Your business',
+    subtitle: (fresh, working) => `${fresh} new · ${working} in progress`,
+    markAllSeenLabel: 'Mark all notifications as seen',
+    markAllSeen: (count) => `Mark all seen · ${count} notification${count === 1 ? '' : 's'}`,
+    allClear: 'All caught up',
+    allClearBody: 'No orders are waiting at the counter. New ones show up here on their own, no reloading or signing back in.',
+    allClearHint: 'Finished orders are in History.',
+    inProgress: 'In progress',
+    fresh: 'New',
+  },
+};
 
 // The merchant's phone view: the counter's queue -- the orders still to be dealt with -- with the
 // same accept/release/reject actions the web back office has, so a shopkeeper can run the counter
@@ -19,6 +58,7 @@ import { clearAllNotifications, presentedNotificationCount } from './pushNotific
 
 export function MerchantHome({ profile }: { profile: Me | null }) {
   const router = useRouter();
+  const tx = useStrings(S);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,7 +139,7 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
     if (ok) setConfirming(null);
   };
 
-  const companyName = profile?.merchantCompanyName ?? 'Tu comercio';
+  const companyName = profile?.merchantCompanyName ?? tx.companyFallback;
 
   // The queue split by whether the counter has taken the order on: accepted ones ("En marcha" --
   // queued, preparing, or out looking for a driver) above, the new ones still awaiting a yes/no
@@ -125,7 +165,7 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
           so the header saying it twice was just noise. */}
       <MerchantTopBar
         companyName={companyName}
-        subtitle={orders.length > 0 ? `${fresh.length} nuevo(s) · ${working.length} en marcha` : null}
+        subtitle={orders.length > 0 ? tx.subtitle(fresh.length, working.length) : null}
       />
 
       {loading ? (
@@ -147,11 +187,11 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
                   style={styles.clearBtn}
                   onPress={() => { void clearAllNotifications().then(refreshTray); }}
                   accessibilityRole="button"
-                  accessibilityLabel="Marcar todas las notificaciones como vistas"
+                  accessibilityLabel={tx.markAllSeenLabel}
                 >
                   <FontAwesome5 name="check-double" size={12} color={t.text} />
                   <Text style={styles.clearBtnText}>
-                    Marcar todo visto · {trayCount} notificación{trayCount === 1 ? '' : 'es'}
+                    {tx.markAllSeen(trayCount)}
                   </Text>
                 </Pressable>
               ) : null}
@@ -159,26 +199,25 @@ export function MerchantHome({ profile }: { profile: Me | null }) {
               {orders.length === 0 ? (
                 <View style={styles.emptyWrap}>
                   <View style={styles.emptyBadge}><Text style={styles.emptyEmoji}>🛎️</Text></View>
-                  <Text style={styles.emptyTitle}>Todo al día</Text>
+                  <Text style={styles.emptyTitle}>{tx.allClear}</Text>
                   <Text style={styles.emptySubtitle}>
-                    No hay pedidos esperando en el mostrador. Los nuevos aparecen aquí solos, sin
-                    recargar ni volver a entrar.
+                    {tx.allClearBody}
                   </Text>
                   <Text style={styles.emptyHint}>
-                    Los pedidos ya terminados están en Historial.
+                    {tx.allClearHint}
                   </Text>
                 </View>
               ) : (
                 <>
                   {working.length > 0 ? (
                     <>
-                      <Text style={styles.sectionTitle}>En marcha</Text>
+                      <Text style={styles.sectionTitle}>{tx.inProgress}</Text>
                       {working.map((o) => <View key={o.id}>{renderCard(o)}</View>)}
                     </>
                   ) : null}
                   {/* The title only when something is under it: an empty "Nuevos" heading would
                       read as orders failing to load rather than none having arrived. */}
-                  {fresh.length > 0 ? <Text style={styles.sectionTitle}>Nuevos</Text> : null}
+                  {fresh.length > 0 ? <Text style={styles.sectionTitle}>{tx.fresh}</Text> : null}
                 </>
               )}
             </View>

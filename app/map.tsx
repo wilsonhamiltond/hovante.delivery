@@ -6,6 +6,33 @@ import { formatEta, useRouteEta } from '../src/eta';
 import { useCoarsePosition, useDriverPosition } from '../src/position';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    locationTitle: string;
+    noLocation: string;
+    merchant: string;
+    deliverAt: string;
+    addressLabel: string;
+  }
+> = {
+  es: {
+    locationTitle: 'Ubicación',
+    noLocation: 'Esta dirección no tiene ubicación.',
+    merchant: 'Comercio',
+    deliverAt: 'Entregar en',
+    addressLabel: 'Dirección',
+  },
+  en: {
+    locationTitle: 'Location',
+    noLocation: 'This address has no location.',
+    merchant: 'Merchant',
+    deliverAt: 'Deliver to',
+    addressLabel: 'Address',
+  },
+};
 
 // One point on a map, in the app rather than handing off to Google Maps. Used by both order-detail
 // screens: the driver's pickup/dropoff buttons and the client's delivery address.
@@ -14,6 +41,7 @@ import { GradientBackground, t } from '../src/theme';
 // zooms to it. A point with no coordinates is forward-geocoded from its address by the map itself.
 export default function MapScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const { lat, lng, address, title, img, me, olat, olng, oaddress, otitle, oimg } = useLocalSearchParams<{
     lat?: string; lng?: string; address?: string; title?: string;
     /** The face for the destination pin (the customer's photo). Optional; a pin without one keeps
@@ -37,7 +65,7 @@ export default function MapScreen() {
   // A second stop only counts when it can actually be placed: RouteMap geocodes an address-only
   // point, so either a pin or an address will do.
   const hasOrigin = origin.lat !== null || !!origin.address;
-  const heading = title || 'Ubicación';
+  const heading = title || tx.locationTitle;
   const hasPoint = point.lat !== null || !!point.address;
 
   const fromMe = me === '1';
@@ -61,7 +89,7 @@ export default function MapScreen() {
         </View>
 
         {!hasPoint ? (
-          <View style={styles.center}><Text style={styles.muted}>Esta dirección no tiene ubicación.</Text></View>
+          <View style={styles.center}><Text style={styles.muted}>{tx.noLocation}</Text></View>
         ) : (
           <>
             {/* With both ends known, RouteMap draws the street route between them (Google
@@ -70,7 +98,7 @@ export default function MapScreen() {
             <RouteMap
               pickup={hasOrigin
                 ? {
-                  ...origin, label: '🏪', title: otitle || 'Comercio', color: '#0b2a6b',
+                  ...origin, label: '🏪', title: otitle || tx.merchant, color: '#0b2a6b',
                   imageUrl: oimg ?? null,
                 }
                 : { lat: null, lng: null, address: null, label: '', title: '', color: '#16a34a' }}
@@ -82,13 +110,13 @@ export default function MapScreen() {
                 {eta ? <Text style={styles.eta}>⏱️ {formatEta(eta)}</Text> : null}
                 {hasOrigin && oaddress ? (
                   <>
-                    <Text style={styles.footerLabel}>{otitle || 'Comercio'}</Text>
+                    <Text style={styles.footerLabel}>{otitle || tx.merchant}</Text>
                     <Text style={styles.footerText}>{oaddress}</Text>
                   </>
                 ) : null}
                 {address ? (
                   <>
-                    <Text style={styles.footerLabel}>{hasOrigin ? 'Entregar en' : 'Dirección'}</Text>
+                    <Text style={styles.footerLabel}>{hasOrigin ? tx.deliverAt : tx.addressLabel}</Text>
                     <Text style={styles.footerText}>{address}</Text>
                   </>
                 ) : null}

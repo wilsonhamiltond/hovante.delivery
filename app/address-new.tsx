@@ -8,11 +8,74 @@ import { DEFAULT_CENTER } from '../src/mapHtml';
 import { detectCurrentLocation, forwardGeocode } from '../src/profileForm';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // Same label choices as the sign-up wizard's location step: two one-tap options plus a free-text
 // "Otro". Kept in sync by hand -- there is no shared constant yet.
 const LABEL_CHOICES = ['Casa', 'Trabajo', 'Otro'] as const;
 type LabelChoice = (typeof LABEL_CHOICES)[number];
+
+const S: Record<
+  Locale,
+  {
+    locPermTitle: string;
+    locPermBody: string;
+    locTitle: string;
+    locFailed: string;
+    chooseAddressLabel: string;
+    writeAddressLabel: string;
+    pickOnMap: string;
+    editTitle: string;
+    newTitle: string;
+    addressNameLabel: string;
+    customLabelPlaceholder: string;
+    tapMap: string;
+    myLocation: string;
+    addressFieldLabel: string;
+    addressPlaceholder: string;
+    saveChanges: string;
+    saveAddress: string;
+  }
+> = {
+  es: {
+    locPermTitle: 'Permiso de ubicación',
+    locPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locTitle: 'Ubicación',
+    locFailed: 'No se pudo obtener tu ubicación actual.',
+    chooseAddressLabel: 'Elige un nombre para tu dirección.',
+    writeAddressLabel: 'Escribe el nombre de tu dirección.',
+    pickOnMap: 'Elige tu ubicación en el mapa.',
+    editTitle: 'Editar dirección',
+    newTitle: 'Nueva dirección',
+    addressNameLabel: 'Nombre de la dirección',
+    customLabelPlaceholder: 'Ej. Casa de mamá',
+    tapMap: 'Toca el mapa para elegir tu ubicación',
+    myLocation: '📍 Mi ubicación',
+    addressFieldLabel: 'Dirección',
+    addressPlaceholder: 'Escribe y busca, o elige en el mapa',
+    saveChanges: 'Guardar cambios',
+    saveAddress: 'Guardar dirección',
+  },
+  en: {
+    locPermTitle: 'Location permission',
+    locPermBody: 'Enable the location permission to use your current location.',
+    locTitle: 'Location',
+    locFailed: 'Could not get your current location.',
+    chooseAddressLabel: 'Choose a name for your address.',
+    writeAddressLabel: 'Type a name for your address.',
+    pickOnMap: 'Pick your location on the map.',
+    editTitle: 'Edit address',
+    newTitle: 'New address',
+    addressNameLabel: 'Address name',
+    customLabelPlaceholder: "E.g. Mom's house",
+    tapMap: 'Tap the map to choose your location',
+    myLocation: '📍 My location',
+    addressFieldLabel: 'Address',
+    addressPlaceholder: 'Type and search, or pick on the map',
+    saveChanges: 'Save changes',
+    saveAddress: 'Save address',
+  },
+};
 
 // Add or edit a delivery address, reached from the home header's address dropdown and from the
 // addresses list. Mirrors register step 5: name it, drop a pin, save.
@@ -21,6 +84,7 @@ type LabelChoice = (typeof LABEL_CHOICES)[number];
 // fields over the same map -- a second screen would be this one with the verb changed.
 export default function AddressNewScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   // Present when editing; the rest of the row is passed along so the form opens filled without
   // waiting on a round trip (the list already holds every field this screen edits).
   const params = useLocalSearchParams<{ id?: string; label?: string; address?: string; latitude?: string; longitude?: string }>();
@@ -64,9 +128,9 @@ export default function AddressNewScreen() {
     setLocating(false);
     if (!result.ok) {
       if (result.reason === 'permission') {
-        Alert.alert('Permiso de ubicación', 'Activa el permiso de ubicación para usar tu ubicación actual.');
+        Alert.alert(tx.locPermTitle, tx.locPermBody);
       } else {
-        Alert.alert('Ubicación', 'No se pudo obtener tu ubicación actual.');
+        Alert.alert(tx.locTitle, tx.locFailed);
       }
       return;
     }
@@ -97,9 +161,9 @@ export default function AddressNewScreen() {
   const save = async () => {
     setError(null);
     // Checked in the order the fields appear on the screen.
-    if (!labelChoice) return setError('Elige un nombre para tu dirección.');
-    if (!label) return setError('Escribe el nombre de tu dirección.');
-    if (!address.trim()) return setError('Elige tu ubicación en el mapa.');
+    if (!labelChoice) return setError(tx.chooseAddressLabel);
+    if (!label) return setError(tx.writeAddressLabel);
+    if (!address.trim()) return setError(tx.pickOnMap);
 
     setSubmitting(true);
     const payload = {
@@ -134,12 +198,12 @@ export default function AddressNewScreen() {
         <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>{editingId ? 'Editar dirección' : 'Nueva dirección'}</Text>
+          <Text style={styles.title}>{editingId ? tx.editTitle : tx.newTitle}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.label}>Nombre de la dirección</Text>
+          <Text style={styles.label}>{tx.addressNameLabel}</Text>
           <View style={styles.choiceRow}>
             {LABEL_CHOICES.map((choice) => {
               const active = labelChoice === choice;
@@ -158,14 +222,14 @@ export default function AddressNewScreen() {
           </View>
           {labelChoice === 'Otro' ? (
             <TextInput style={styles.input} placeholderTextColor={t.textFaint}
-              placeholder="Ej. Casa de mamá" value={customLabel} onChangeText={setCustomLabel}
+              placeholder={tx.customLabelPlaceholder} value={customLabel} onChangeText={setCustomLabel}
               returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
           ) : null}
 
           <View style={[styles.locRow, styles.locRowSpaced]}>
-            <Text style={styles.lead}>Toca el mapa para elegir tu ubicación</Text>
+            <Text style={styles.lead}>{tx.tapMap}</Text>
             <Pressable style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-              {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>📍 Mi ubicación</Text>}
+              {locating ? <ActivityIndicator color={t.onAccent} size="small" /> : <Text style={styles.locBtnText}>{tx.myLocation}</Text>}
             </Pressable>
           </View>
           <LocationPicker
@@ -175,13 +239,13 @@ export default function AddressNewScreen() {
             onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
           />
           <View style={[styles.locRow, styles.locRowSpaced]}>
-            <Text style={[styles.label, styles.labelInRow]}>Dirección</Text>
+            <Text style={[styles.label, styles.labelInRow]}>{tx.addressFieldLabel}</Text>
             {searching ? <ActivityIndicator color={t.accent} size="small" /> : null}
           </View>
           {/* The return key searches instead of inserting a newline: an address wants commas, not
               line breaks, and this multiline box otherwise trapped the keyboard open. */}
           <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
-            placeholder="Escribe y busca, o elige en el mapa" value={address} onChangeText={setAddress}
+            placeholder={tx.addressPlaceholder} value={address} onChangeText={setAddress}
             multiline returnKeyType="search" submitBehavior="blurAndSubmit"
             blurOnSubmit /* react-native-web ignores submitBehavior; without this, Enter on web never submits */
             onSubmitEditing={searchAddress} />
@@ -190,7 +254,7 @@ export default function AddressNewScreen() {
         <View style={styles.footer}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={save} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{editingId ? 'Guardar cambios' : 'Guardar dirección'}</Text>}
+            {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{editingId ? tx.saveChanges : tx.saveAddress}</Text>}
           </Pressable>
         </View>
         </Pressable>

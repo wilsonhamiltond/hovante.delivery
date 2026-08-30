@@ -8,6 +8,60 @@ import { takeFlash } from '../src/flash';
 import { GradientBackground, t } from '../src/theme';
 import { MerchantTopBar } from '../src/MerchantTopBar';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    deleted: string;
+    title: string;
+    subtitle: string;
+    newBtn: string;
+    searchPlaceholder: string;
+    emptySearch: (query: string) => string;
+    emptyCatalogue: string;
+    unavailable: string;
+    edit: string;
+    remove: string;
+    deleteTitle: string;
+    deleteBody: string;
+    deleteYes: string;
+    no: string;
+  }
+> = {
+  es: {
+    deleted: 'Producto eliminado.',
+    title: 'Productos',
+    subtitle: 'Lo que tu comercio vende en la app',
+    newBtn: '+ Nuevo',
+    searchPlaceholder: 'Buscar por nombre',
+    emptySearch: (query) => `Ningún producto coincide con “${query}”.`,
+    emptyCatalogue: 'Tu comercio todavía no tiene productos. Toca “+ Nuevo” para agregar el primero.',
+    unavailable: 'No disponible',
+    edit: '✏️ Editar',
+    remove: '🗑️ Eliminar',
+    deleteTitle: '¿Eliminar producto?',
+    deleteBody: 'Si ya tiene pedidos, se retirará de la venta en lugar de borrarse.',
+    deleteYes: 'Sí, eliminar',
+    no: 'No',
+  },
+  en: {
+    deleted: 'Product deleted.',
+    title: 'Products',
+    subtitle: 'What your business sells in the app',
+    newBtn: '+ New',
+    searchPlaceholder: 'Search by name',
+    emptySearch: (query) => `No products match “${query}”.`,
+    emptyCatalogue: 'Your business has no products yet. Tap “+ New” to add the first one.',
+    unavailable: 'Unavailable',
+    edit: '✏️ Edit',
+    remove: '🗑️ Delete',
+    deleteTitle: 'Delete product?',
+    deleteBody: 'If it already has orders, it will be taken off sale instead of being deleted.',
+    deleteYes: 'Yes, delete',
+    no: 'No',
+  },
+};
 
 // The merchant's own catalogue as an infinite scroll, and the counter's way to maintain it: add a
 // product, edit what it is called or costs, take it off sale, or remove it. Items NOT on sale are
@@ -19,6 +73,7 @@ const money = (n: number) => `RD$${n.toFixed(2)}`;
 
 export default function MerchantProductsScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,7 +168,7 @@ export default function MerchantProductsScreen() {
     setDeleting(null);
     // The server retires a product that already has orders rather than erasing it, and says so --
     // so its message is shown rather than a blanket "eliminado".
-    setNotice(res.success ? (res.message || 'Producto eliminado.') : res.message);
+    setNotice(res.success ? (res.message || tx.deleted) : res.message);
     if (res.success) await loadFirstPage();
   };
 
@@ -124,11 +179,11 @@ export default function MerchantProductsScreen() {
       <MerchantTopBar />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Productos</Text>
-          <Text style={styles.subtitle}>Lo que tu comercio vende en la app</Text>
+          <Text style={styles.title}>{tx.title}</Text>
+          <Text style={styles.subtitle}>{tx.subtitle}</Text>
         </View>
         <Pressable style={styles.newBtn} onPress={openCreate} accessibilityRole="button">
-          <Text style={styles.newBtnText}>+ Nuevo</Text>
+          <Text style={styles.newBtnText}>{tx.newBtn}</Text>
         </Pressable>
       </View>
 
@@ -140,7 +195,7 @@ export default function MerchantProductsScreen() {
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar por nombre"
+          placeholder={tx.searchPlaceholder}
           placeholderTextColor={t.textFaint}
           autoCorrect={false}
           returnKeyType="search"
@@ -172,8 +227,8 @@ export default function MerchantProductsScreen() {
           ListEmptyComponent={
             <Text style={styles.empty}>
               {query
-                ? `Ningún producto coincide con “${query}”.`
-                : 'Tu comercio todavía no tiene productos. Toca “+ Nuevo” para agregar el primero.'}
+                ? tx.emptySearch(query)
+                : tx.emptyCatalogue}
             </Text>
           }
           ListFooterComponent={
@@ -203,17 +258,17 @@ export default function MerchantProductsScreen() {
                     <Text style={styles.price}>{money(item.price)}</Text>
                     {/* Only the exception is worn: an item on sale needs no badge saying so. */}
                     {item.active === false ? (
-                      <View style={styles.chip}><Text style={styles.chipText}>No disponible</Text></View>
+                      <View style={styles.chip}><Text style={styles.chipText}>{tx.unavailable}</Text></View>
                     ) : null}
                   </View>
                 </View>
               </View>
               <View style={styles.cardActions}>
                 <Pressable style={styles.editBtn} onPress={() => openEdit(item)}>
-                  <Text style={styles.editText}>✏️ Editar</Text>
+                  <Text style={styles.editText}>{tx.edit}</Text>
                 </Pressable>
                 <Pressable style={styles.deleteBtn} onPress={() => { setNotice(null); setDeleting(item); }}>
-                  <Text style={styles.deleteText}>🗑️ Eliminar</Text>
+                  <Text style={styles.deleteText}>{tx.remove}</Text>
                 </Pressable>
               </View>
             </View>
@@ -225,10 +280,10 @@ export default function MerchantProductsScreen() {
       <Modal visible={deleting != null} transparent animationType="fade" onRequestClose={() => setDeleting(null)}>
         <Pressable style={styles.scrim} onPress={() => setDeleting(null)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>¿Eliminar producto?</Text>
+            <Text style={styles.sheetTitle}>{tx.deleteTitle}</Text>
             <Text style={styles.confirmText}>
               {deleting?.name}{'\n'}
-              Si ya tiene pedidos, se retirará de la venta en lugar de borrarse.
+              {tx.deleteBody}
             </Text>
             <View style={styles.confirmRow}>
               <Pressable
@@ -236,10 +291,10 @@ export default function MerchantProductsScreen() {
                 disabled={deletingBusy}
                 onPress={confirmDelete}
               >
-                {deletingBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.dangerText}>Sí, eliminar</Text>}
+                {deletingBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.dangerText}>{tx.deleteYes}</Text>}
               </Pressable>
               <Pressable style={styles.neutral} disabled={deletingBusy} onPress={() => setDeleting(null)}>
-                <Text style={styles.neutralText}>No</Text>
+                <Text style={styles.neutralText}>{tx.no}</Text>
               </Pressable>
             </View>
           </Pressable>

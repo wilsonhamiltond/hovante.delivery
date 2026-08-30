@@ -5,9 +5,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { useStrings, type Locale } from '../../src/i18n';
 
 // Why customers usually take an order back; "Otro" opens the door for anything else, and the
 // notes box lets any choice be elaborated.
+// The canonical values submitted to the API stay Spanish whatever the UI language, so the
+// cancelReason the merchant later reads is consistent; only the button label translates
+// (see S.reasons).
 const REASONS = [
   'Cambié de opinión',
   'Lo pedí por error',
@@ -16,6 +20,44 @@ const REASONS = [
   'Otro',
 ];
 
+const S: Record<
+  Locale,
+  {
+    reasons: Record<string, string>;
+    title: string;
+    lead: string;
+    notesLabel: string;
+    notesPlaceholder: string;
+    confirm: string;
+    keep: string;
+  }
+> = {
+  es: {
+    reasons: {},
+    title: 'Cancelar pedido',
+    lead: 'Cuéntanos por qué cancelas. El pedido solo puede cancelarse mientras el comercio no lo haya confirmado.',
+    notesLabel: 'Notas (opcional)',
+    notesPlaceholder: 'Cuéntanos más…',
+    confirm: 'Cancelar pedido',
+    keep: 'Volver sin cancelar',
+  },
+  en: {
+    reasons: {
+      'Cambié de opinión': 'I changed my mind',
+      'Lo pedí por error': 'I ordered it by mistake',
+      'La espera es muy larga': 'The wait is too long',
+      'Quiero cambiar los productos': 'I want to change the products',
+      'Otro': 'Other',
+    },
+    title: 'Cancel order',
+    lead: "Tell us why you're cancelling. The order can only be cancelled while the merchant hasn't confirmed it.",
+    notesLabel: 'Notes (optional)',
+    notesPlaceholder: 'Tell us more…',
+    confirm: 'Cancel order',
+    keep: 'Go back without cancelling',
+  },
+};
+
 // The cancel screen: reached from the tracking screen's "Cancelar pedido", collects the reason
 // (required) and optional notes, and only then cancels. The server re-checks that the merchant
 // has not confirmed meanwhile, so a refusal here surfaces as the inline error rather than a
@@ -23,6 +65,7 @@ const REASONS = [
 export default function CancelOrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const tx = useStrings(S);
   const [reason, setReason] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -46,14 +89,13 @@ export default function CancelOrderScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <BackButton onPress={back} />
-        <Text style={styles.title}>Cancelar pedido</Text>
+        <Text style={styles.title}>{tx.title}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.lead}>
-          Cuéntanos por qué cancelas. El pedido solo puede cancelarse mientras el comercio no lo
-          haya confirmado.
+          {tx.lead}
         </Text>
 
         {REASONS.map((r) => (
@@ -66,14 +108,14 @@ export default function CancelOrderScreen() {
             <View style={[styles.radio, reason === r && styles.radioActive]}>
               {reason === r ? <View style={styles.radioDot} /> : null}
             </View>
-            <Text style={[styles.reasonText, reason === r && styles.reasonTextActive]}>{r}</Text>
+            <Text style={[styles.reasonText, reason === r && styles.reasonTextActive]}>{tx.reasons[r] ?? r}</Text>
           </Pressable>
         ))}
 
-        <Text style={styles.label}>Notas (opcional)</Text>
+        <Text style={styles.label}>{tx.notesLabel}</Text>
         <TextInput
           style={styles.input}
-          placeholder="Cuéntanos más…"
+          placeholder={tx.notesPlaceholder}
           placeholderTextColor={t.textFaint}
           value={notes}
           onChangeText={setNotes}
@@ -87,10 +129,10 @@ export default function CancelOrderScreen() {
           disabled={!reason || submitting}
           onPress={submit}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>Cancelar pedido</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>{tx.confirm}</Text>}
         </Pressable>
         <Pressable onPress={back} disabled={submitting}>
-          <Text style={styles.keep}>Volver sin cancelar</Text>
+          <Text style={styles.keep}>{tx.keep}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

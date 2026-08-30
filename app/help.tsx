@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import * as api from '../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // Real support channels: the same address and number the site's legal pages publish
 // (volao.web: contact, terms, privacy). WhatsApp wants the number with the +1 country code.
@@ -18,101 +19,238 @@ const SUPPORT_PHONE = '+1 (809) 693-8546';
 type QA = { q: string; a: string };
 type Group = { title: string; items: QA[]; when?: 'client' | 'driver' | 'merchant' };
 
-const GROUPS: Group[] = [
+const S: Record<
+  Locale,
   {
-    title: 'Pedidos',
-    when: 'client',
-    items: [
+    title: string;
+    supportTitle: string;
+    supportSub: string;
+    call: string;
+    email: string;
+    faqTitle: string;
+    quickLinks: string;
+    myOrders: string;
+    myAddresses: string;
+    myVehicle: string;
+    history: string;
+    groups: Group[];
+  }
+> = {
+  es: {
+    title: 'Ayuda',
+    supportTitle: '¿Necesitas ayuda?',
+    supportSub: 'Estamos para ayudarte. Escríbenos o llámanos.',
+    call: 'Llamar',
+    email: 'Correo',
+    faqTitle: 'Preguntas frecuentes',
+    quickLinks: 'Accesos rápidos',
+    myOrders: 'Mis pedidos',
+    myAddresses: 'Mis direcciones',
+    myVehicle: 'Mi vehículo',
+    history: 'Historial',
+    groups: [
       {
-        q: '¿Cómo hago un pedido?',
-        a: 'Elige un comercio en la pantalla de inicio, agrega productos al carrito y completa el pedido siguiendo los pasos: carrito, ubicación de entrega y nota.',
+        title: 'Pedidos',
+        when: 'client',
+        items: [
+          {
+            q: '¿Cómo hago un pedido?',
+            a: 'Elige un comercio en la pantalla de inicio, agrega productos al carrito y completa el pedido siguiendo los pasos: carrito, ubicación de entrega y nota.',
+          },
+          {
+            q: '¿Puedo pedir de varios comercios a la vez?',
+            a: 'No. Cada pedido puede tener productos de un solo comercio. Si agregas algo de otro comercio, se te pedirá vaciar el carrito primero.',
+          },
+          {
+            q: '¿Puedo retirar el pedido yo mismo?',
+            a: 'Sí. Al completar el pedido puedes elegir retiro en tienda en lugar de envío a domicilio. En ese caso no se cobra envío y vas a buscarlo al comercio cuando esté listo.',
+          },
+          {
+            q: '¿Cómo sigo mi pedido?',
+            a: 'Toca un pedido en “Tus pedidos en curso” (inicio) o en “Mis pedidos”. Verás su estado en tiempo real, con la fecha de cada paso, desde que el comercio lo confirma hasta que llega a tu puerta.',
+          },
+          {
+            q: '¿Qué es el código de entrega?',
+            a: 'Es un código de 4 dígitos que aparece en el seguimiento de tu pedido. Dáselo al repartidor al recibir tu pedido: así confirma que la entrega es correcta.',
+          },
+          {
+            q: '¿Cómo pago mi pedido?',
+            a: 'Hoy el pago es en efectivo, al recibir el pedido, directamente al repartidor. El pago con tarjeta está en desarrollo.',
+          },
+          {
+            q: '¿Cómo cancelo un pedido?',
+            a: 'Desde el seguimiento del pedido, toca “Cancelar pedido”, elige el motivo y confirma. Es posible mientras el comercio no lo haya aceptado; después de eso, escríbenos y lo intentamos contigo.',
+          },
+          {
+            q: '¿Cómo cambio mi dirección de entrega?',
+            a: 'Elige la ubicación en el mapa durante el paso de ubicación al hacer el pedido. Tus direcciones más usadas aparecen en el menú “Direcciones”.',
+          },
+        ],
       },
       {
-        q: '¿Puedo pedir de varios comercios a la vez?',
-        a: 'No. Cada pedido puede tener productos de un solo comercio. Si agregas algo de otro comercio, se te pedirá vaciar el carrito primero.',
+        title: 'Tus entregas',
+        when: 'driver',
+        items: [
+          {
+            q: '¿Cómo veo los pedidos disponibles?',
+            a: 'En el mapa de inicio. Cada pedido listo para tomar aparece como un pin, con los que están a menos de 5 km de ti. El mapa se actualiza solo y recibes una notificación cuando entra uno nuevo cerca.',
+          },
+          {
+            q: '¿Cómo tomo y completo una entrega?',
+            a: 'Toca el pin para ver el detalle y tomar el pedido. El mapa te guía primero al comercio; al llegar marca “Entrega en camino” y desde ahí te guía hasta el cliente.',
+          },
+          {
+            q: '¿Para qué es el código de entrega?',
+            a: 'El cliente tiene un código de 4 dígitos en su pantalla. Pídeselo al entregar: es la confirmación de que el pedido llegó a la persona correcta.',
+          },
+          {
+            q: '¿Tengo que registrar mi vehículo?',
+            a: 'Sí. En “Mi vehículo”, dentro de tu cuenta, indica el tipo de vehículo. Marca, modelo, año, color y placa son opcionales, pero ayudan al comercio a identificarte.',
+          },
+          {
+            q: '¿Qué pasa si me quedo sin señal en una entrega?',
+            a: 'Puedes seguir trabajando. Las acciones que hagas sin conexión quedan guardadas en el teléfono y se envían solas cuando vuelve internet.',
+          },
+        ],
       },
       {
-        q: '¿Puedo retirar el pedido yo mismo?',
-        a: 'Sí. Al completar el pedido puedes elegir retiro en tienda en lugar de envío a domicilio. En ese caso no se cobra envío y vas a buscarlo al comercio cuando esté listo.',
-      },
-      {
-        q: '¿Cómo sigo mi pedido?',
-        a: 'Toca un pedido en “Tus pedidos en curso” (inicio) o en “Mis pedidos”. Verás su estado en tiempo real, con la fecha de cada paso, desde que el comercio lo confirma hasta que llega a tu puerta.',
-      },
-      {
-        q: '¿Qué es el código de entrega?',
-        a: 'Es un código de 4 dígitos que aparece en el seguimiento de tu pedido. Dáselo al repartidor al recibir tu pedido: así confirma que la entrega es correcta.',
-      },
-      {
-        q: '¿Cómo pago mi pedido?',
-        a: 'Hoy el pago es en efectivo, al recibir el pedido, directamente al repartidor. El pago con tarjeta está en desarrollo.',
-      },
-      {
-        q: '¿Cómo cancelo un pedido?',
-        a: 'Desde el seguimiento del pedido, toca “Cancelar pedido”, elige el motivo y confirma. Es posible mientras el comercio no lo haya aceptado; después de eso, escríbenos y lo intentamos contigo.',
-      },
-      {
-        q: '¿Cómo cambio mi dirección de entrega?',
-        a: 'Elige la ubicación en el mapa durante el paso de ubicación al hacer el pedido. Tus direcciones más usadas aparecen en el menú “Direcciones”.',
+        title: 'Tu mostrador',
+        when: 'merchant',
+        items: [
+          {
+            q: '¿Cómo me entero de que entró un pedido?',
+            a: 'Los pedidos nuevos aparecen solos en el inicio, sin recargar ni volver a entrar, y recibes una notificación en el teléfono.',
+          },
+          {
+            q: '¿Qué pasa cuando acepto un pedido?',
+            a: 'Al aceptarlo te preguntamos en cuántos minutos podrás empezar a prepararlo. Ese dato permite avisarle al cliente cuándo estará listo y buscar un repartidor en el momento correcto.',
+          },
+          {
+            q: '¿Puedo rechazar un pedido?',
+            a: 'Sí. Si no puedes prepararlo, recházalo desde la misma pantalla: el pedido sale del mostrador y se le informa al cliente.',
+          },
+          {
+            q: '¿Puedo ver dónde está el repartidor?',
+            a: 'Sí. Desde el pedido puedes seguir al repartidor en el mapa mientras viene al comercio y mientras lleva la orden al cliente.',
+          },
+          {
+            q: '¿Dónde veo los pedidos ya terminados?',
+            a: 'En la pestaña Historial. El inicio muestra solo lo que sigue pendiente en el mostrador.',
+          },
+        ],
       },
     ],
   },
-  {
-    title: 'Tus entregas',
-    when: 'driver',
-    items: [
+  en: {
+    title: 'Help',
+    supportTitle: 'Need help?',
+    supportSub: "We're here for you. Message us or give us a call.",
+    call: 'Call',
+    email: 'Email',
+    faqTitle: 'Frequently asked questions',
+    quickLinks: 'Quick links',
+    myOrders: 'My orders',
+    myAddresses: 'My addresses',
+    myVehicle: 'My vehicle',
+    history: 'History',
+    groups: [
       {
-        q: '¿Cómo veo los pedidos disponibles?',
-        a: 'En el mapa de inicio. Cada pedido listo para tomar aparece como un pin, con los que están a menos de 5 km de ti. El mapa se actualiza solo y recibes una notificación cuando entra uno nuevo cerca.',
+        title: 'Orders',
+        when: 'client',
+        items: [
+          {
+            q: 'How do I place an order?',
+            a: 'Pick a store on the home screen, add products to your cart, and complete the order by following the steps: cart, delivery location, and note.',
+          },
+          {
+            q: 'Can I order from several stores at once?',
+            a: "No. Each order can only contain products from a single store. If you add something from another store, you'll be asked to empty your cart first.",
+          },
+          {
+            q: 'Can I pick up the order myself?',
+            a: "Yes. When completing the order you can choose in-store pickup instead of home delivery. In that case there's no delivery fee, and you go pick it up at the store once it's ready.",
+          },
+          {
+            q: 'How do I track my order?',
+            a: 'Tap an order under "Your orders in progress" (home) or in "My orders". You\'ll see its status in real time, with the date of each step, from the moment the store confirms it until it reaches your door.',
+          },
+          {
+            q: 'What is the delivery code?',
+            a: "It's a 4-digit code shown on your order's tracking screen. Give it to the driver when you receive your order: that's how they confirm the delivery is correct.",
+          },
+          {
+            q: 'How do I pay for my order?',
+            a: 'For now, payment is in cash, upon receiving your order, directly to the driver. Card payment is in the works.',
+          },
+          {
+            q: 'How do I cancel an order?',
+            a: 'From the order tracking screen, tap "Cancel order", choose the reason, and confirm. This is possible as long as the store hasn\'t accepted it yet; after that, write to us and we\'ll try to sort it out with you.',
+          },
+          {
+            q: 'How do I change my delivery address?',
+            a: 'Choose the location on the map during the location step when placing your order. Your most-used addresses appear in the "Addresses" menu.',
+          },
+        ],
       },
       {
-        q: '¿Cómo tomo y completo una entrega?',
-        a: 'Toca el pin para ver el detalle y tomar el pedido. El mapa te guía primero al comercio; al llegar marca “Entrega en camino” y desde ahí te guía hasta el cliente.',
+        title: 'Your deliveries',
+        when: 'driver',
+        items: [
+          {
+            q: 'How do I see available orders?',
+            a: 'On the home map. Every order ready to be picked up appears as a pin, showing the ones within 5 km of you. The map refreshes on its own, and you get a notification when a new one comes in nearby.',
+          },
+          {
+            q: 'How do I take and complete a delivery?',
+            a: 'Tap the pin to see the details and take the order. The map first guides you to the store; when you arrive, mark "Delivery on the way" and from there it guides you to the customer.',
+          },
+          {
+            q: 'What is the delivery code for?',
+            a: "The customer has a 4-digit code on their screen. Ask for it when handing over the order: it's the confirmation that the order reached the right person.",
+          },
+          {
+            q: 'Do I have to register my vehicle?',
+            a: 'Yes. In "My vehicle", inside your account, choose your vehicle type. Make, model, year, color, and plate are optional, but they help the store identify you.',
+          },
+          {
+            q: 'What happens if I lose signal during a delivery?',
+            a: 'You can keep working. Anything you do while offline is saved on your phone and sent automatically once the internet comes back.',
+          },
+        ],
       },
       {
-        q: '¿Para qué es el código de entrega?',
-        a: 'El cliente tiene un código de 4 dígitos en su pantalla. Pídeselo al entregar: es la confirmación de que el pedido llegó a la persona correcta.',
-      },
-      {
-        q: '¿Tengo que registrar mi vehículo?',
-        a: 'Sí. En “Mi vehículo”, dentro de tu cuenta, indica el tipo de vehículo. Marca, modelo, año, color y placa son opcionales, pero ayudan al comercio a identificarte.',
-      },
-      {
-        q: '¿Qué pasa si me quedo sin señal en una entrega?',
-        a: 'Puedes seguir trabajando. Las acciones que hagas sin conexión quedan guardadas en el teléfono y se envían solas cuando vuelve internet.',
+        title: 'Your counter',
+        when: 'merchant',
+        items: [
+          {
+            q: 'How do I know when an order comes in?',
+            a: 'New orders appear on the home screen by themselves, without reloading or signing back in, and you get a notification on your phone.',
+          },
+          {
+            q: 'What happens when I accept an order?',
+            a: "When you accept it, we ask how many minutes until you can start preparing it. That lets us tell the customer when it will be ready and look for a driver at the right moment.",
+          },
+          {
+            q: 'Can I reject an order?',
+            a: "Yes. If you can't prepare it, reject it from the same screen: the order leaves your counter and the customer is informed.",
+          },
+          {
+            q: 'Can I see where the driver is?',
+            a: 'Yes. From the order you can follow the driver on the map while they head to your store and while they take the order to the customer.',
+          },
+          {
+            q: 'Where do I see completed orders?',
+            a: 'In the History tab. The home screen only shows what is still pending at the counter.',
+          },
+        ],
       },
     ],
   },
-  {
-    title: 'Tu mostrador',
-    when: 'merchant',
-    items: [
-      {
-        q: '¿Cómo me entero de que entró un pedido?',
-        a: 'Los pedidos nuevos aparecen solos en el inicio, sin recargar ni volver a entrar, y recibes una notificación en el teléfono.',
-      },
-      {
-        q: '¿Qué pasa cuando acepto un pedido?',
-        a: 'Al aceptarlo te preguntamos en cuántos minutos podrás empezar a prepararlo. Ese dato permite avisarle al cliente cuándo estará listo y buscar un repartidor en el momento correcto.',
-      },
-      {
-        q: '¿Puedo rechazar un pedido?',
-        a: 'Sí. Si no puedes prepararlo, recházalo desde la misma pantalla: el pedido sale del mostrador y se le informa al cliente.',
-      },
-      {
-        q: '¿Puedo ver dónde está el repartidor?',
-        a: 'Sí. Desde el pedido puedes seguir al repartidor en el mapa mientras viene al comercio y mientras lleva la orden al cliente.',
-      },
-      {
-        q: '¿Dónde veo los pedidos ya terminados?',
-        a: 'En la pestaña Historial. El inicio muestra solo lo que sigue pendiente en el mostrador.',
-      },
-    ],
-  },
-];
+};
 
 export default function HelpScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   // Which question is open, keyed "group-index" so groups do not collide.
   const [open, setOpen] = useState<string | null>(null);
 
@@ -122,7 +260,7 @@ export default function HelpScreen() {
   const me = api.cachedMe();
   const role: 'client' | 'driver' | 'merchant' =
     me?.isMerchant ? 'merchant' : me?.isDriver ? 'driver' : 'client';
-  const groups = GROUPS.filter((g) => !g.when || g.when === role);
+  const groups = tx.groups.filter((g) => !g.when || g.when === role);
 
   const email = () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
   const call = () => Linking.openURL(`tel:${SUPPORT_PHONE}`);
@@ -133,15 +271,15 @@ export default function HelpScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/home"))} />
-        <Text style={styles.title}>Ayuda</Text>
+        <Text style={styles.title}>{tx.title}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Contact support */}
         <View style={styles.supportCard}>
-          <Text style={styles.supportTitle}>¿Necesitas ayuda?</Text>
-          <Text style={styles.supportSub}>Estamos para ayudarte. Escríbenos o llámanos.</Text>
+          <Text style={styles.supportTitle}>{tx.supportTitle}</Text>
+          <Text style={styles.supportSub}>{tx.supportSub}</Text>
           <View style={styles.supportRow}>
             <Pressable style={styles.supportBtn} onPress={whatsapp}>
               <Text style={styles.supportBtnIcon}>💬</Text>
@@ -149,17 +287,17 @@ export default function HelpScreen() {
             </Pressable>
             <Pressable style={styles.supportBtn} onPress={call}>
               <Text style={styles.supportBtnIcon}>📞</Text>
-              <Text style={styles.supportBtnText}>Llamar</Text>
+              <Text style={styles.supportBtnText}>{tx.call}</Text>
             </Pressable>
             <Pressable style={styles.supportBtn} onPress={email}>
               <Text style={styles.supportBtnIcon}>✉️</Text>
-              <Text style={styles.supportBtnText}>Correo</Text>
+              <Text style={styles.supportBtnText}>{tx.email}</Text>
             </Pressable>
           </View>
         </View>
 
         {/* FAQ accordion, one card per visible group */}
-        <Text style={styles.sectionTitle}>Preguntas frecuentes</Text>
+        <Text style={styles.sectionTitle}>{tx.faqTitle}</Text>
         {groups.map((g, gi) => (
           <View key={g.title} style={gi > 0 ? styles.groupGap : null}>
             <View style={styles.faqCard}>
@@ -181,18 +319,18 @@ export default function HelpScreen() {
         ))}
 
         {/* Quick links, by role: the screens this role actually reaches for */}
-        <Text style={styles.sectionTitle}>Accesos rápidos</Text>
+        <Text style={styles.sectionTitle}>{tx.quickLinks}</Text>
         <View style={styles.faqCard}>
           {role === 'client' ? (
             <>
               <Pressable style={styles.linkRow} onPress={() => router.push('/orders')}>
                 <Text style={styles.linkIcon}>🧾</Text>
-                <Text style={styles.linkText}>Mis pedidos</Text>
+                <Text style={styles.linkText}>{tx.myOrders}</Text>
                 <Text style={styles.linkChevron}>›</Text>
               </Pressable>
               <Pressable style={[styles.linkRow, styles.faqItemBorder]} onPress={() => router.push('/addresses')}>
                 <Text style={styles.linkIcon}>📍</Text>
-                <Text style={styles.linkText}>Mis direcciones</Text>
+                <Text style={styles.linkText}>{tx.myAddresses}</Text>
                 <Text style={styles.linkChevron}>›</Text>
               </Pressable>
             </>
@@ -200,19 +338,19 @@ export default function HelpScreen() {
             <>
               <Pressable style={styles.linkRow} onPress={() => router.push('/vehicle')}>
                 <Text style={styles.linkIcon}>🏍️</Text>
-                <Text style={styles.linkText}>Mi vehículo</Text>
+                <Text style={styles.linkText}>{tx.myVehicle}</Text>
                 <Text style={styles.linkChevron}>›</Text>
               </Pressable>
               <Pressable style={[styles.linkRow, styles.faqItemBorder]} onPress={() => router.push('/history')}>
                 <Text style={styles.linkIcon}>🧾</Text>
-                <Text style={styles.linkText}>Historial</Text>
+                <Text style={styles.linkText}>{tx.history}</Text>
                 <Text style={styles.linkChevron}>›</Text>
               </Pressable>
             </>
           ) : (
             <Pressable style={styles.linkRow} onPress={() => router.push('/merchant-history')}>
               <Text style={styles.linkIcon}>🧾</Text>
-              <Text style={styles.linkText}>Historial</Text>
+              <Text style={styles.linkText}>{tx.history}</Text>
               <Text style={styles.linkChevron}>›</Text>
             </Pressable>
           )}

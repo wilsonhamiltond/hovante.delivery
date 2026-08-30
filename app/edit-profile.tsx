@@ -11,6 +11,72 @@ import type { CountryCode } from 'libphonenumber-js';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    errName: string;
+    errLastName: string;
+    errPhone: string;
+    closureFailed: (msg: string) => string;
+    savedWithClosure: (msg: string) => string;
+    saved: string;
+    email: string;
+    emailHint: string;
+    fullName: string;
+    fullNamePlaceholder: string;
+    phone: string;
+    myBusiness: string;
+    closedToday: string;
+    closedTodayOn: string;
+    closedTodayOff: string;
+    closureNotePlaceholder: string;
+    save: string;
+  }
+> = {
+  es: {
+    title: 'Mis datos',
+    errName: 'Escribe tu nombre y apellido.',
+    errLastName: 'Escribe tu nombre y tu apellido.',
+    errPhone: 'Escribe un número de teléfono válido para el país seleccionado.',
+    closureFailed: (msg) => `Tus datos se guardaron, pero el cierre de hoy no: ${msg}`,
+    savedWithClosure: (msg) => `Tus datos fueron actualizados. ${msg}`,
+    saved: 'Tus datos fueron actualizados.',
+    email: 'Correo',
+    emailHint: 'Tu correo identifica tu cuenta y no se puede cambiar.',
+    fullName: 'Nombre y apellido',
+    fullNamePlaceholder: 'Ej. Ana Pérez',
+    phone: 'Teléfono',
+    myBusiness: 'Mi comercio',
+    closedToday: 'Cerrado hoy',
+    closedTodayOn: 'Tus productos no aparecen en el mercado hoy; mañana abres normal.',
+    closedTodayOff: 'Márcalo para no vender solo por hoy, sin tocar tu horario.',
+    closureNotePlaceholder: 'Nota (opcional). Ej: Cerrado por inventario',
+    save: 'Guardar cambios',
+  },
+  en: {
+    title: 'My info',
+    errName: 'Enter your first and last name.',
+    errLastName: 'Enter both your first and last name.',
+    errPhone: 'Enter a valid phone number for the selected country.',
+    closureFailed: (msg) => `Your info was saved, but today's closure was not: ${msg}`,
+    savedWithClosure: (msg) => `Your info was updated. ${msg}`,
+    saved: 'Your info was updated.',
+    email: 'Email',
+    emailHint: 'Your email identifies your account and cannot be changed.',
+    fullName: 'First and last name',
+    fullNamePlaceholder: 'E.g. Ana Perez',
+    phone: 'Phone',
+    myBusiness: 'My business',
+    closedToday: 'Closed today',
+    closedTodayOn: "Your products won't appear in the marketplace today; tomorrow you open as usual.",
+    closedTodayOff: 'Check this to stop selling just for today, without touching your business hours.',
+    closureNotePlaceholder: 'Note (optional). E.g.: Closed for inventory',
+    save: 'Save changes',
+  },
+};
 
 // Edit the account's own details, reached from "Mi cuenta".
 //
@@ -24,6 +90,7 @@ import { GradientBackground, t } from '../src/theme';
 // the Dominican day on the server -- nobody has to come back tomorrow to uncheck it.
 export default function EditProfileScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [email, setEmail] = useState('');
   // One field for both halves, matching the sign-up wizard: people write their full name in one go.
   const [fullName, setFullName] = useState('');
@@ -69,11 +136,11 @@ export default function EditProfileScreen() {
 
   const submit = async () => {
     // Checked in the order the fields appear, so the message points at the first thing to fix.
-    if (!fullName.trim()) return setNotice({ tone: 'error', message: 'Escribe tu nombre y apellido.' });
+    if (!fullName.trim()) return setNotice({ tone: 'error', message: tx.errName });
     const person = splitDisplayName(fullName);
-    if (!person.lastName) return setNotice({ tone: 'error', message: 'Escribe tu nombre y tu apellido.' });
+    if (!person.lastName) return setNotice({ tone: 'error', message: tx.errLastName });
     if (!isCompletePhone(phone, phoneCountry)) {
-      return setNotice({ tone: 'error', message: 'Escribe un número de teléfono válido para el país seleccionado.' });
+      return setNotice({ tone: 'error', message: tx.errPhone });
     }
 
     setSubmitting(true);
@@ -95,15 +162,15 @@ export default function EditProfileScreen() {
       });
       setSubmitting(false);
       if (!cr.success || !cr.data) {
-        return setNotice({ tone: 'error', message: `Tus datos se guardaron, pero el cierre de hoy no: ${cr.message}` });
+        return setNotice({ tone: 'error', message: tx.closureFailed(cr.message) });
       }
       setClosure(cr.data);
       // The closure endpoint's message already says which way it went ("queda cerrado por hoy").
-      return setNotice({ tone: 'success', message: `Tus datos fueron actualizados. ${cr.message}` });
+      return setNotice({ tone: 'success', message: tx.savedWithClosure(cr.message) });
     }
 
     setSubmitting(false);
-    setNotice({ tone: 'success', message: 'Tus datos fueron actualizados.' });
+    setNotice({ tone: 'success', message: tx.saved });
   };
 
   // Leaving on success sends us back to the account screen, which refetches on focus and so shows
@@ -119,7 +186,7 @@ export default function EditProfileScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Mis datos</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -128,7 +195,7 @@ export default function EditProfileScreen() {
         ) : (
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-              <Text style={styles.label}>Correo</Text>
+              <Text style={styles.label}>{tx.email}</Text>
               {/* Rendered as a locked row rather than a disabled input: a greyed-out field invites
                   tapping and looks like something is broken, while a lock reads as intentional. */}
               <View style={styles.locked}>
@@ -136,20 +203,20 @@ export default function EditProfileScreen() {
                 <FontAwesome5 name="lock" size={13} solid color={t.textFaint} />
               </View>
               <Text style={styles.hint}>
-                Tu correo identifica tu cuenta y no se puede cambiar.
+                {tx.emailHint}
               </Text>
 
-              <Text style={[styles.label, styles.labelSpaced]}>Nombre y apellido</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.fullName}</Text>
               <TextInput
                 style={styles.input}
                 value={fullName}
                 onChangeText={setFullName}
-                placeholder="Ej. Ana Pérez"
+                placeholder={tx.fullNamePlaceholder}
                 placeholderTextColor={t.textFaint}
                 autoCapitalize="words"
               />
 
-              <Text style={[styles.label, styles.labelSpaced]}>Teléfono</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.phone}</Text>
               <PhoneInput
                 country={phoneCountry}
                 national={phone}
@@ -159,7 +226,7 @@ export default function EditProfileScreen() {
               {/* Merchants only, and only once the saved flag has arrived. */}
               {isMerchant && closure != null ? (
                 <>
-                  <Text style={[styles.label, styles.labelSpaced]}>Mi comercio</Text>
+                  <Text style={[styles.label, styles.labelSpaced]}>{tx.myBusiness}</Text>
                   <Pressable
                     style={styles.closureRow}
                     onPress={() => setClosedToday(!closedToday)}
@@ -170,11 +237,9 @@ export default function EditProfileScreen() {
                       {closedToday ? <Text style={styles.checkboxTick}>✓</Text> : null}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.closureTitle}>Cerrado hoy</Text>
+                      <Text style={styles.closureTitle}>{tx.closedToday}</Text>
                       <Text style={styles.closureSub}>
-                        {closedToday
-                          ? 'Tus productos no aparecen en el mercado hoy; mañana abres normal.'
-                          : 'Márcalo para no vender solo por hoy, sin tocar tu horario.'}
+                        {closedToday ? tx.closedTodayOn : tx.closedTodayOff}
                       </Text>
                     </View>
                   </Pressable>
@@ -183,7 +248,7 @@ export default function EditProfileScreen() {
                       style={[styles.input, styles.closureInput]}
                       value={closureNote}
                       onChangeText={setClosureNote}
-                      placeholder="Nota (opcional). Ej: Cerrado por inventario"
+                      placeholder={tx.closureNotePlaceholder}
                       placeholderTextColor={t.textFaint}
                     />
                   ) : null}
@@ -195,7 +260,7 @@ export default function EditProfileScreen() {
               <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={submit} disabled={submitting}>
                 {submitting
                   ? <ActivityIndicator color={t.onAccent} />
-                  : <Text style={styles.primaryText}>Guardar cambios</Text>}
+                  : <Text style={styles.primaryText}>{tx.save}</Text>}
               </Pressable>
             </View>
           </KeyboardAvoidingView>

@@ -5,6 +5,12 @@ import { useFocusEffect } from 'expo-router';
 import * as api from './api';
 import { NotificationsButton } from './NotificationsButton';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { companyFallback: string }> = {
+  es: { companyFallback: 'Tu comercio' },
+  en: { companyFallback: 'Your business' },
+};
 
 // The merchant screens' shared top bar -- the "🏪 comercio" row with the bell that the home wears,
 // so Productos and Historial read as rooms of the same shop. The home already holds the profile and
@@ -14,6 +20,7 @@ export function MerchantTopBar({ companyName, subtitle }: {
   companyName?: string | null;
   subtitle?: string | null;
 }) {
+  const tx = useStrings(S);
   const [fetched, setFetched] = useState<string | null>(null);
   const needsFetch = companyName === undefined;
 
@@ -26,7 +33,7 @@ export function MerchantTopBar({ companyName, subtitle }: {
     return () => { alive = false; };
   }, [needsFetch]));
 
-  const name = (needsFetch ? fetched : companyName) ?? 'Tu comercio';
+  const name = (needsFetch ? fetched : companyName) ?? tx.companyFallback;
 
   return (
     <SafeAreaView edges={['top']} style={styles.headerSafe}>

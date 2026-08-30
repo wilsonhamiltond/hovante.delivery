@@ -10,21 +10,151 @@ import { InvoiceModal } from '../../src/InvoiceModal';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { strings, useStrings, type Locale } from '../../src/i18n';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
 const fmtStamp = (iso?: string | null): string | null =>
   iso ? new Date(iso).toLocaleString('es-DO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
 
+const S: Record<
+  Locale,
+  {
+    justNow: string;
+    agoMin: (mins: number) => string;
+    agoHours: (hours: number, mins: number) => string;
+    orderFallback: string;
+    notFound: string;
+    pickupAtStore: string;
+    promisedNow: string;
+    promisedIn: (min: number) => string;
+    client: string;
+    clientFallback: string;
+    deliverTo: string;
+    merchantFallback: string;
+    viewOnMap: string;
+    driver: string;
+    driverFallback: string;
+    driverInTransit: string;
+    driverAssigned: string;
+    positionReported: (ago: string) => string;
+    products: string;
+    perUnit: (price: string) => string;
+    subtotal: string;
+    deliveryFee: string;
+    total: string;
+    payWith: string;
+    change: string;
+    invoice: string;
+    view: string;
+    cancelReason: (reason: string) => string;
+    confirmOrder: string;
+    reject: string;
+    rejectAsk: string;
+    rejectYes: string;
+    no: string;
+    readyForPickup: string;
+    deliverToClient: string;
+    deliverHint: string;
+    deliverOrder: string;
+    viewInvoice: string;
+    invoiceOrder: string;
+  }
+> = {
+  es: {
+    justNow: 'hace un momento',
+    agoMin: (mins) => `hace ${mins} min`,
+    agoHours: (hours, mins) => `hace ${hours} h ${mins} min`,
+    orderFallback: 'Pedido',
+    notFound: 'Pedido no encontrado.',
+    pickupAtStore: '🏪 Retiro en tienda · el cliente pasa a recogerlo',
+    promisedNow: 'Se prometió empezar de inmediato',
+    promisedIn: (min) => `Se prometió empezar en ${min} min`,
+    client: 'Cliente',
+    clientFallback: 'Cliente',
+    deliverTo: 'Entregar',
+    merchantFallback: 'Comercio',
+    viewOnMap: '🗺️ Ver en el mapa',
+    driver: 'Repartidor',
+    driverFallback: 'Repartidor',
+    driverInTransit: 'Va en camino con el pedido.',
+    driverAssigned: 'Viene hacia el comercio a recoger.',
+    positionReported: (ago) => `Ubicación reportada ${ago}.`,
+    products: 'Productos',
+    perUnit: (price) => `${price} c/u`,
+    subtotal: 'Subtotal',
+    deliveryFee: 'Envío',
+    total: 'Total',
+    payWith: 'Paga con',
+    change: 'Devuelta',
+    invoice: 'Factura',
+    view: 'Ver ›',
+    cancelReason: (reason) => `Motivo de cancelación: ${reason}`,
+    confirmOrder: 'Confirmar pedido',
+    reject: 'Rechazar',
+    rejectAsk: '¿Seguro que quieres rechazar este pedido?',
+    rejectYes: 'Sí, rechazar',
+    no: 'No',
+    readyForPickup: 'Listo para recoger',
+    deliverToClient: 'Entregar al cliente',
+    deliverHint: 'Pídele al cliente el código de entrega de su pantalla de seguimiento.',
+    deliverOrder: 'Entregar pedido',
+    viewInvoice: '🧾 Ver factura',
+    invoiceOrder: '🧾 Facturar pedido',
+  },
+  en: {
+    justNow: 'a moment ago',
+    agoMin: (mins) => `${mins} min ago`,
+    agoHours: (hours, mins) => `${hours} h ${mins} min ago`,
+    orderFallback: 'Order',
+    notFound: 'Order not found.',
+    pickupAtStore: '🏪 Pickup at store · the customer will come to collect it',
+    promisedNow: 'Promised to start right away',
+    promisedIn: (min) => `Promised to start in ${min} min`,
+    client: 'Customer',
+    clientFallback: 'Customer',
+    deliverTo: 'Deliver',
+    merchantFallback: 'Merchant',
+    viewOnMap: '🗺️ View on map',
+    driver: 'Driver',
+    driverFallback: 'Driver',
+    driverInTransit: 'On the way with the order.',
+    driverAssigned: 'Heading to the store to pick up.',
+    positionReported: (ago) => `Location reported ${ago}.`,
+    products: 'Products',
+    perUnit: (price) => `${price} each`,
+    subtotal: 'Subtotal',
+    deliveryFee: 'Delivery',
+    total: 'Total',
+    payWith: 'Pays with',
+    change: 'Change',
+    invoice: 'Invoice',
+    view: 'View ›',
+    cancelReason: (reason) => `Cancellation reason: ${reason}`,
+    confirmOrder: 'Confirm order',
+    reject: 'Reject',
+    rejectAsk: 'Are you sure you want to reject this order?',
+    rejectYes: 'Yes, reject',
+    no: 'No',
+    readyForPickup: 'Ready for pickup',
+    deliverToClient: 'Hand over to the customer',
+    deliverHint: 'Ask the customer for the delivery code on their tracking screen.',
+    deliverOrder: 'Deliver order',
+    viewInvoice: '🧾 View invoice',
+    invoiceOrder: '🧾 Invoice order',
+  },
+};
+
 // "hace 2 min" -- how fresh the driver's reported position is, so the pin is trusted exactly as
 // much as it deserves.
 function agoText(iso?: string | null): string | null {
   if (!iso) return null;
+  const tx = strings(S);
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return 'hace un momento';
-  if (mins < 60) return `hace ${mins} min`;
+  if (mins < 1) return tx.justNow;
+  if (mins < 60) return tx.agoMin(mins);
   const hours = Math.floor(mins / 60);
-  return `hace ${hours} h ${mins % 60} min`;
+  return tx.agoHours(hours, mins % 60);
 }
 
 // One order, the merchant's whole view of it: who ordered, where it goes, every line with its
@@ -33,6 +163,7 @@ function agoText(iso?: string | null): string | null {
 export default function MerchantOrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const tx = useStrings(S);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -126,8 +257,8 @@ export default function MerchantOrderDetail() {
     return (
       <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Header title="Pedido" onBack={back} />
-        <View style={styles.center}><Text style={styles.muted}>{error ?? 'Pedido no encontrado.'}</Text></View>
+        <Header title={tx.orderFallback} onBack={back} />
+        <View style={styles.center}><Text style={styles.muted}>{error ?? tx.notFound}</Text></View>
       </SafeAreaView>
       </GradientBackground>
     );
@@ -151,7 +282,7 @@ export default function MerchantOrderDetail() {
 
         {/* A pickup order, said before anything else on the screen: no rider is coming for it. */}
         {order.pickupAtStore ? (
-          <Text style={styles.queue}>🏪 Retiro en tienda · el cliente pasa a recogerlo</Text>
+          <Text style={styles.queue}>{tx.pickupAtStore}</Text>
         ) : null}
 
         {/* The promise made at confirm, spelled out under the live chip (which counts it down and
@@ -159,16 +290,16 @@ export default function MerchantOrderDetail() {
         {order.queueMinutes != null && order.status === 'CONFIRMED' ? (
           <Text style={styles.queue}>
             ⏱️ {order.queueMinutes === 0
-              ? 'Se prometió empezar de inmediato'
-              : `Se prometió empezar en ${order.queueMinutes} min`}
+              ? tx.promisedNow
+              : tx.promisedIn(order.queueMinutes)}
           </Text>
         ) : null}
 
         {/* The customer: who receives it and how to reach them. */}
         <View style={styles.card}>
-          <Text style={styles.label}>Cliente</Text>
+          <Text style={styles.label}>{tx.client}</Text>
           <View style={styles.clientRow}>
-            <Text style={styles.clientName} numberOfLines={1}>👤 {order.customerName ?? 'Cliente'}</Text>
+            <Text style={styles.clientName} numberOfLines={1}>👤 {order.customerName ?? tx.clientFallback}</Text>
             {order.customerPhone ? (
               <Pressable style={styles.callBtn} onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}>
                 <Text style={styles.callText}>📞 {order.customerPhone}</Text>
@@ -184,7 +315,7 @@ export default function MerchantOrderDetail() {
                 params: {
                   lat: String(order.latitude), lng: String(order.longitude),
                   ...(order.address ? { address: order.address } : {}),
-                  title: order.customerName ?? 'Entregar',
+                  title: order.customerName ?? tx.deliverTo,
                   // The customer's face on their door, when they have one.
                   ...(order.customerImageUrl ? { img: order.customerImageUrl } : {}),
                   // The branch as the route's other end, so the map shows the street route between
@@ -192,14 +323,14 @@ export default function MerchantOrderDetail() {
                   ...(office ? {
                     olat: String(office.latitude),
                     olng: String(office.longitude),
-                    otitle: office.name || 'Comercio',
+                    otitle: office.name || tx.merchantFallback,
                     ...(office.address ? { oaddress: office.address } : {}),
                     ...(order.merchantImageUrl ? { oimg: order.merchantImageUrl } : {}),
                   } : {}),
                 },
               })}
             >
-              <Text style={styles.mapBtnText}>🗺️ Ver en el mapa</Text>
+              <Text style={styles.mapBtnText}>{tx.viewOnMap}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -208,9 +339,9 @@ export default function MerchantOrderDetail() {
             ring them about the handover. Hidden while the order is still looking for one. */}
         {order.driverName || order.driverPhone ? (
           <View style={styles.card}>
-            <Text style={styles.label}>Repartidor</Text>
+            <Text style={styles.label}>{tx.driver}</Text>
             <View style={styles.clientRow}>
-              <Text style={styles.clientName} numberOfLines={1}>🛵 {order.driverName ?? 'Repartidor'}</Text>
+              <Text style={styles.clientName} numberOfLines={1}>🛵 {order.driverName ?? tx.driverFallback}</Text>
               {order.driverPhone ? (
                 <Pressable style={styles.callBtn} onPress={() => Linking.openURL(`tel:${order.driverPhone}`)}>
                   <Text style={styles.callText}>📞 {order.driverPhone}</Text>
@@ -218,9 +349,9 @@ export default function MerchantOrderDetail() {
               ) : null}
             </View>
             {order.deliveryStatus === 'IN_TRANSIT' ? (
-              <Text style={styles.driverState}>Va en camino con el pedido.</Text>
+              <Text style={styles.driverState}>{tx.driverInTransit}</Text>
             ) : order.deliveryStatus === 'ASSIGNED' ? (
-              <Text style={styles.driverState}>Viene hacia el comercio a recoger.</Text>
+              <Text style={styles.driverState}>{tx.driverAssigned}</Text>
             ) : null}
 
             {/* Where the driver actually is: their last reported fix as the bike, with the
@@ -234,13 +365,13 @@ export default function MerchantOrderDetail() {
                     key={`${order.driverLatitude},${order.driverLongitude}`}
                     points={order.latitude != null && order.longitude != null ? [{
                       lat: order.latitude, lng: order.longitude, address: order.address ?? null,
-                      label: '2', title: order.customerName ?? 'Entregar', color: '#16a34a',
+                      label: '2', title: order.customerName ?? tx.deliverTo, color: '#16a34a',
                     }] : []}
                     driver={{ lat: order.driverLatitude, lng: order.driverLongitude }}
                   />
                 </View>
                 {agoText(order.driverPositionAt) ? (
-                  <Text style={styles.driverState}>Ubicación reportada {agoText(order.driverPositionAt)}.</Text>
+                  <Text style={styles.driverState}>{tx.positionReported(agoText(order.driverPositionAt)!)}</Text>
                 ) : null}
               </>
             ) : null}
@@ -249,30 +380,30 @@ export default function MerchantOrderDetail() {
 
         {/* Every line with its price -- what the counter packs and charges. */}
         <View style={styles.card}>
-          <Text style={styles.label}>Productos</Text>
+          <Text style={styles.label}>{tx.products}</Text>
           {order.items.map((li) => (
             <View key={li.id} style={styles.line}>
               <Text style={styles.lineQty}>{li.quantity}×</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.lineName} numberOfLines={2}>{li.name}</Text>
-                <Text style={styles.lineUnit}>{money(li.unitPrice)} c/u</Text>
+                <Text style={styles.lineUnit}>{tx.perUnit(money(li.unitPrice))}</Text>
               </View>
               <Text style={styles.linePrice}>{money(li.lineTotal)}</Text>
             </View>
           ))}
           {order.notes ? <Text style={styles.notes}>📝 {order.notes}</Text> : null}
 
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>{tx.subtotal}</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
           {order.deliveryFee != null ? (
-            <View style={styles.subRow}><Text style={styles.totalLabel}>Envío</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
+            <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.deliveryFee}</Text><Text style={styles.subValue}>{money(order.deliveryFee)}</Text></View>
           ) : null}
-          <View style={styles.subRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{money(grandTotal)}</Text></View>
+          <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.total}</Text><Text style={styles.totalValue}>{money(grandTotal)}</Text></View>
           {/* Cash orders that declared a bill: what the customer pays with, and the change to have
               ready before anyone knocks on their door. */}
           {order.payWithAmount != null ? (
             <>
-              <View style={styles.subRow}><Text style={styles.totalLabel}>Paga con</Text><Text style={styles.subValue}>{money(order.payWithAmount)}</Text></View>
-              <View style={styles.subRow}><Text style={styles.totalLabel}>Devuelta</Text><Text style={styles.changeValue}>{money(order.payWithAmount - grandTotal)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.payWith}</Text><Text style={styles.subValue}>{money(order.payWithAmount)}</Text></View>
+              <View style={styles.subRow}><Text style={styles.totalLabel}>{tx.change}</Text><Text style={styles.changeValue}>{money(order.payWithAmount - grandTotal)}</Text></View>
             </>
           ) : null}
         </View>
@@ -281,16 +412,16 @@ export default function MerchantOrderDetail() {
             opens the invoice itself, with printing. */}
         {order.documentNumber ? (
           <Pressable style={styles.card} onPress={() => setShowInvoice(true)} accessibilityRole="button">
-            <Text style={styles.label}>Factura</Text>
+            <Text style={styles.label}>{tx.invoice}</Text>
             <View style={styles.invoiceRow}>
               <Text style={styles.invoice}>{order.documentNumber}{order.ncf ? ` · NCF ${order.ncf}` : ''}</Text>
-              <Text style={styles.invoiceOpen}>Ver ›</Text>
+              <Text style={styles.invoiceOpen}>{tx.view}</Text>
             </View>
           </Pressable>
         ) : null}
 
         {order.status === 'CANCELLED' && order.cancelReason ? (
-          <Text style={styles.cancelReason}>Motivo de cancelación: {order.cancelReason}</Text>
+          <Text style={styles.cancelReason}>{tx.cancelReason(order.cancelReason)}</Text>
         ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -301,22 +432,22 @@ export default function MerchantOrderDetail() {
         {order.status === 'PENDING' && !confirmReject ? (
           <View style={styles.actions}>
             <Pressable style={[styles.action, styles.confirm, busy && styles.disabled]} disabled={busy} onPress={() => { setError(null); setConfirming(true); }}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar pedido</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmOrder}</Text>}
             </Pressable>
             <Pressable style={[styles.action, styles.reject, busy && styles.disabled]} disabled={busy} onPress={() => setConfirmReject(true)}>
-              <Text style={styles.actionText}>Rechazar</Text>
+              <Text style={styles.actionText}>{tx.reject}</Text>
             </Pressable>
           </View>
         ) : null}
         {order.status === 'PENDING' && confirmReject ? (
           <View style={styles.card}>
-            <Text style={styles.rejectAsk}>¿Seguro que quieres rechazar este pedido?</Text>
+            <Text style={styles.rejectAsk}>{tx.rejectAsk}</Text>
             <View style={styles.actions}>
               <Pressable style={[styles.action, styles.reject, busy && styles.disabled]} disabled={busy} onPress={() => act(api.rejectMerchantOrder)}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Sí, rechazar</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.rejectYes}</Text>}
               </Pressable>
               <Pressable style={[styles.action, styles.neutral]} disabled={busy} onPress={() => setConfirmReject(false)}>
-                <Text style={styles.actionText}>No</Text>
+                <Text style={styles.actionText}>{tx.no}</Text>
               </Pressable>
             </View>
           </View>
@@ -325,7 +456,7 @@ export default function MerchantOrderDetail() {
           <Pressable style={[styles.action, styles.ready, busy && styles.disabled]} disabled={busy} onPress={() => act(api.readyMerchantOrder)}>
             {/* The accent is near-white, so this button's ink is onAccent -- white on white was
                 an invisible button. */}
-            {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>Listo para recoger</Text>}
+            {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>{tx.readyForPickup}</Text>}
           </Pressable>
         ) : null}
 
@@ -334,9 +465,9 @@ export default function MerchantOrderDetail() {
             stranger cannot walk off with someone else's bag. */}
         {order.status === 'READY' && order.pickupAtStore ? (
           <View style={styles.card}>
-            <Text style={styles.label}>Entregar al cliente</Text>
+            <Text style={styles.label}>{tx.deliverToClient}</Text>
             <Text style={styles.deliverHint}>
-              Pídele al cliente el código de entrega de su pantalla de seguimiento.
+              {tx.deliverHint}
             </Text>
             <TextInput
               style={styles.codeInput}
@@ -352,7 +483,7 @@ export default function MerchantOrderDetail() {
               disabled={busy || deliverCode.trim().length < 4}
               onPress={() => act((i) => api.deliverMerchantOrder(i, deliverCode.trim()))}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Entregar pedido</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.deliverOrder}</Text>}
             </Pressable>
           </View>
         ) : null}
@@ -364,11 +495,11 @@ export default function MerchantOrderDetail() {
         {delivered ? (
           order.documentNumber ? (
             <Pressable style={[styles.action, styles.ready]} onPress={() => setShowInvoice(true)} accessibilityRole="button">
-              <Text style={[styles.actionText, styles.readyText]}>🧾 Ver factura</Text>
+              <Text style={[styles.actionText, styles.readyText]}>{tx.viewInvoice}</Text>
             </Pressable>
           ) : (
             <Pressable style={[styles.action, styles.ready, busy && styles.disabled]} disabled={busy} onPress={invoiceNow} accessibilityRole="button">
-              {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>🧾 Facturar pedido</Text>}
+              {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>{tx.invoiceOrder}</Text>}
             </Pressable>
           )
         ) : null}

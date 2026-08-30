@@ -11,11 +11,91 @@ import { GradientBackground, t } from '../src/theme';
 import { CartButton } from '../src/CartButton';
 import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { LOCALES, LOCALE_LABELS, useLocale, useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    title: string;
+    photoPermTitle: string;
+    photoPermBody: string;
+    imageAlertTitle: string;
+    changeAvatar: string;
+    driver: string;
+    client: string;
+    name: string;
+    email: string;
+    phone: string;
+    mainAddress: string;
+    noAddress: string;
+    myInfo: string;
+    addresses: string;
+    myVehicle: string;
+    hours: string;
+    drivers: string;
+    changePassword: string;
+    help: string;
+    deleteAccount: string;
+    language: string;
+    signOut: string;
+  }
+> = {
+  es: {
+    title: 'Mi cuenta',
+    photoPermTitle: 'Permiso de fotos',
+    photoPermBody: 'Activa el permiso de fotos para cambiar tu imagen.',
+    imageAlertTitle: 'Imagen',
+    changeAvatar: 'Cambiar imagen de perfil',
+    driver: 'Repartidor',
+    client: 'Cliente',
+    name: 'Nombre',
+    email: 'Correo',
+    phone: 'Teléfono',
+    mainAddress: 'Dirección principal',
+    noAddress: 'Sin dirección',
+    myInfo: 'Mis datos',
+    addresses: 'Direcciones',
+    myVehicle: 'Mi vehículo',
+    hours: 'Horario',
+    drivers: 'Repartidores',
+    changePassword: 'Cambiar contraseña',
+    help: 'Ayuda',
+    deleteAccount: 'Eliminar cuenta',
+    language: 'Idioma',
+    signOut: 'Cerrar sesión',
+  },
+  en: {
+    title: 'My account',
+    photoPermTitle: 'Photo permission',
+    photoPermBody: 'Enable the photo permission to change your picture.',
+    imageAlertTitle: 'Image',
+    changeAvatar: 'Change profile picture',
+    driver: 'Driver',
+    client: 'Customer',
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone',
+    mainAddress: 'Main address',
+    noAddress: 'No address',
+    myInfo: 'My info',
+    addresses: 'Addresses',
+    myVehicle: 'My vehicle',
+    hours: 'Business hours',
+    drivers: 'Drivers',
+    changePassword: 'Change password',
+    help: 'Help',
+    deleteAccount: 'Delete account',
+    language: 'Language',
+    signOut: 'Sign out',
+  },
+};
 
 // The "Cuenta" tab: who you are, plus the actions that used to live in the top-right drawer.
 export default function AccountScreen() {
   const { signOut } = useAuth();
   const router = useRouter();
+  const { locale, setLocale } = useLocale();
+  const tx = useStrings(S);
   // Seeded from the last fetch rather than null: the tab bar below renders on every pass, and a
   // null profile reads as a client, so a merchant opening Cuenta watched their bar turn into the
   // client one until me() came back. Whatever arrives replaces it.
@@ -54,7 +134,7 @@ export default function AccountScreen() {
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso de fotos', 'Activa el permiso de fotos para cambiar tu imagen.');
+      Alert.alert(tx.photoPermTitle, tx.photoPermBody);
       return;
     }
 
@@ -76,7 +156,7 @@ export default function AccountScreen() {
     setUploading(false);
 
     if (!res.success) {
-      Alert.alert('Imagen', res.message);
+      Alert.alert(tx.imageAlertTitle, res.message);
       return;
     }
     // The endpoint answers with the stored image's URL, so there is nothing to refetch.
@@ -90,7 +170,7 @@ export default function AccountScreen() {
             The bell counts the audience this account belongs to, same as its home screen. */}
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <View style={styles.header}>
-            <Text style={styles.title}>Mi cuenta</Text>
+            <Text style={styles.title}>{tx.title}</Text>
             {/* Only a customer has a cart; a driver or a merchant would be shown a button that
                 leads nowhere they can use. */}
             {navVariant === 'client' ? <CartButton /> : null}
@@ -110,7 +190,7 @@ export default function AccountScreen() {
                 onPress={pickImage}
                 disabled={uploading}
                 accessibilityRole="button"
-                accessibilityLabel="Cambiar imagen de perfil"
+                accessibilityLabel={tx.changeAvatar}
               >
                 <View style={styles.avatar}>
                   {imageUrl
@@ -125,30 +205,50 @@ export default function AccountScreen() {
                 </View>
               </Pressable>
               <View style={{ flex: 1 }}>
-                <Text style={styles.name} numberOfLines={1}>{fullName || (isDriver ? 'Repartidor' : 'Cliente')}</Text>
+                <Text style={styles.name} numberOfLines={1}>{fullName || (isDriver ? tx.driver : tx.client)}</Text>
                 {profile?.email ? <Text style={styles.email} numberOfLines={1}>{profile.email}</Text> : null}
               </View>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.label}>Nombre</Text>
+              <Text style={styles.label}>{tx.name}</Text>
               <Text style={styles.value}>{fullName || '—'}</Text>
-              <Text style={[styles.label, styles.labelSpaced]}>Correo</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.email}</Text>
               <Text style={styles.value}>{profile?.email ?? '—'}</Text>
-              <Text style={[styles.label, styles.labelSpaced]}>Teléfono</Text>
+              <Text style={[styles.label, styles.labelSpaced]}>{tx.phone}</Text>
               <Text style={styles.value}>{profile?.phone || '—'}</Text>
               {!isDriver ? (
                 <>
-                  <Text style={[styles.label, styles.labelSpaced]}>Dirección principal</Text>
-                  <Text style={styles.value}>{profile?.address || 'Sin dirección'}</Text>
+                  <Text style={[styles.label, styles.labelSpaced]}>{tx.mainAddress}</Text>
+                  <Text style={styles.value}>{profile?.address || tx.noAddress}</Text>
                 </>
               ) : null}
+            </View>
+
+            {/* Language: applies immediately and is remembered on this device. */}
+            <View style={styles.card}>
+              <Text style={styles.label}>{tx.language}</Text>
+              <View style={styles.langRow}>
+                {LOCALES.map((l) => (
+                  <Pressable
+                    key={l}
+                    onPress={() => setLocale(l)}
+                    style={[styles.langPill, locale === l && styles.langPillActive]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: locale === l }}
+                  >
+                    <Text style={[styles.langPillText, locale === l && styles.langPillTextActive]}>
+                      {LOCALE_LABELS[l]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             <View style={styles.card}>
               <Pressable style={styles.row} onPress={() => router.push('/edit-profile')}>
                 <FontAwesome5 name="user-edit" size={15} solid color={t.text} style={styles.rowIcon} />
-                <Text style={styles.rowText}>Mis datos</Text>
+                <Text style={styles.rowText}>{tx.myInfo}</Text>
                 <Text style={styles.rowChevron}>›</Text>
               </Pressable>
               <View style={styles.rowDivider} />
@@ -159,7 +259,7 @@ export default function AccountScreen() {
                 <>
                   <Pressable style={styles.row} onPress={() => router.push('/addresses')}>
                     <FontAwesome5 name="map-marker-alt" size={17} solid color={t.text} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>Direcciones</Text>
+                    <Text style={styles.rowText}>{tx.addresses}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
@@ -169,7 +269,7 @@ export default function AccountScreen() {
                 <>
                   <Pressable style={styles.row} onPress={() => router.push('/vehicle')}>
                     <FontAwesome5 name="motorcycle" size={16} solid color={t.text} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>Mi vehículo</Text>
+                    <Text style={styles.rowText}>{tx.myVehicle}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
@@ -180,14 +280,14 @@ export default function AccountScreen() {
                 <>
                   <Pressable style={styles.row} onPress={() => router.push('/business-hours')}>
                     <FontAwesome5 name="clock" size={16} solid color={t.text} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>Horario</Text>
+                    <Text style={styles.rowText}>{tx.hours}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
                   {/* The merchant's fleet: linked drivers and the public-orders switch. */}
                   <Pressable style={styles.row} onPress={() => router.push('/merchant-drivers')}>
                     <FontAwesome5 name="motorcycle" size={15} solid color={t.text} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>Repartidores</Text>
+                    <Text style={styles.rowText}>{tx.drivers}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
@@ -204,7 +304,7 @@ export default function AccountScreen() {
                 <>
                   <Pressable style={styles.row} onPress={() => router.push('/change-password')}>
                     <FontAwesome5 name="lock" size={16} solid color={t.text} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>Cambiar contraseña</Text>
+                    <Text style={styles.rowText}>{tx.changePassword}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />
@@ -212,7 +312,7 @@ export default function AccountScreen() {
               ) : null}
               <Pressable style={styles.row} onPress={() => router.push('/help')}>
                 <FontAwesome5 name="question-circle" size={17} solid color={t.text} style={styles.rowIcon} />
-                <Text style={styles.rowText}>Ayuda</Text>
+                <Text style={styles.rowText}>{tx.help}</Text>
                 <Text style={styles.rowChevron}>›</Text>
               </Pressable>
               <View style={styles.rowDivider} />
@@ -222,14 +322,14 @@ export default function AccountScreen() {
                   from here. */}
               <Pressable style={styles.row} onPress={() => router.push('/delete-account')}>
                 <FontAwesome5 name="user-slash" size={14} solid color={t.danger} style={styles.rowIcon} />
-                <Text style={[styles.rowText, styles.rowTextDanger]}>Eliminar cuenta</Text>
+                <Text style={[styles.rowText, styles.rowTextDanger]}>{tx.deleteAccount}</Text>
                 <Text style={[styles.rowChevron, styles.rowTextDanger]}>›</Text>
               </Pressable>
             </View>
 
             <Pressable style={styles.logout} onPress={signOut}>
               <FontAwesome5 name="sign-out-alt" size={16} solid color={t.danger} />
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
+              <Text style={styles.logoutText}>{tx.signOut}</Text>
             </Pressable>
           </ScrollView>
         )}
@@ -269,6 +369,12 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
   labelSpaced: { marginTop: 14 },
   value: { fontSize: 15, color: t.text, marginTop: 4, fontWeight: '600' },
+
+  langRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  langPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: t.border, backgroundColor: t.card },
+  langPillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  langPillText: { color: t.text, fontWeight: '700' },
+  langPillTextActive: { color: t.onAccent },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 2 },
   rowDivider: { height: 1, backgroundColor: t.border, marginVertical: 12 },

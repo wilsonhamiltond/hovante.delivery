@@ -2,9 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MapAuthError } from './MapAuthError';
 import { routeMapHtml, type DriverPosition, type RouteMapProps } from './routeMapHtml';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { frameTitle: string }> = {
+  es: { frameTitle: 'Mapa de la ruta' },
+  en: { frameTitle: 'Route map' },
+};
 
 // Web: the map in a real <iframe> (this file only loads on web).
 export function RouteMap({ pickup, client, driver }: RouteMapProps) {
+  const tx = useStrings(S);
   const html = useRef(routeMapHtml(pickup, client)).current;
   const frame = useRef<HTMLIFrameElement>(null);
   const last = useRef(driver ?? null);
@@ -40,7 +47,7 @@ export function RouteMap({ pickup, client, driver }: RouteMapProps) {
       <iframe
         ref={frame}
         srcDoc={html}
-        title="Mapa de la ruta"
+        title={tx.frameTitle}
         style={{ border: 0, width: '100%', height: '100%' }}
         onLoad={() => { if (last.current) push(last.current); }}
       />

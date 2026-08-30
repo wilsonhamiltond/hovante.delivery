@@ -4,6 +4,7 @@ import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-rout
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../src/auth';
+import { LocaleProvider } from '../src/i18n';
 import { AuthPromptProvider } from '../src/AuthPrompt';
 import { CartProvider } from '../src/cart';
 import { SessionLocationProvider } from '../src/sessionLocation';
@@ -149,6 +150,7 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <LocaleProvider>
       <AuthProvider>
         <SessionLocationProvider>
         <CartProvider>
@@ -158,6 +160,7 @@ export default function RootLayout() {
         </CartProvider>
         </SessionLocationProvider>
       </AuthProvider>
+      </LocaleProvider>
     </SafeAreaProvider>
   );
 }

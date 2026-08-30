@@ -2,6 +2,14 @@ import { MAPS_ENABLED } from './config';
 import { loaderTag, missingKeyHtml } from './mapHtml';
 import { markersJs } from './mapMarkersJs';
 import type { MapPoint } from './routeMapHtml';
+import { strings, type Locale } from './i18n';
+
+// The only user-visible text this document itself carries (pin labels and titles arrive already
+// written by the caller). Read when the HTML is generated.
+const S: Record<Locale, { missingKey: string }> = {
+  es: { missingKey: 'Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.' },
+  en: { missingKey: 'Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to see the map.' },
+};
 
 // A read-only map of N markers (branch choice, the driver home's pickup pool). Same conventions as
 // routeMapHtml -- no React/RN imports so the web iframe and the native WebView share it, and a
@@ -19,7 +27,7 @@ import type { MapPoint } from './routeMapHtml';
 
 export function pointsMapHtml(points: MapPoint[], routeFromDriver = false): string {
   if (!MAPS_ENABLED) {
-    return missingKeyHtml('Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.');
+    return missingKeyHtml(strings(S).missingKey);
   }
 
   const enc = JSON.stringify(points.map((p) => ({

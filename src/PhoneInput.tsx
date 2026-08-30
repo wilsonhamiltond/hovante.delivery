@@ -4,6 +4,33 @@ import type { CountryCode } from 'libphonenumber-js';
 import { COUNTRIES, countryByIso, searchCountries, type Country } from './countries';
 import { maskPhone, parsePhone } from './profileForm';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    countryA11y: (name: string, dial: string) => string;
+    phonePlaceholder: string;
+    countryTitle: string;
+    searchPlaceholder: string;
+    noResults: string;
+  }
+> = {
+  es: {
+    countryA11y: (name, dial) => `País: ${name}, +${dial}`,
+    phonePlaceholder: 'Número de teléfono',
+    countryTitle: 'País',
+    searchPlaceholder: 'Buscar país o código',
+    noResults: 'Sin resultados',
+  },
+  en: {
+    countryA11y: (name, dial) => `Country: ${name}, +${dial}`,
+    phonePlaceholder: 'Phone number',
+    countryTitle: 'Country',
+    searchPlaceholder: 'Search country or code',
+    noResults: 'No results',
+  },
+};
 
 interface Props {
   country: CountryCode;
@@ -20,6 +47,7 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const selected = countryByIso(country);
+  const tx = useStrings(S);
 
   const results = useMemo(() => searchCountries(query), [query]);
 
@@ -38,7 +66,7 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
           style={styles.country}
           onPress={() => setOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel={`País: ${selected.name}, +${selected.dial}`}
+          accessibilityLabel={tx.countryA11y(selected.name, selected.dial)}
         >
           <Text style={styles.flag}>{selected.flag}</Text>
           <Text style={styles.dial}>+{selected.dial}</Text>
@@ -58,7 +86,7 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
             }
             onChange({ country, national: maskPhone(v, country) });
           }}
-          placeholder={placeholder ?? 'Número de teléfono'}
+          placeholder={placeholder ?? tx.phonePlaceholder}
           placeholderTextColor={t.textFaint}
           keyboardType="phone-pad"
           // The country is chosen beside it, so a leading + typed here would be a second one.
@@ -70,12 +98,12 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <View style={styles.handle} />
-            <Text style={styles.title}>País</Text>
+            <Text style={styles.title}>{tx.countryTitle}</Text>
             <TextInput
               style={styles.search}
               value={query}
               onChangeText={setQuery}
-              placeholder="Buscar país o código"
+              placeholder={tx.searchPlaceholder}
               placeholderTextColor={t.textFaint}
               autoCapitalize="none"
               autoFocus
@@ -87,7 +115,7 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
               // 245 rows: virtualised, and a fixed row height lets it skip measuring every one.
               getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
               initialNumToRender={14}
-              ListEmptyComponent={<Text style={styles.empty}>Sin resultados</Text>}
+              ListEmptyComponent={<Text style={styles.empty}>{tx.noResults}</Text>}
               renderItem={({ item }) => {
                 const active = item.iso === country;
                 return (

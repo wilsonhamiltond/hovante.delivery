@@ -7,14 +7,159 @@ import * as api from '../../src/api';
 import { setFlash } from '../../src/flash';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { GradientBackground, t } from '../../src/theme';
+import { useStrings, type Locale } from '../../src/i18n';
 
 // The locales a translation can be written in. Spanish is the base language -- the product's own
 // name and description above -- so it is deliberately not offered (mirrors the ERP's editor).
 const LOCALES = [
-  { code: 'en', label: 'Inglés (en)' },
-  { code: 'fr', label: 'Francés (fr)' },
+  { code: 'en' },
+  { code: 'fr' },
 ];
-const localeLabel = (code: string) => LOCALES.find((l) => l.code === code)?.label ?? code;
+
+const S: Record<
+  Locale,
+  {
+    localeLabel: (code: string) => string;
+    trNameRequired: string;
+    cameraPermTitle: string;
+    cameraPermBody: string;
+    photoPermTitle: string;
+    photoPermBody: string;
+    photoSourceTitle: string;
+    photoSourceBody: string;
+    camera: string;
+    gallery: string;
+    cancel: string;
+    nameRequired: string;
+    priceInvalid: string;
+    savedButImageFailed: (message: string) => string;
+    imageUpdated: string;
+    saved: string;
+    backToProducts: string;
+    newProduct: string;
+    editProduct: string;
+    changePhoto: string;
+    addPhoto: string;
+    uploadOnSave: string;
+    photoHintWeb: string;
+    photoHint: string;
+    name: string;
+    namePlaceholder: string;
+    description: string;
+    descriptionPlaceholder: string;
+    price: string;
+    forSale: string;
+    forSaleOn: string;
+    forSaleOff: string;
+    translations: string;
+    addTranslation: string;
+    saveFirst: string;
+    noTranslations: string;
+    editTranslation: (locale: string) => string;
+    newTranslation: string;
+    language: string;
+    trNamePlaceholder: string;
+    trDescriptionPlaceholder: string;
+    saveTranslation: string;
+    createProduct: string;
+    saveChanges: string;
+  }
+> = {
+  es: {
+    localeLabel: (code) =>
+      code === 'en' ? 'Inglés (en)' : code === 'fr' ? 'Francés (fr)' : code,
+    trNameRequired: 'El nombre traducido es requerido.',
+    cameraPermTitle: 'Permiso de cámara',
+    cameraPermBody: 'Activa el permiso de cámara para tomar la foto del producto.',
+    photoPermTitle: 'Permiso de fotos',
+    photoPermBody: 'Activa el permiso de fotos para agregar una imagen.',
+    photoSourceTitle: 'Foto del producto',
+    photoSourceBody: '¿De dónde la tomamos?',
+    camera: 'Cámara',
+    gallery: 'Galería',
+    cancel: 'Cancelar',
+    nameRequired: 'El nombre es requerido.',
+    priceInvalid: 'Escribe un precio válido.',
+    savedButImageFailed: (message) => `El producto se guardó, pero la imagen no: ${message}`,
+    imageUpdated: ' Imagen actualizada.',
+    saved: 'Guardado.',
+    backToProducts: 'Productos',
+    newProduct: 'Nuevo producto',
+    editProduct: 'Editar producto',
+    changePhoto: 'Cambiar foto',
+    addPhoto: 'Agregar foto',
+    uploadOnSave: 'Se subirá al guardar',
+    photoHintWeb: 'Cuadrada, es lo que ven los clientes',
+    photoHint: 'Cámara o galería · cuadrada, es lo que ven los clientes',
+    name: 'Nombre',
+    namePlaceholder: 'Ej: Cerveza Presidente 650ml',
+    description: 'Descripción (opcional)',
+    descriptionPlaceholder: 'Ej: Botella fría, 650 ml',
+    price: 'Precio (RD$)',
+    forSale: 'En venta',
+    forSaleOn: 'Los clientes pueden pedirlo',
+    forSaleOff: 'No aparece en el mercado',
+    translations: 'Traducciones',
+    addTranslation: '+ Agregar',
+    saveFirst: 'Guarda el producto primero para agregar traducciones.',
+    noTranslations: 'Sin traducciones. El nombre y la descripción de arriba son la versión en español; usa “+ Agregar” para inglés o francés.',
+    editTranslation: (locale) => `Editar traducción (${locale})`,
+    newTranslation: 'Nueva traducción',
+    language: 'Idioma',
+    trNamePlaceholder: 'Ej: Presidente beer 650ml',
+    trDescriptionPlaceholder: 'Ej: Cold bottle, 650 ml',
+    saveTranslation: 'Guardar traducción',
+    createProduct: 'Crear producto',
+    saveChanges: 'Guardar cambios',
+  },
+  en: {
+    localeLabel: (code) =>
+      code === 'en' ? 'English (en)' : code === 'fr' ? 'French (fr)' : code,
+    trNameRequired: 'The translated name is required.',
+    cameraPermTitle: 'Camera permission',
+    cameraPermBody: 'Enable the camera permission to take the product photo.',
+    photoPermTitle: 'Photo permission',
+    photoPermBody: 'Enable the photo permission to add an image.',
+    photoSourceTitle: 'Product photo',
+    photoSourceBody: 'Where should it come from?',
+    camera: 'Camera',
+    gallery: 'Gallery',
+    cancel: 'Cancel',
+    nameRequired: 'The name is required.',
+    priceInvalid: 'Enter a valid price.',
+    savedButImageFailed: (message) => `The product was saved, but the image was not: ${message}`,
+    imageUpdated: ' Image updated.',
+    saved: 'Saved.',
+    backToProducts: 'Products',
+    newProduct: 'New product',
+    editProduct: 'Edit product',
+    changePhoto: 'Change photo',
+    addPhoto: 'Add photo',
+    uploadOnSave: 'Will be uploaded on save',
+    photoHintWeb: 'Square — it is what customers see',
+    photoHint: 'Camera or gallery · square, it is what customers see',
+    name: 'Name',
+    namePlaceholder: 'E.g. Presidente beer 650ml',
+    description: 'Description (optional)',
+    descriptionPlaceholder: 'E.g. Cold bottle, 650 ml',
+    price: 'Price (RD$)',
+    forSale: 'For sale',
+    forSaleOn: 'Customers can order it',
+    forSaleOff: 'Not shown in the marketplace',
+    translations: 'Translations',
+    addTranslation: '+ Add',
+    saveFirst: 'Save the product first to add translations.',
+    noTranslations: 'No translations. The name and description above are the Spanish version; use “+ Add” for English or French.',
+    editTranslation: (locale) => `Edit translation (${locale})`,
+    newTranslation: 'New translation',
+    language: 'Language',
+    trNamePlaceholder: 'E.g. Presidente beer 650ml',
+    trDescriptionPlaceholder: 'E.g. Cold bottle, 650 ml',
+    saveTranslation: 'Save translation',
+    createProduct: 'Create product',
+    saveChanges: 'Save changes',
+  },
+};
 
 // The merchant's add/edit product form as its own page, reached from the Productos list. `id` is
 // "new" when creating; when editing, the product's current fields ride along as route params --
@@ -22,6 +167,7 @@ const localeLabel = (code: string) => LOCALES.find((l) => l.code === code)?.labe
 // shows. On web those params live in the URL, so a refresh keeps the form filled.
 export default function MerchantProductFormScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const params = useLocalSearchParams<{
     id: string; name?: string; description?: string; price?: string; active?: string; imageUrl?: string;
   }>();
@@ -87,7 +233,7 @@ export default function MerchantProductFormScreen() {
 
   const saveTranslation = async () => {
     if (!productId) return;
-    if (!trName.trim()) { setTrError('El nombre traducido es requerido.'); return; }
+    if (!trName.trim()) { setTrError(tx.trNameRequired); return; }
     setTrSaving(true);
     setTrError(null);
     const res = await api.saveMerchantProductTranslation(productId, {
@@ -131,7 +277,7 @@ export default function MerchantProductFormScreen() {
   const takePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso de cámara', 'Activa el permiso de cámara para tomar la foto del producto.');
+      Alert.alert(tx.cameraPermTitle, tx.cameraPermBody);
       return;
     }
     applyPicked(await ImagePicker.launchCameraAsync(photoOptions));
@@ -140,7 +286,7 @@ export default function MerchantProductFormScreen() {
   const pickFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso de fotos', 'Activa el permiso de fotos para agregar una imagen.');
+      Alert.alert(tx.photoPermTitle, tx.photoPermBody);
       return;
     }
     applyPicked(await ImagePicker.launchImageLibraryAsync(photoOptions));
@@ -151,10 +297,10 @@ export default function MerchantProductFormScreen() {
   // would swallow the tap instead of presenting itself.
   const pickPhoto = () => {
     if (Platform.OS === 'web') { void pickFromLibrary(); return; }
-    Alert.alert('Foto del producto', '¿De dónde la tomamos?', [
-      { text: 'Cámara', onPress: () => { void takePhoto(); } },
-      { text: 'Galería', onPress: () => { void pickFromLibrary(); } },
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(tx.photoSourceTitle, tx.photoSourceBody, [
+      { text: tx.camera, onPress: () => { void takePhoto(); } },
+      { text: tx.gallery, onPress: () => { void pickFromLibrary(); } },
+      { text: tx.cancel, style: 'cancel' },
     ]);
   };
 
@@ -162,8 +308,8 @@ export default function MerchantProductFormScreen() {
     // Accepts "1.250,50" as well as "1250.50": a price typed on a Dominican phone should not be
     // rejected for its separators.
     const parsed = Number(price.replace(/\./g, '').replace(',', '.'));
-    if (!name.trim()) { setFormError('El nombre es requerido.'); return; }
-    if (!Number.isFinite(parsed) || parsed < 0) { setFormError('Escribe un precio válido.'); return; }
+    if (!name.trim()) { setFormError(tx.nameRequired); return; }
+    if (!Number.isFinite(parsed) || parsed < 0) { setFormError(tx.priceInvalid); return; }
 
     setSaving(true);
     setFormError(null);
@@ -194,15 +340,15 @@ export default function MerchantProductFormScreen() {
         setProductId(res.data.id);
         setPickedPhoto(null);
         setPhotoUrl(res.data.imageUrl ?? photoUrl);
-        setFormError(`El producto se guardó, pero la imagen no: ${up.message}`);
+        setFormError(tx.savedButImageFailed(up.message));
         return;
       }
-      photoNote = ' Imagen actualizada.';
+      photoNote = tx.imageUpdated;
     }
 
     setSaving(false);
     // The list refreshes itself on focus; this hands it the confirmation to show above the rows.
-    setFlash(`${res.message || 'Guardado.'}${photoNote}`);
+    setFlash(`${res.message || tx.saved}${photoNote}`);
     back();
   };
 
@@ -210,8 +356,8 @@ export default function MerchantProductFormScreen() {
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <BackButton onPress={back} label="Productos" />
-          <Text style={styles.title}>{creating ? 'Nuevo producto' : 'Editar producto'}</Text>
+          <BackButton onPress={back} label={tx.backToProducts} />
+          <Text style={styles.title}>{creating ? tx.newProduct : tx.editProduct}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -228,39 +374,39 @@ export default function MerchantProductFormScreen() {
               )}
               <View style={{ flex: 1 }}>
                 <Text style={styles.photoTitle}>
-                  {pickedPhoto || photoUrl ? 'Cambiar foto' : 'Agregar foto'}
+                  {pickedPhoto || photoUrl ? tx.changePhoto : tx.addPhoto}
                 </Text>
                 <Text style={styles.photoSub}>
                   {pickedPhoto
-                    ? 'Se subirá al guardar'
+                    ? tx.uploadOnSave
                     // Naming both sources is what makes the camera discoverable: the control looks
                     // the same either way, so nothing else tells them taking one is an option.
                     : Platform.OS === 'web'
-                      ? 'Cuadrada, es lo que ven los clientes'
-                      : 'Cámara o galería · cuadrada, es lo que ven los clientes'}
+                      ? tx.photoHintWeb
+                      : tx.photoHint}
                 </Text>
               </View>
             </Pressable>
 
-            <Text style={styles.label}>Nombre</Text>
+            <Text style={styles.label}>{tx.name}</Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="Ej: Cerveza Presidente 650ml"
+              placeholder={tx.namePlaceholder}
               placeholderTextColor={t.textFaint}
             />
 
-            <Text style={styles.label}>Descripción (opcional)</Text>
+            <Text style={styles.label}>{tx.description}</Text>
             <TextInput
               style={styles.input}
               value={description}
               onChangeText={setDescription}
-              placeholder="Ej: Botella fría, 650 ml"
+              placeholder={tx.descriptionPlaceholder}
               placeholderTextColor={t.textFaint}
             />
 
-            <Text style={styles.label}>Precio (RD$)</Text>
+            <Text style={styles.label}>{tx.price}</Text>
             {/* The numeric keyboard's enter key does nothing by itself: "done" makes it a
                 checkmark and the submit handler puts the keyboard away, since the price is the
                 last thing typed before the toggle and the save button. */}
@@ -280,9 +426,9 @@ export default function MerchantProductFormScreen() {
                 {active ? <Text style={styles.checkboxTick}>✓</Text> : null}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.toggleTitle}>En venta</Text>
+                <Text style={styles.toggleTitle}>{tx.forSale}</Text>
                 <Text style={styles.toggleSub}>
-                  {active ? 'Los clientes pueden pedirlo' : 'No aparece en el mercado'}
+                  {active ? tx.forSaleOn : tx.forSaleOff}
                 </Text>
               </View>
             </Pressable>
@@ -290,19 +436,18 @@ export default function MerchantProductFormScreen() {
             {/* Traducciones: what the product is called in the app's other languages. The rows are
                 the saved set; tapping one reopens it in the popover. */}
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Traducciones</Text>
+              <Text style={styles.sectionTitle}>{tx.translations}</Text>
               {productId && !allLocalesUsed ? (
                 <Pressable onPress={openTrCreate} hitSlop={8} accessibilityRole="button">
-                  <Text style={styles.sectionAction}>+ Agregar</Text>
+                  <Text style={styles.sectionAction}>{tx.addTranslation}</Text>
                 </Pressable>
               ) : null}
             </View>
             {!productId ? (
-              <Text style={styles.trEmpty}>Guarda el producto primero para agregar traducciones.</Text>
+              <Text style={styles.trEmpty}>{tx.saveFirst}</Text>
             ) : translations.length === 0 ? (
               <Text style={styles.trEmpty}>
-                Sin traducciones. El nombre y la descripción de arriba son la versión en español;
-                usa “+ Agregar” para inglés o francés.
+                {tx.noTranslations}
               </Text>
             ) : (
               translations.map((tr) => (
@@ -324,10 +469,10 @@ export default function MerchantProductFormScreen() {
             <Pressable style={[styles.primary, saving && styles.disabled]} disabled={saving} onPress={save}>
               {saving
                 ? <ActivityIndicator color={t.onAccent} />
-                : <Text style={styles.primaryText}>{creating && !productId ? 'Crear producto' : 'Guardar cambios'}</Text>}
+                : <Text style={styles.primaryText}>{creating && !productId ? tx.createProduct : tx.saveChanges}</Text>}
             </Pressable>
             <Pressable onPress={back} disabled={saving}>
-              <Text style={styles.cancel}>Cancelar</Text>
+              <Text style={styles.cancel}>{tx.cancel}</Text>
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -338,12 +483,12 @@ export default function MerchantProductFormScreen() {
           <Pressable style={styles.scrim} onPress={() => setTrOpen(false)}>
             <Pressable style={styles.sheet} onPress={() => {}}>
               <Text style={styles.sheetTitle}>
-                {trEditing ? `Editar traducción (${localeLabel(trEditing)})` : 'Nueva traducción'}
+                {trEditing ? tx.editTranslation(tx.localeLabel(trEditing)) : tx.newTranslation}
               </Text>
 
               {trEditing ? null : (
                 <>
-                  <Text style={styles.label}>Idioma</Text>
+                  <Text style={styles.label}>{tx.language}</Text>
                   <View style={styles.localeRow}>
                     {LOCALES.map((l) => {
                       const taken = translations.some((t) => t.locale === l.code);
@@ -357,7 +502,7 @@ export default function MerchantProductFormScreen() {
                           onPress={() => setTrLocale(l.code)}
                           accessibilityRole="button"
                         >
-                          <Text style={[styles.localeChipText, on && styles.localeChipTextOn]}>{l.label}</Text>
+                          <Text style={[styles.localeChipText, on && styles.localeChipTextOn]}>{tx.localeLabel(l.code)}</Text>
                         </Pressable>
                       );
                     })}
@@ -365,21 +510,21 @@ export default function MerchantProductFormScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>Nombre</Text>
+              <Text style={styles.label}>{tx.name}</Text>
               <TextInput
                 style={styles.input}
                 value={trName}
                 onChangeText={setTrName}
-                placeholder="Ej: Presidente beer 650ml"
+                placeholder={tx.trNamePlaceholder}
                 placeholderTextColor={t.textFaint}
               />
 
-              <Text style={styles.label}>Descripción (opcional)</Text>
+              <Text style={styles.label}>{tx.description}</Text>
               <TextInput
                 style={styles.input}
                 value={trDescription}
                 onChangeText={setTrDescription}
-                placeholder="Ej: Cold bottle, 650 ml"
+                placeholder={tx.trDescriptionPlaceholder}
                 placeholderTextColor={t.textFaint}
               />
 
@@ -388,10 +533,10 @@ export default function MerchantProductFormScreen() {
               <Pressable style={[styles.primary, trSaving && styles.disabled]} disabled={trSaving} onPress={saveTranslation}>
                 {trSaving
                   ? <ActivityIndicator color={t.onAccent} />
-                  : <Text style={styles.primaryText}>Guardar traducción</Text>}
+                  : <Text style={styles.primaryText}>{tx.saveTranslation}</Text>}
               </Pressable>
               <Pressable onPress={() => setTrOpen(false)} disabled={trSaving}>
-                <Text style={styles.cancel}>Cancelar</Text>
+                <Text style={styles.cancel}>{tx.cancel}</Text>
               </Pressable>
             </Pressable>
           </Pressable>

@@ -7,23 +7,73 @@ import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
 import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { useStrings, type Locale } from '../src/i18n';
 
-const STATUS: Record<string, { label: string; color: string }> = {
-  DELIVERED: { label: 'Entregada', color: '#16a34a' },
-  FAILED: { label: 'Fallida', color: '#dc2626' },
-  RETURNED: { label: 'Devuelta', color: '#dc2626' },
-  CANCELLED: { label: 'Cancelada', color: '#94a3b8' },
+const STATUS_COLORS: Record<string, string> = {
+  DELIVERED: '#16a34a',
+  FAILED: '#dc2626',
+  RETURNED: '#dc2626',
+  CANCELLED: '#94a3b8',
 };
 
-const fmtDate = (iso: string | null): string => {
+const S: Record<
+  Locale,
+  {
+    status: Record<string, string>;
+    dateLocale: string;
+    title: string;
+    empty: string;
+    delivery: string;
+    recipient: string;
+    noAddress: string;
+    receivedByPrefix: string;
+    reasonPrefix: string;
+  }
+> = {
+  es: {
+    status: {
+      DELIVERED: 'Entregada',
+      FAILED: 'Fallida',
+      RETURNED: 'Devuelta',
+      CANCELLED: 'Cancelada',
+    },
+    dateLocale: 'es-DO',
+    title: 'Historial de entregas',
+    empty: 'Aún no tienes entregas finalizadas.',
+    delivery: 'Entrega',
+    recipient: 'Destinatario',
+    noAddress: 'Sin dirección',
+    receivedByPrefix: 'Recibió: ',
+    reasonPrefix: 'Motivo: ',
+  },
+  en: {
+    status: {
+      DELIVERED: 'Delivered',
+      FAILED: 'Failed',
+      RETURNED: 'Returned',
+      CANCELLED: 'Cancelled',
+    },
+    dateLocale: 'en-US',
+    title: 'Delivery history',
+    empty: 'You have no finished deliveries yet.',
+    delivery: 'Delivery',
+    recipient: 'Recipient',
+    noAddress: 'No address',
+    receivedByPrefix: 'Received by: ',
+    reasonPrefix: 'Reason: ',
+  },
+};
+
+const fmtDate = (iso: string | null, locale: string): string => {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' · ' + d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })
+    + ' · ' + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 };
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [items, setItems] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +91,7 @@ export default function HistoryScreen() {
       {/* The header carries the top inset itself, so the solid band reaches the screen edge. */}
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <Text style={styles.title}>Historial de entregas</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <NotificationsButton audience="driver" />
         </View>
       </SafeAreaView>
@@ -53,25 +103,25 @@ export default function HistoryScreen() {
           data={items}
           keyExtractor={(d) => d.id}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>Aún no tienes entregas finalizadas.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{tx.empty}</Text>}
           renderItem={({ item }) => {
-            const s = STATUS[item.status] ?? { label: item.status, color: '#64748b' };
-            const when = fmtDate(item.deliveredAt ?? item.failedAt ?? null);
+            const s = { label: tx.status[item.status] ?? item.status, color: STATUS_COLORS[item.status] ?? '#64748b' };
+            const when = fmtDate(item.deliveredAt ?? item.failedAt ?? null, tx.dateLocale);
             return (
               <Pressable style={styles.card} onPress={() => router.push(`/delivery/${item.id}`)}>
                 <View style={styles.cardTop}>
-                  <Text style={styles.number}>{item.deliveryNumber ?? 'Entrega'}</Text>
+                  <Text style={styles.number}>{item.deliveryNumber ?? tx.delivery}</Text>
                   <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
                 </View>
-                <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? 'Destinatario'}</Text>
+                <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? tx.recipient}</Text>
                 <Text style={styles.address} numberOfLines={1}>
-                  {item.addressLine ?? 'Sin dirección'}{item.city ? `, ${item.city}` : ''}
+                  {item.addressLine ?? tx.noAddress}{item.city ? `, ${item.city}` : ''}
                 </Text>
                 {item.status === 'DELIVERED' && item.receiverName ? (
-                  <Text style={styles.meta}>Recibió: {item.receiverName}</Text>
+                  <Text style={styles.meta}>{tx.receivedByPrefix}{item.receiverName}</Text>
                 ) : null}
                 {item.status === 'FAILED' && item.failureReason ? (
-                  <Text style={styles.meta}>Motivo: {item.failureReason}</Text>
+                  <Text style={styles.meta}>{tx.reasonPrefix}{item.failureReason}</Text>
                 ) : null}
                 {when ? <Text style={styles.when}>{when}</Text> : null}
               </Pressable>

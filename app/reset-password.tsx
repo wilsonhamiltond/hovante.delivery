@@ -4,14 +4,87 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as api from '../src/api';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
 
 // How long the resend link stays disabled after a request. Every tap sends a real email, so a
 // permanently enabled link is a way to flood someone's inbox -- and to burn whatever sending quota
 // the API's mailer has -- by tapping one word repeatedly.
 const RESEND_COOLDOWN_SECONDS = 45;
 
+const S: Record<
+  Locale,
+  {
+    resentNotice: string;
+    enterEmailedCode: string;
+    missingLinkCode: string;
+    passwordTooShort: string;
+    passwordsMismatch: string;
+    doneTitle: string;
+    doneSubtitle: string;
+    signIn: string;
+    title: string;
+    subtitleSent: (email: string) => string;
+    subtitleChoose: string;
+    linkCodePlaceholder: string;
+    newPasswordPlaceholder: string;
+    confirmPasswordPlaceholder: string;
+    savePassword: string;
+    noCode: string;
+    sending: string;
+    resendIn: (s: number) => string;
+    resendCode: string;
+    backToSignIn: string;
+  }
+> = {
+  es: {
+    resentNotice: 'Si existe una cuenta, le enviamos otro código.',
+    enterEmailedCode: 'Escribe el código de 6 dígitos del correo.',
+    missingLinkCode: 'Falta el código del enlace de restablecimiento.',
+    passwordTooShort: 'La contraseña debe tener al menos 7 caracteres.',
+    passwordsMismatch: 'Las contraseñas no coinciden.',
+    doneTitle: 'Contraseña actualizada',
+    doneSubtitle: 'Ya puede iniciar sesión con su nueva contraseña.',
+    signIn: 'Iniciar sesión',
+    title: 'Nueva contraseña',
+    subtitleSent: (email) => `Si existe una cuenta con ${email}, le enviamos un código de 6 dígitos. Escríbalo aquí con su nueva contraseña.`,
+    subtitleChoose: 'Elija una contraseña de al menos 7 caracteres.',
+    linkCodePlaceholder: 'Código del enlace',
+    newPasswordPlaceholder: 'Nueva contraseña',
+    confirmPasswordPlaceholder: 'Confirmar contraseña',
+    savePassword: 'Guardar contraseña',
+    noCode: '¿No recibió el código? ',
+    sending: 'Enviando…',
+    resendIn: (s) => `Reenviar en ${s}s`,
+    resendCode: 'Reenviar código',
+    backToSignIn: 'Volver a iniciar sesión',
+  },
+  en: {
+    resentNotice: 'If an account exists, we sent you another code.',
+    enterEmailedCode: 'Enter the 6-digit code from the email.',
+    missingLinkCode: 'The reset link code is missing.',
+    passwordTooShort: 'The password must be at least 7 characters long.',
+    passwordsMismatch: 'The passwords do not match.',
+    doneTitle: 'Password updated',
+    doneSubtitle: 'You can now sign in with your new password.',
+    signIn: 'Sign in',
+    title: 'New password',
+    subtitleSent: (email) => `If an account exists for ${email}, we sent you a 6-digit code. Enter it here along with your new password.`,
+    subtitleChoose: 'Choose a password of at least 7 characters.',
+    linkCodePlaceholder: 'Code from the link',
+    newPasswordPlaceholder: 'New password',
+    confirmPasswordPlaceholder: 'Confirm password',
+    savePassword: 'Save password',
+    noCode: "Didn't get the code? ",
+    sending: 'Sending…',
+    resendIn: (s) => `Resend in ${s}s`,
+    resendCode: 'Resend code',
+    backToSignIn: 'Back to sign in',
+  },
+};
+
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   // The reset link (hovantedelivery://reset-password?token=...) lands here with the token in params.
   // If opened without one, the person can paste the token from the email instead.
   //
@@ -54,7 +127,7 @@ export default function ResetPasswordScreen() {
     }
     // Hedged like the subtitle above: the endpoint answers identically for an address with no
     // account, so confirming outright that an email went out would leak which addresses exist.
-    setNotice('Si existe una cuenta, le enviamos otro código.');
+    setNotice(tx.resentNotice);
     setCooldown(RESEND_COOLDOWN_SECONDS);
   };
 
@@ -65,15 +138,15 @@ export default function ResetPasswordScreen() {
     // gesture as the sign-up verification step.
     const typedCode = token.trim();
     if (sentTo ? typedCode.length !== 6 : !typedCode) {
-      setError(sentTo ? 'Escribe el código de 6 dígitos del correo.' : 'Falta el código del enlace de restablecimiento.');
+      setError(sentTo ? tx.enterEmailedCode : tx.missingLinkCode);
       return;
     }
     if (password.length < 7) {
-      setError('La contraseña debe tener al menos 7 caracteres.');
+      setError(tx.passwordTooShort);
       return;
     }
     if (password !== confirm) {
-      setError('Las contraseñas no coinciden.');
+      setError(tx.passwordsMismatch);
       return;
     }
     setSubmitting(true);
@@ -94,11 +167,11 @@ export default function ResetPasswordScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>Contraseña actualizada</Text>
-            <Text style={styles.subtitle}>Ya puede iniciar sesión con su nueva contraseña.</Text>
+            <Text style={styles.title}>{tx.doneTitle}</Text>
+            <Text style={styles.subtitle}>{tx.doneSubtitle}</Text>
           </View>
           <Pressable style={styles.button} onPress={() => router.replace('/login')}>
-            <Text style={styles.buttonText}>Iniciar sesión</Text>
+            <Text style={styles.buttonText}>{tx.signIn}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -111,14 +184,14 @@ export default function ResetPasswordScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Text style={styles.title}>Nueva contraseña</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <Text style={styles.subtitle}>
             {/* Deliberately "si existe una cuenta": the request endpoint answers the same whether or
                 not the address is registered, and promising a code outright here would leak which
                 addresses have accounts. */}
             {sentTo
-              ? `Si existe una cuenta con ${sentTo}, le enviamos un código de 6 dígitos. Escríbalo aquí con su nueva contraseña.`
-              : 'Elija una contraseña de al menos 7 caracteres.'}
+              ? tx.subtitleSent(sentTo)
+              : tx.subtitleChoose}
           </Text>
         </View>
 
@@ -142,7 +215,7 @@ export default function ResetPasswordScreen() {
             // whatever the mail carried, pasted whole.
             <TextInput
               style={styles.input}
-              placeholder="Código del enlace"
+              placeholder={tx.linkCodePlaceholder}
               placeholderTextColor={t.textFaint}
               autoCapitalize="none"
               value={token}
@@ -154,7 +227,7 @@ export default function ResetPasswordScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Nueva contraseña"
+          placeholder={tx.newPasswordPlaceholder}
           placeholderTextColor={t.textFaint}
           secureTextEntry
           value={password}
@@ -163,7 +236,7 @@ export default function ResetPasswordScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Confirmar contraseña"
+          placeholder={tx.confirmPasswordPlaceholder}
           placeholderTextColor={t.textFaint}
           secureTextEntry
           value={confirm}
@@ -175,27 +248,27 @@ export default function ResetPasswordScreen() {
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
         <Pressable style={[styles.button, submitting && styles.buttonDisabled]} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>Guardar contraseña</Text>}
+          {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.buttonText}>{tx.savePassword}</Text>}
         </Pressable>
 
         {sentTo ? (
           <View style={styles.resendRow}>
-            <Text style={styles.resendText}>¿No recibió el código? </Text>
+            <Text style={styles.resendText}>{tx.noCode}</Text>
             <Pressable
               onPress={onResend}
               disabled={resending || cooldown > 0 || submitting}
               accessibilityRole="button"
-              accessibilityLabel="Reenviar código"
+              accessibilityLabel={tx.resendCode}
             >
               <Text style={[styles.resendLink, (resending || cooldown > 0) && styles.resendLinkOff]}>
-                {resending ? 'Enviando…' : cooldown > 0 ? `Reenviar en ${cooldown}s` : 'Reenviar código'}
+                {resending ? tx.sending : cooldown > 0 ? tx.resendIn(cooldown) : tx.resendCode}
               </Text>
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.footer}>
-          <Link href="/login" style={styles.link}>Volver a iniciar sesión</Link>
+          <Link href="/login" style={styles.link}>{tx.backToSignIn}</Link>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

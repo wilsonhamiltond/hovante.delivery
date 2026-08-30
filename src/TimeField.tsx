@@ -1,6 +1,36 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { t } from './theme';
+import { strings, useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    am: string;
+    pm: string;
+    hour: string;
+    minutes: string;
+    done: (time: string) => string;
+    cancel: string;
+  }
+> = {
+  es: {
+    am: 'a. m.',
+    pm: 'p. m.',
+    hour: 'Hora',
+    minutes: 'Minutos',
+    done: (time) => `Listo · ${time}`,
+    cancel: 'Cancelar',
+  },
+  en: {
+    am: 'AM',
+    pm: 'PM',
+    hour: 'Hour',
+    minutes: 'Minutes',
+    done: (time) => `Done · ${time}`,
+    cancel: 'Cancel',
+  },
+};
 
 // A time-of-day field: an input-shaped control showing "9:00 a. m." that opens a picker sheet
 // (the QueueTimeModal shape) instead of asking anyone to type "HH:MM" on a phone keyboard. The
@@ -22,9 +52,10 @@ const parse = (v: string): { hour: number; minute: number } => {
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export const formatTime = (v: string): string => {
+  const tx = strings(S);
   const { hour, minute } = parse(v);
   const h12 = hour % 12 === 0 ? 12 : hour % 12;
-  return `${h12}:${pad(minute)} ${hour < 12 ? 'a. m.' : 'p. m.'}`;
+  return `${h12}:${pad(minute)} ${hour < 12 ? tx.am : tx.pm}`;
 };
 
 export function TimeField({ value, title, onChange }: {
@@ -34,6 +65,7 @@ export function TimeField({ value, title, onChange }: {
   title: string;
   onChange: (v: string) => void;
 }) {
+  const tx = useStrings(S);
   const [open, setOpen] = useState(false);
   // The choice being made, committed only by "Listo" -- closing the sheet any other way keeps the
   // field as it was. Seeded from the value each time the sheet opens.
@@ -74,7 +106,7 @@ export function TimeField({ value, title, onChange }: {
 
             {/* a. m. / p. m. first: it halves the hour grid's meaning before an hour is tapped. */}
             <View style={styles.ampmRow}>
-              {[{ label: 'a. m.', pm: false }, { label: 'p. m.', pm: true }].map(({ label, pm }) => {
+              {[{ label: tx.am, pm: false }, { label: tx.pm, pm: true }].map(({ label, pm }) => {
                 const on = isPm === pm;
                 return (
                   <Pressable
@@ -90,7 +122,7 @@ export function TimeField({ value, title, onChange }: {
               })}
             </View>
 
-            <Text style={styles.label}>Hora</Text>
+            <Text style={styles.label}>{tx.hour}</Text>
             <View style={styles.chips}>
               {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => {
                 const on = h12 === h;
@@ -108,7 +140,7 @@ export function TimeField({ value, title, onChange }: {
               })}
             </View>
 
-            <Text style={styles.label}>Minutos</Text>
+            <Text style={styles.label}>{tx.minutes}</Text>
             <View style={styles.chips}>
               {minuteOptions.map((m) => {
                 const on = minute === m;
@@ -128,11 +160,11 @@ export function TimeField({ value, title, onChange }: {
 
             <Pressable style={styles.primary} onPress={confirm} accessibilityRole="button">
               <Text style={styles.primaryText}>
-                Listo · {`${h12}:${pad(minute)} ${isPm ? 'p. m.' : 'a. m.'}`}
+                {tx.done(`${h12}:${pad(minute)} ${isPm ? tx.pm : tx.am}`)}
               </Text>
             </Pressable>
             <Pressable onPress={() => setOpen(false)}>
-              <Text style={styles.cancel}>Cancelar</Text>
+              <Text style={styles.cancel}>{tx.cancel}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

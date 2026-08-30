@@ -5,8 +5,20 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as api from './api';
 import { APPLE_REDIRECT_URI, APPLE_START_URL, parseAppleReturnUrl } from './appleAuth';
-import { EXPO_GO_SOCIAL_MESSAGE, IS_EXPO_GO } from './expoGo';
+import { expoGoSocialMessage, IS_EXPO_GO } from './expoGo';
 import { useAuth } from './auth';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { error: string; label: string }> = {
+  es: {
+    error: 'No se pudo iniciar sesión con Apple.',
+    label: 'Continuar con Apple',
+  },
+  en: {
+    error: 'Could not sign in with Apple.',
+    label: 'Continue with Apple',
+  },
+};
 
 interface Props {
   onError?: (message: string) => void;
@@ -24,6 +36,7 @@ interface Props {
 export function AppleSignInButton({ onError, disabled }: Props) {
   const { signInWithApple } = useAuth();
   const [busy, setBusy] = useState(false);
+  const tx = useStrings(S);
 
   const signInNative = async (): Promise<void> => {
     let credential: AppleAuthentication.AppleAuthenticationCredential;
@@ -37,12 +50,12 @@ export function AppleSignInButton({ onError, disabled }: Props) {
     } catch (e) {
       // The person closed the sheet: nothing to report.
       if ((e as { code?: string })?.code === 'ERR_REQUEST_CANCELED') return;
-      onError?.('No se pudo iniciar sesión con Apple.');
+      onError?.(tx.error);
       return;
     }
 
     if (!credential.identityToken) {
-      onError?.('No se pudo iniciar sesión con Apple.');
+      onError?.(tx.error);
       return;
     }
 
@@ -53,7 +66,7 @@ export function AppleSignInButton({ onError, disabled }: Props) {
 
     const res = await api.loginWithAppleNative(credential.identityToken, name || undefined);
     if (!res.success) {
-      onError?.(res.message || 'No se pudo iniciar sesión con Apple.');
+      onError?.(res.message || tx.error);
       return;
     }
     const err = await signInWithApple(res.data);
@@ -66,7 +79,7 @@ export function AppleSignInButton({ onError, disabled }: Props) {
     // installed app owns, so the browser opens, Apple succeeds, and nothing ever comes back. Say
     // so up front rather than leaving someone staring at a page that will not close.
     if (IS_EXPO_GO) {
-      onError?.(EXPO_GO_SOCIAL_MESSAGE);
+      onError?.(expoGoSocialMessage());
       return;
     }
 
@@ -77,7 +90,7 @@ export function AppleSignInButton({ onError, disabled }: Props) {
 
     const { token, error } = parseAppleReturnUrl(result.url);
     if (!token) {
-      onError?.(error ?? 'No se pudo iniciar sesión con Apple.');
+      onError?.(error ?? tx.error);
       return;
     }
 
@@ -95,7 +108,7 @@ export function AppleSignInButton({ onError, disabled }: Props) {
       if (nativeAvailable) await signInNative();
       else await signInWeb();
     } catch {
-      onError?.('No se pudo iniciar sesión con Apple.');
+      onError?.(tx.error);
     } finally {
       setBusy(false);
     }
@@ -109,14 +122,14 @@ export function AppleSignInButton({ onError, disabled }: Props) {
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel="Continuar con Apple"
+      accessibilityLabel={tx.label}
     >
       {busy ? (
         <ActivityIndicator color="#0f172a" />
       ) : (
         <>
           <FontAwesome5 name="apple" brand size={20} color="#0f172a" style={styles.logoIcon} />
-          <Text style={styles.buttonText}>Continuar con Apple</Text>
+          <Text style={styles.buttonText}>{tx.label}</Text>
         </>
       )}
     </Pressable>

@@ -9,8 +9,41 @@ import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 import { CartButton } from '../src/CartButton';
 import { NotificationsButton } from '../src/NotificationsButton';
 import { orderStatusChip } from '../src/orderStatus';
+import { useStrings, type Locale } from '../src/i18n';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
+
+const S: Record<
+  Locale,
+  {
+    deliveryFee: (amount: string) => string;
+    track: string;
+    title: string;
+    noOrders: string;
+    inProgress: string;
+    history: string;
+    noPastOrders: string;
+  }
+> = {
+  es: {
+    deliveryFee: (amount) => `Envío ${amount}`,
+    track: 'Seguir ›',
+    title: 'Mis pedidos',
+    noOrders: 'Aún no tienes pedidos.',
+    inProgress: 'En curso',
+    history: 'Historial',
+    noPastOrders: 'Sin pedidos anteriores.',
+  },
+  en: {
+    deliveryFee: (amount) => `Delivery ${amount}`,
+    track: 'Track ›',
+    title: 'My orders',
+    noOrders: "You don't have any orders yet.",
+    inProgress: 'In progress',
+    history: 'History',
+    noPastOrders: 'No previous orders.',
+  },
+};
 
 // How many history rows each page brings; the list asks for the next page as the end scrolls near.
 const HISTORY_PAGE = 10;
@@ -19,6 +52,7 @@ const HISTORY_PAGE = 10;
 // and the tracking screen, so one order never reads as two different states in two places.
 
 function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
+  const tx = useStrings(S);
   const s = orderStatusChip(order);
   return (
     <Pressable style={styles.card} onPress={onPress}>
@@ -35,11 +69,11 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
           {/* Grand total (products + envío); the fee spelled out above it so the number is
               explained. Orders without a stored fee show the products total alone. */}
           {order.deliveryFee != null ? (
-            <Text style={styles.fee}>Envío {money(order.deliveryFee)}</Text>
+            <Text style={styles.fee}>{tx.deliveryFee(money(order.deliveryFee))}</Text>
           ) : null}
           <Text style={styles.total}>{money(order.total + (order.deliveryFee ?? 0))}</Text>
         </View>
-        <Text style={styles.track}>Seguir ›</Text>
+        <Text style={styles.track}>{tx.track}</Text>
       </View>
     </Pressable>
   );
@@ -49,6 +83,7 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
 // arrive with the screen, and each time the end comes into view the next page is appended.
 export default function OrdersScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [active, setActive] = useState<Order[]>([]);
   const [history, setHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +132,7 @@ export default function OrdersScreen() {
           any customer screen, not only the home. */}
       <View style={styles.headerSafe}>
         <View style={styles.header}>
-          <Text style={styles.title}>Mis pedidos</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <CartButton />
           <NotificationsButton audience="client" style={styles.bellBtn} />
         </View>
@@ -116,18 +151,18 @@ export default function OrdersScreen() {
           ListHeaderComponent={
             <View style={styles.headerBlock}>
               {active.length === 0 && history.length === 0 ? (
-                <Text style={styles.empty}>Aún no tienes pedidos.</Text>
+                <Text style={styles.empty}>{tx.noOrders}</Text>
               ) : (
                 <>
                   {active.length > 0 ? (
                     <>
-                      <Text style={styles.sectionTitle}>En curso</Text>
+                      <Text style={styles.sectionTitle}>{tx.inProgress}</Text>
                       {active.map((o) => <OrderCard key={o.id} order={o} onPress={() => open(o.id)} />)}
                     </>
                   ) : null}
-                  <Text style={styles.sectionTitle}>Historial</Text>
+                  <Text style={styles.sectionTitle}>{tx.history}</Text>
                   {history.length === 0 ? (
-                    <Text style={styles.empty}>Sin pedidos anteriores.</Text>
+                    <Text style={styles.empty}>{tx.noPastOrders}</Text>
                   ) : null}
                 </>
               )}

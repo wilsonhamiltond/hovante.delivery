@@ -2,11 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MapAuthError } from './MapAuthError';
 import { locationPickerHtml, type LocationPickerProps, type PickedLocation } from './mapHtml';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { pickLocation: string }> = {
+  es: { pickLocation: 'Seleccionar ubicación' },
+  en: { pickLocation: 'Pick a location' },
+};
 
 // Web build: renders the Google map in a real <iframe> (this file only loads on web, where the tree
 // is React DOM under react-native-web) and listens for the map's postMessage. Keeps
 // react-native-webview off the web bundle entirely.
 export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, origin }: LocationPickerProps) {
+  const tx = useStrings(S);
   const html = useRef(locationPickerHtml(latitude, longitude, areas, origin ?? null)).current;
   // Refs so the listener below can subscribe once and still call the current callbacks.
   const onPickRef = useRef(onPick);
@@ -30,7 +37,7 @@ export function LocationPicker({ latitude, longitude, onPick, areas, onOutside, 
 
   return (
     <View style={styles.wrap}>
-      <iframe srcDoc={html} title="Seleccionar ubicación" style={{ border: 0, width: '100%', height: '100%' }} />
+      <iframe srcDoc={html} title={tx.pickLocation} style={{ border: 0, width: '100%', height: '100%' }} />
       {refused ? <MapAuthError /> : null}
     </View>
   );

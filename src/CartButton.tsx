@@ -3,6 +3,24 @@ import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useCart } from './cart';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<
+  Locale,
+  {
+    cartWithCount: (count: number) => string;
+    cartEmpty: string;
+  }
+> = {
+  es: {
+    cartWithCount: (count) => `Carrito, ${count} artículos`,
+    cartEmpty: 'Carrito vacío',
+  },
+  en: {
+    cartWithCount: (count) => `Cart, ${count} ${count === 1 ? 'item' : 'items'}`,
+    cartEmpty: 'Cart is empty',
+  },
+};
 
 // The cart, reachable from the top of any customer screen rather than only from the bar that
 // appears once something is in it: people who came back to finish an order look up here for it.
@@ -16,13 +34,14 @@ export function CartButton({ style }: {
 }) {
   const router = useRouter();
   const cart = useCart();
+  const tx = useStrings(S);
 
   return (
     <Pressable
       style={[styles.btn, style]}
       onPress={() => router.push('/cart')}
       accessibilityRole="button"
-      accessibilityLabel={cart.count > 0 ? `Carrito, ${cart.count} artículos` : 'Carrito vacío'}
+      accessibilityLabel={cart.count > 0 ? tx.cartWithCount(cart.count) : tx.cartEmpty}
     >
       <FontAwesome5 name="shopping-cart" size={14} color={t.text} />
       {cart.count > 0 ? (

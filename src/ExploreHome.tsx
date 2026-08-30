@@ -7,7 +7,7 @@ import type { Me, Order, Product } from './api';
 import { useCart } from './cart';
 import { detectCurrentLocation } from './profileForm';
 import { useAuthPrompt } from './AuthPrompt';
-import { SESSION_LOCATION_LABEL, useSessionLocation } from './sessionLocation';
+import { sessionLocationLabel, useSessionLocation } from './sessionLocation';
 import { Skeleton } from './Skeleton';
 import { GradientBackground, GRADIENT, t } from './theme';
 import { CartButton } from './CartButton';
@@ -17,6 +17,7 @@ import { BottomNav } from './BottomNav';
 import { AddToCartButton, ADDED_FEEDBACK_MS } from './AddToCartButton';
 import { emojiFor } from './categoryEmoji';
 import { orderStatusChip } from './orderStatus';
+import { useStrings, type Locale } from './i18n';
 
 // The "Explorar" tab: the full marketplace -- a header band with the delivery location and search,
 // the business-category row, and every merchant's products (GET /delivery/products) as a
@@ -46,6 +47,119 @@ const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED', 'CANCELLED'];
 // full width. Padding the data with a null lets that slot render as an empty tile of equal size.
 type GridCell = Product | null;
 
+const S: Record<
+  Locale,
+  {
+    currentLocationFallback: string;
+    deliverTo: string;
+    addAddress: string;
+    searchPlaceholder: string;
+    viewOrder: string;
+    helloName: (name: string) => string;
+    hello: string;
+    allCategories: string;
+    currentOrders: string;
+    merchant: string;
+    productsFallback: string;
+    cartFromMerchant: (name: string | null) => string;
+    oneMerchantOnly: string;
+    emptyCart: string;
+    allMerchants: string;
+    viewItem: (name: string) => string;
+    addItem: (name: string) => string;
+    emptySearch: string;
+    noMerchantAt: (place: string) => string;
+    thisLocation: string;
+    emptyCatalog: string;
+    switchMerchantTitle: string;
+    switchMerchantBody: (from: string | null, to: string) => string;
+    cancel: string;
+    emptyAndAdd: string;
+    addToCartAt: (price: string) => string;
+    addressAlertTitle: string;
+    locationAlertTitle: string;
+    locationPermBody: string;
+    locationFailBody: string;
+    sheetSubtitle: string;
+    close: string;
+    noSavedAddresses: string;
+    addNewAddress: string;
+  }
+> = {
+  es: {
+    currentLocationFallback: 'Tu ubicación actual',
+    deliverTo: 'Enviar a',
+    addAddress: 'Agrega tu dirección',
+    searchPlaceholder: 'Buscar productos',
+    viewOrder: 'Ver pedido',
+    helloName: (name) => `¡Hola, ${name}! 👋`,
+    hello: '¡Hola! 👋',
+    allCategories: 'Todos',
+    currentOrders: 'Tus pedidos en curso',
+    merchant: 'Comercio',
+    productsFallback: 'Productos',
+    cartFromMerchant: (name) => `Tu pedido es de ${name}`,
+    oneMerchantOnly: 'Solo puedes pedir de un comercio a la vez',
+    emptyCart: 'Vaciar',
+    allMerchants: '‹ Todos los comercios',
+    viewItem: (name) => `Ver ${name}`,
+    addItem: (name) => `Agregar ${name}`,
+    emptySearch: 'No encontramos productos para tu búsqueda.',
+    noMerchantAt: (place) => `Ningún comercio entrega en ${place} todavía. Prueba con otra dirección.`,
+    thisLocation: 'esta ubicación',
+    emptyCatalog: 'Aún no hay productos disponibles.',
+    switchMerchantTitle: 'Cambiar de comercio',
+    switchMerchantBody: (from, to) => `Tu carrito tiene productos de ${from}. ¿Vaciarlo y agregar de ${to}?`,
+    cancel: 'Cancelar',
+    emptyAndAdd: 'Vaciar y agregar',
+    addToCartAt: (price) => `Agregar al carrito · ${price}`,
+    addressAlertTitle: 'Dirección',
+    locationAlertTitle: 'Ubicación',
+    locationPermBody: 'Activa el permiso de ubicación para usar tu ubicación actual.',
+    locationFailBody: 'No se pudo obtener tu ubicación. Inténtalo de nuevo.',
+    sheetSubtitle: 'Elige dónde quieres recibir tu pedido',
+    close: 'Cerrar',
+    noSavedAddresses: 'Todavía no tienes direcciones guardadas.',
+    addNewAddress: 'Agregar nueva dirección',
+  },
+  en: {
+    currentLocationFallback: 'Your current location',
+    deliverTo: 'Deliver to',
+    addAddress: 'Add your address',
+    searchPlaceholder: 'Search products',
+    viewOrder: 'View order',
+    helloName: (name) => `Hi, ${name}! 👋`,
+    hello: 'Hi! 👋',
+    allCategories: 'All',
+    currentOrders: 'Your orders in progress',
+    merchant: 'Merchant',
+    productsFallback: 'Products',
+    cartFromMerchant: (name) => `Your order is from ${name}`,
+    oneMerchantOnly: 'You can only order from one merchant at a time',
+    emptyCart: 'Empty',
+    allMerchants: '‹ All merchants',
+    viewItem: (name) => `View ${name}`,
+    addItem: (name) => `Add ${name}`,
+    emptySearch: "We couldn't find any products for your search.",
+    noMerchantAt: (place) => `No merchant delivers to ${place} yet. Try a different address.`,
+    thisLocation: 'this location',
+    emptyCatalog: 'No products available yet.',
+    switchMerchantTitle: 'Switch merchant',
+    switchMerchantBody: (from, to) => `Your cart has products from ${from}. Empty it and add from ${to}?`,
+    cancel: 'Cancel',
+    emptyAndAdd: 'Empty and add',
+    addToCartAt: (price) => `Add to cart · ${price}`,
+    addressAlertTitle: 'Address',
+    locationAlertTitle: 'Location',
+    locationPermBody: 'Enable the location permission to use your current location.',
+    locationFailBody: "We couldn't get your location. Please try again.",
+    sheetSubtitle: 'Choose where you want to receive your order',
+    close: 'Close',
+    noSavedAddresses: "You don't have any saved addresses yet.",
+    addNewAddress: 'Add a new address',
+  },
+};
+
 // `initialSearch` is what the home screen's search box was carrying when it sent the person here:
 // that box no longer lists anything itself, so submitting it opens this tab already filtered.
 // `initialCompany` does the same for a merchant tapped in the home carousel -- it opens the grid
@@ -63,6 +177,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   const { promptLogin } = useAuthPrompt();
   const cart = useCart();
   const session = useSessionLocation();
+  const tx = useStrings(S);
   // Whether the GPS lookup behind the sheet's "Ubicación actual" row is in flight.
   const [locating, setLocating] = useState(false);
   const [search, setSearch] = useState(initialSearch ?? '');
@@ -213,7 +328,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
       .then((result) => {
         if (!active || !result.ok) return;
         session.setLocation({
-          address: result.location.address ?? 'Tu ubicación actual',
+          address: result.location.address ?? tx.currentLocationFallback,
           latitude: result.location.lat,
           longitude: result.location.lng,
         });
@@ -227,9 +342,9 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   const clearCompany = () => setSelectedCompany(null);
 
   const categoryChips: Category[] = useMemo(() => [
-    { key: 'all', label: 'Todos', emoji: '🍽️' },
+    { key: 'all', label: tx.allCategories, emoji: '🍽️' },
     ...categories.map((c) => ({ key: c.id, label: c.name, emoji: emojiFor(c.name) })),
-  ], [categories]);
+  ], [categories, tx]);
 
   const fullName = profile?.name?.trim() || '';
   const greeting = fullName.split(' ')[0] || profile?.email || '';
@@ -239,7 +354,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   // button for it just now -- so it wins until they choose a saved address again.
   const address = (session.location?.address ?? (chosen ? chosen.address : profile?.address))?.trim();
   const addressLabel = session.location
-    ? SESSION_LOCATION_LABEL
+    ? sessionLocationLabel()
     : (chosen ? chosen.label : profile?.addressLabel)?.trim();
 
   const openAddresses = () => {
@@ -273,7 +388,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
     setAddrBusy(item.id);
     const res = await api.setDefaultAddress(item.id);
     setAddrBusy(null);
-    if (!res.success) { Alert.alert('Dirección', res.message); return; }
+    if (!res.success) { Alert.alert(tx.addressAlertTitle, res.message); return; }
     setChosen({ label: item.label, address: item.address, latitude: item.latitude, longitude: item.longitude });
     setAddrOpen(false);
   };
@@ -293,13 +408,13 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
     const result = await detectCurrentLocation();
     setLocating(false);
     if (!result.ok) {
-      Alert.alert('Ubicación', result.reason === 'permission'
-        ? 'Activa el permiso de ubicación para usar tu ubicación actual.'
-        : 'No se pudo obtener tu ubicación. Inténtalo de nuevo.');
+      Alert.alert(tx.locationAlertTitle, result.reason === 'permission'
+        ? tx.locationPermBody
+        : tx.locationFailBody);
       return;
     }
     session.setLocation({
-      address: result.location.address ?? 'Tu ubicación actual',
+      address: result.location.address ?? tx.currentLocationFallback,
       latitude: result.location.lat,
       longitude: result.location.lng,
     });
@@ -372,12 +487,12 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
   const onAdd = (p: Product) => {
     if (cart.tryAdd(p) === 'conflict') {
       Alert.alert(
-        'Cambiar de comercio',
-        `Tu carrito tiene productos de ${cart.merchantName}. ¿Vaciarlo y agregar de ${p.companyName}?`,
+        tx.switchMerchantTitle,
+        tx.switchMerchantBody(cart.merchantName, p.companyName),
         [
-          { text: 'Cancelar', style: 'cancel' },
+          { text: tx.cancel, style: 'cancel' },
           {
-            text: 'Vaciar y agregar',
+            text: tx.emptyAndAdd,
             style: 'destructive',
             // The tick waits for the confirmation: showing it on the first tap would claim the
             // product went in while the dialog was still asking whether to empty the cart.
@@ -413,11 +528,11 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                 truncates instead of pushing the chevron off the edge. */}
             <Pressable style={styles.addressRow} onPress={openAddresses} accessibilityRole="button">
               <View style={styles.addressPin}><Text style={styles.pin}>📍</Text></View>
-              <Text style={styles.deliverLabel}>Enviar a</Text>
+              <Text style={styles.deliverLabel}>{tx.deliverTo}</Text>
               <Text style={styles.address} numberOfLines={1}>
                 {/* The name the customer gave it ("Casa"); the raw address only stands in when
                     there is no saved label to show. */}
-                {addressLabel || address || 'Agrega tu dirección'}
+                {addressLabel || address || tx.addAddress}
               </Text>
               {/* A real icon rather than the "⌄" glyph, which sits off the baseline and needed a
                   negative margin to look level. */}
@@ -438,7 +553,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar productos"
+              placeholder={tx.searchPlaceholder}
               placeholderTextColor={t.textFaint}
               value={search}
               onChangeText={setSearch}
@@ -452,7 +567,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
           {cart.count > 0 && cartBarVisible ? (
             <Pressable style={styles.cartBar} onPress={() => router.push('/cart')}>
               <View style={styles.cartCount}><Text style={styles.cartCountText}>{cart.count}</Text></View>
-              <Text style={styles.cartBarText}>Ver pedido</Text>
+              <Text style={styles.cartBarText}>{tx.viewOrder}</Text>
               <Text style={styles.cartBarTotal}>{money(cart.total)}</Text>
             </Pressable>
           ) : null}
@@ -488,7 +603,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
               style={styles.tile}
               onPress={() => openPreview(item)}
               accessibilityRole="button"
-              accessibilityLabel={`Ver ${item.name}`}
+              accessibilityLabel={tx.viewItem(item.name)}
             >
               {/* The item's own photo once the merchant has set one; the merchant's category icon
                   stands in for the ones that have none. */}
@@ -511,7 +626,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                   <AddToCartButton
                     added={!!added[item.id]}
                     onPress={() => onAdd(item)}
-                    label={`Agregar ${item.name}`}
+                    label={tx.addItem(item.name)}
                   />
                 </View>
               </View>
@@ -542,14 +657,14 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
             // both sent people hunting for a product that was never going to appear: with nothing
             // typed, the list is empty because no merchant covers where the order would go.
             : debouncedSearch.trim()
-              ? <Text style={styles.empty}>No encontramos productos para tu búsqueda.</Text>
+              ? <Text style={styles.empty}>{tx.emptySearch}</Text>
               : deliverLat != null && deliverLng != null
-                ? <Text style={styles.empty}>Ningún comercio entrega en {address ? `"${address}"` : 'esta ubicación'} todavía. Prueba con otra dirección.</Text>
-                : <Text style={styles.empty}>Aún no hay productos disponibles.</Text>
+                ? <Text style={styles.empty}>{tx.noMerchantAt(address ? `"${address}"` : tx.thisLocation)}</Text>
+                : <Text style={styles.empty}>{tx.emptyCatalog}</Text>
         }
         ListHeaderComponent={
           <>
-        <Text style={styles.hello}>{greeting ? `¡Hola, ${greeting}! 👋` : '¡Hola! 👋'}</Text>
+        <Text style={styles.hello}>{greeting ? tx.helloName(greeting) : tx.hello}</Text>
 
         {/* Circular category tiles. Skeleton circles while the list loads, so the row holds its
             place instead of showing a lone "Todos" that the real categories then shove aside. */}
@@ -581,7 +696,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         {/* Current orders: a line of in-progress orders under the categories; tap one to track it. */}
         {orders.length > 0 ? (
           <View style={styles.ordersSection}>
-            <Text style={styles.ordersTitle}>Tus pedidos en curso</Text>
+            <Text style={styles.ordersTitle}>{tx.currentOrders}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ordersRow}>
               {orders.map((o) => (
                 <Pressable key={o.id} style={styles.orderChip} onPress={() => router.push(`/order/${o.id}`)}>
@@ -589,7 +704,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                     <Text style={styles.orderChipNumber}>{o.orderNumber}</Text>
                     <Text style={styles.orderChipArrow}>›</Text>
                   </View>
-                  <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? 'Comercio'}</Text>
+                  <Text style={styles.orderChipMerchant} numberOfLines={1}>{o.merchantName ?? tx.merchant}</Text>
                   {/* The same badge the home carousel and the tracking screen wear. */}
                   {(() => {
                     const s = orderStatusChip(o);
@@ -607,7 +722,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         ) : null}
 
         <Text style={styles.sectionTitle}>
-          {cart.merchantName ?? selectedCompany?.name ?? 'Productos'}
+          {cart.merchantName ?? selectedCompany?.name ?? tx.productsFallback}
         </Text>
 
         {/* Why the catalog is showing one merchant. Locked by the cart it explains itself and
@@ -615,20 +730,20 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         {cart.merchantId ? (
           <View style={styles.focusBanner}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.focusTitle}>Tu pedido es de {cart.merchantName}</Text>
-              <Text style={styles.focusHint}>Solo puedes pedir de un comercio a la vez</Text>
+              <Text style={styles.focusTitle}>{tx.cartFromMerchant(cart.merchantName)}</Text>
+              <Text style={styles.focusHint}>{tx.oneMerchantOnly}</Text>
             </View>
             <Pressable
               style={styles.focusAction}
               onPress={() => cart.clear()}
               accessibilityRole="button"
             >
-              <Text style={styles.focusActionText}>Vaciar</Text>
+              <Text style={styles.focusActionText}>{tx.emptyCart}</Text>
             </Pressable>
           </View>
         ) : selectedCompany ? (
           <Pressable style={styles.focusBanner} onPress={clearCompany}>
-            <Text style={styles.focusBack}>‹ Todos los comercios</Text>
+            <Text style={styles.focusBack}>{tx.allMerchants}</Text>
           </Pressable>
         ) : null}
           </>
@@ -667,22 +782,22 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                 {previewConflict ? (
                   <>
                     <Text style={styles.previewConflict}>
-                      Tu carrito tiene productos de {cart.merchantName}. ¿Vaciarlo y agregar de {preview.companyName}?
+                      {tx.switchMerchantBody(cart.merchantName, preview.companyName)}
                     </Text>
                     <Pressable style={styles.previewDanger} onPress={confirmReplace}>
-                      <Text style={styles.previewDangerText}>Vaciar y agregar</Text>
+                      <Text style={styles.previewDangerText}>{tx.emptyAndAdd}</Text>
                     </Pressable>
                     <Pressable onPress={closePreview}>
-                      <Text style={styles.previewCancel}>Cancelar</Text>
+                      <Text style={styles.previewCancel}>{tx.cancel}</Text>
                     </Pressable>
                   </>
                 ) : (
                   <>
                     <Pressable style={styles.previewAdd} onPress={confirmAdd}>
-                      <Text style={styles.previewAddText}>Agregar al carrito · {money(preview.price)}</Text>
+                      <Text style={styles.previewAddText}>{tx.addToCartAt(money(preview.price))}</Text>
                     </Pressable>
                     <Pressable onPress={closePreview}>
-                      <Text style={styles.previewCancel}>Cancelar</Text>
+                      <Text style={styles.previewCancel}>{tx.cancel}</Text>
                     </Pressable>
                   </>
                 )}
@@ -700,15 +815,15 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
 
             <View style={styles.sheetHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Enviar a</Text>
-                <Text style={styles.sheetSubtitle}>Elige dónde quieres recibir tu pedido</Text>
+                <Text style={styles.sheetTitle}>{tx.deliverTo}</Text>
+                <Text style={styles.sheetSubtitle}>{tx.sheetSubtitle}</Text>
               </View>
               {/* An explicit way out: tapping the backdrop works, but is not discoverable. */}
               <Pressable
                 style={styles.sheetClose}
                 onPress={() => setAddrOpen(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar"
+                accessibilityLabel={tx.close}
               >
                 <Text style={styles.sheetCloseIcon}>✕</Text>
               </Pressable>
@@ -726,7 +841,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
                 <FontAwesome5 name="location-arrow" size={13} solid color={t.text} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetLabel}>{SESSION_LOCATION_LABEL}</Text>
+                <Text style={styles.sheetLabel}>{sessionLocationLabel()}</Text>
               </View>
               {locating ? (
                 <ActivityIndicator color={t.text} size="small" />
@@ -738,7 +853,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
             </Pressable>
 
             {addresses.length === 0 ? (
-              <Text style={styles.sheetEmpty}>Todavía no tienes direcciones guardadas.</Text>
+              <Text style={styles.sheetEmpty}>{tx.noSavedAddresses}</Text>
             ) : null}
 
             {addresses.map((item) => {
@@ -790,7 +905,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
 
             <Pressable style={styles.sheetAdd} onPress={addAddress} accessibilityRole="button">
               <View style={styles.sheetAddIconWrap}><Text style={styles.sheetAddIcon}>＋</Text></View>
-              <Text style={styles.sheetAddText}>Agregar nueva dirección</Text>
+              <Text style={styles.sheetAddText}>{tx.addNewAddress}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

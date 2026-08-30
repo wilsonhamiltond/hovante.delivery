@@ -2,6 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { addedToCart: string }> = {
+  es: { addedToCart: 'Agregado al carrito' },
+  en: { addedToCart: 'Added to cart' },
+};
 
 /** How long the tick stays before the button turns back into "add". */
 export const ADDED_FEEDBACK_MS = 5000;
@@ -21,6 +27,7 @@ interface Props {
 // Whether the tick is showing is the parent's state, keyed by product id: a FlatList recycles these
 // rows, so a tick owned in here would follow the recycled view onto a different product.
 export function AddToCartButton({ added, onPress, label }: Props) {
+  const tx = useStrings(S);
   // One value drives everything: 0 is the cart, 1 is the tick.
   const swap = useRef(new Animated.Value(added ? 1 : 0)).current;
 
@@ -41,7 +48,7 @@ export function AddToCartButton({ added, onPress, label }: Props) {
       style={styles.button}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={added ? 'Agregado al carrito' : label}
+      accessibilityLabel={added ? tx.addedToCart : label}
     >
       <Animated.View style={[styles.stack, { transform: [{ scale: pop }] }]}>
         {/* Both icons are stacked absolutely rather than swapped in flow: the two glyphs are

@@ -1,5 +1,22 @@
 import { GOOGLE_MAPS_API_KEY, MAPS_ENABLED } from './config';
 import { markersJs } from './mapMarkersJs';
+import { strings, type Locale } from './i18n';
+
+// The only user-visible words the picker document carries: the missing-key placeholder and the
+// marker tooltips. Read through strings() when the HTML is generated, so a language switch shows
+// on the next map opened.
+const S: Record<Locale, { missingKey: string; deliverHere: string; store: string }> = {
+  es: {
+    missingKey: 'Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.',
+    deliverHere: 'Entregar aquí',
+    store: 'Comercio',
+  },
+  en: {
+    missingKey: 'Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to see the map.',
+    deliverHere: 'Deliver here',
+    store: 'Store',
+  },
+};
 
 // Shared, platform-agnostic pieces for the location-picker map. No React/RN imports here so both the
 // web (iframe) and native (WebView) pickers can use them.
@@ -110,8 +127,9 @@ function loaderTag(callback: string): string {
 export function locationPickerHtml(
   lat: number, lng: number, areas: DeliveryArea[] = [], origin: RouteOrigin | null = null,
 ): string {
+  const tx = strings(S);
   if (!MAPS_ENABLED) {
-    return missingKeyHtml('Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.');
+    return missingKeyHtml(tx.missingKey);
   }
   return `<!DOCTYPE html>
 <html>
@@ -248,7 +266,7 @@ ${markersJs()}
     });
     geocoder = new google.maps.Geocoder();
     // Above the office dot: the one you can move must never end up hidden under one you cannot.
-    marker = mkDraggablePin(map, { lat: lat, lng: lng }, { title: 'Entregar aquí', zIndex: 2 });
+    marker = mkDraggablePin(map, { lat: lat, lng: lng }, { title: ${JSON.stringify(tx.deliverHere)}, zIndex: 2 });
 
     // The served area, outlined so the limit is visible before it is hit rather than only when a
     // tap is refused. Not editable and not clickable -- clicks must reach the map underneath, or
@@ -282,7 +300,7 @@ ${markersJs()}
         // pin, and passing taps through so it cannot swallow one meant for the map beneath.
         if (a.latitude != null && a.longitude != null) {
           mkDot(map, { lat: a.latitude, lng: a.longitude }, {
-            title: a.officeName || 'Comercio', zIndex: 1,
+            title: a.officeName || ${JSON.stringify(tx.store)}, zIndex: 1,
           });
           bounds.extend({ lat: a.latitude, lng: a.longitude });
         }
@@ -300,7 +318,7 @@ ${markersJs()}
       });
       if (!dotted) {
         mkDot(map, { lat: origin.lat, lng: origin.lng }, {
-          title: origin.title || 'Comercio', zIndex: 1,
+          title: origin.title || ${JSON.stringify(tx.store)}, zIndex: 1,
         });
       }
       // The pin the picker opened on already is a picked location; route to it straight away.

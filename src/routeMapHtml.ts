@@ -1,6 +1,12 @@
 import { MAPS_ENABLED } from './config';
 import { loaderTag, missingKeyHtml } from './mapHtml';
 import { markersJs } from './mapMarkersJs';
+import { strings, type Locale } from './i18n';
+
+const S: Record<Locale, { missingKey: string }> = {
+  es: { missingKey: 'Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.' },
+  en: { missingKey: 'Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to see the map.' },
+};
 
 // A read-only two-marker map (pickup + delivery) on Google Maps. No React/RN imports so both the web
 // (iframe) and native (WebView) renderers can share it. A point with no coordinates is
@@ -55,7 +61,7 @@ export function setDriverJs(d: DriverPosition): string {
 
 export function routeMapHtml(pickup: MapPoint, client: MapPoint): string {
   if (!MAPS_ENABLED) {
-    return missingKeyHtml('Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.');
+    return missingKeyHtml(strings(S).missingKey);
   }
 
   const enc = (p: MapPoint) => JSON.stringify({

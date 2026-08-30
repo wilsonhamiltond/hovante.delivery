@@ -8,6 +8,7 @@ import type { Delivery } from '../src/api';
 import { GradientBackground, t } from '../src/theme';
 import { NotificationsButton } from '../src/NotificationsButton';
 import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
+import { useStrings, type Locale } from '../src/i18n';
 
 // "Mi ruta": every delivery the driver is carrying right now -- claimed, about to start, or on the
 // road -- in route order, each opening its detail. Finished ones live in Historial; finding NEW
@@ -15,16 +16,72 @@ import { BottomNav, BOTTOM_NAV_HEIGHT } from '../src/BottomNav';
 
 // The two legs of a delivery, named. "Asignada" and "En camino" both said something true and
 // neither said where the driver is headed -- which is the only thing these two states differ by.
-const STATUS: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Pendiente', color: '#64748b' },
-  ASSIGNED: { label: 'Recoger en oficina', color: '#2563eb' },
-  IN_TRANSIT: { label: 'En camino al cliente', color: '#d97706' },
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: '#64748b',
+  ASSIGNED: '#2563eb',
+  IN_TRANSIT: '#d97706',
+};
+
+const S: Record<
+  Locale,
+  {
+    status: Record<string, string>;
+    title: string;
+    inProgress: (n: number) => string;
+    pendingSync: (n: number) => string;
+    emptyTitle: string;
+    emptySubtitle: string;
+    delivery: string;
+    pickupPrefix: string;
+    recipient: string;
+    noAddress: string;
+    toCollect: string;
+    call: string;
+  }
+> = {
+  es: {
+    status: {
+      PENDING: 'Pendiente',
+      ASSIGNED: 'Recoger en oficina',
+      IN_TRANSIT: 'En camino al cliente',
+    },
+    title: 'Mi ruta',
+    inProgress: (n) => `${n} entrega(s) en curso`,
+    pendingSync: (n) => `${n} acción(es) pendiente(s) de sincronizar. Desliza para reintentar.`,
+    emptyTitle: 'Sin entregas en curso',
+    emptySubtitle: 'Toma un pedido desde el mapa de inicio y aparecerá aquí como tu ruta.',
+    delivery: 'Entrega',
+    pickupPrefix: '🏪 Recoger: ',
+    recipient: 'Destinatario',
+    noAddress: 'Sin dirección',
+    toCollect: 'a cobrar',
+    call: '📞 Llamar',
+  },
+  en: {
+    status: {
+      PENDING: 'Pending',
+      ASSIGNED: 'Pick up at the office',
+      IN_TRANSIT: 'On the way to the customer',
+    },
+    title: 'My route',
+    inProgress: (n) => `${n} delivery(ies) in progress`,
+    pendingSync: (n) => `${n} action(s) waiting to sync. Pull to retry.`,
+    emptyTitle: 'No deliveries in progress',
+    emptySubtitle: 'Take an order from the home map and it will show up here as your route.',
+    delivery: 'Delivery',
+    pickupPrefix: '🏪 Pick up: ',
+    recipient: 'Recipient',
+    noAddress: 'No address',
+    toCollect: 'to collect',
+    call: '📞 Call',
+  },
 };
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
 export default function RouteScreen() {
   const router = useRouter();
+  const tx = useStrings(S);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pending, setPending] = useState(0);
@@ -62,12 +119,12 @@ export default function RouteScreen() {
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Mi ruta</Text>
+            <Text style={styles.title}>{tx.title}</Text>
             <NotificationsButton audience="driver" />
           </View>
           {/* With nothing in hand there is no line at all: the empty state below already says it. */}
           {route.length > 0 ? (
-            <Text style={styles.subtitle}>{route.length} entrega(s) en curso</Text>
+            <Text style={styles.subtitle}>{tx.inProgress(route.length)}</Text>
           ) : null}
         </View>
       </SafeAreaView>
@@ -82,7 +139,7 @@ export default function RouteScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {pending > 0 ? (
               <View style={styles.pendingBanner}>
-                <Text style={styles.pendingText}>{pending} acción(es) pendiente(s) de sincronizar. Desliza para reintentar.</Text>
+                <Text style={styles.pendingText}>{tx.pendingSync(pending)}</Text>
               </View>
             ) : null}
           </View>
@@ -90,14 +147,14 @@ export default function RouteScreen() {
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <View style={styles.emptyBadge}><Text style={styles.emptyEmoji}>🚚</Text></View>
-            <Text style={styles.emptyTitle}>Sin entregas en curso</Text>
+            <Text style={styles.emptyTitle}>{tx.emptyTitle}</Text>
             <Text style={styles.emptySubtitle}>
-              Toma un pedido desde el mapa de inicio y aparecerá aquí como tu ruta.
+              {tx.emptySubtitle}
             </Text>
           </View>
         }
         renderItem={({ item }) => {
-          const s = STATUS[item.status] ?? { label: item.status, color: '#64748b' };
+          const s = { label: tx.status[item.status] ?? item.status, color: STATUS_COLORS[item.status] ?? '#64748b' };
           // The whole stop at a glance, so the driver decides without opening it: where to pick up,
           // where to drop off, what to collect, and who to call. Every line hides when its data is
           // missing -- a delivery with no order behind it just shows fewer rows.
@@ -106,19 +163,19 @@ export default function RouteScreen() {
             <Pressable style={styles.card} onPress={() => router.push(`/delivery/${item.id}`)}>
               <View style={styles.cardTop}>
                 <View style={styles.seq}><Text style={styles.seqText}>{item.sequence}</Text></View>
-                <Text style={styles.number} numberOfLines={1}>{item.deliveryNumber ?? 'Entrega'}</Text>
+                <Text style={styles.number} numberOfLines={1}>{item.deliveryNumber ?? tx.delivery}</Text>
                 <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
               </View>
 
               {item.pickupName || item.pickupAddress ? (
                 <Text style={styles.line} numberOfLines={1}>
-                  <Text style={styles.lineKind}>🏪 Recoger: </Text>{item.pickupName ?? item.pickupAddress}
+                  <Text style={styles.lineKind}>{tx.pickupPrefix}</Text>{item.pickupName ?? item.pickupAddress}
                 </Text>
               ) : null}
 
-              <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? 'Destinatario'}</Text>
+              <Text style={styles.recipient} numberOfLines={1}>{item.recipientName ?? tx.recipient}</Text>
               <Text style={styles.address} numberOfLines={2}>
-                📍 {item.addressLine ?? 'Sin dirección'}{item.city ? `, ${item.city}` : ''}
+                📍 {item.addressLine ?? tx.noAddress}{item.city ? `, ${item.city}` : ''}
               </Text>
 
               {item.notes ? <Text style={styles.notes} numberOfLines={2}>📝 {item.notes}</Text> : null}
@@ -128,12 +185,12 @@ export default function RouteScreen() {
                   {collect != null ? (
                     <View style={{ flex: 1 }}>
                       <Text style={styles.collect}>{money(collect)}</Text>
-                      <Text style={styles.collectLabel}>a cobrar</Text>
+                      <Text style={styles.collectLabel}>{tx.toCollect}</Text>
                     </View>
                   ) : <View style={{ flex: 1 }} />}
                   {item.clientPhone ? (
                     <Pressable style={styles.callBtn} onPress={() => Linking.openURL(`tel:${item.clientPhone}`)}>
-                      <Text style={styles.callBtnText}>📞 Llamar</Text>
+                      <Text style={styles.callBtnText}>{tx.call}</Text>
                     </Pressable>
                   ) : null}
                 </View>

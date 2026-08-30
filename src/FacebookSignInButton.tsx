@@ -4,6 +4,18 @@ import * as WebBrowser from 'expo-web-browser';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { FACEBOOK_REDIRECT_URI, FACEBOOK_START_URL, parseFacebookReturnUrl } from './facebookAuth';
 import { useAuth } from './auth';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { error: string; label: string }> = {
+  es: {
+    error: 'No se pudo iniciar sesión con Facebook.',
+    label: 'Continuar con Facebook',
+  },
+  en: {
+    error: 'Could not sign in with Facebook.',
+    label: 'Continue with Facebook',
+  },
+};
 
 interface Props {
   onError?: (message: string) => void;
@@ -22,6 +34,7 @@ interface Props {
 export function FacebookSignInButton({ onError, disabled }: Props) {
   const { signInWithFacebook } = useAuth();
   const [busy, setBusy] = useState(false);
+  const tx = useStrings(S);
 
   const onPress = async () => {
     setBusy(true);
@@ -35,7 +48,7 @@ export function FacebookSignInButton({ onError, disabled }: Props) {
       if (!token) {
         // Every API-side failure -- denied dialog, bad state, no email on the account -- arrives as
         // a ready-to-show message on the link.
-        onError?.(error ?? 'No se pudo iniciar sesión con Facebook.');
+        onError?.(error ?? tx.error);
         return;
       }
 
@@ -43,7 +56,7 @@ export function FacebookSignInButton({ onError, disabled }: Props) {
       if (err) onError?.(err);
       // On success the auth gate in _layout redirects away from the login screen.
     } catch {
-      onError?.('No se pudo iniciar sesión con Facebook.');
+      onError?.(tx.error);
     } finally {
       setBusy(false);
     }
@@ -57,14 +70,14 @@ export function FacebookSignInButton({ onError, disabled }: Props) {
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel="Continuar con Facebook"
+      accessibilityLabel={tx.label}
     >
       {busy ? (
         <ActivityIndicator color="#0f172a" />
       ) : (
         <>
           <FontAwesome5 name="facebook-f" brand size={18} color="#1877F2" style={styles.logoIcon} />
-          <Text style={styles.buttonText}>Continuar con Facebook</Text>
+          <Text style={styles.buttonText}>{tx.label}</Text>
         </>
       )}
     </Pressable>

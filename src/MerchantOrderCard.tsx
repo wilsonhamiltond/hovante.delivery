@@ -3,6 +3,7 @@ import * as api from './api';
 import type { Order } from './api';
 import { queueRemainingMin } from './orderQueue';
 import { t } from './theme';
+import { strings, useStrings, type Locale } from './i18n';
 
 // One order as the merchant sees it in a list -- shared by the counter's queue (MerchantHome) and
 // the history screen, which show the same card and differ only in whether the pipeline actions are
@@ -10,34 +11,109 @@ import { t } from './theme';
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;
 
+const S: Record<
+  Locale,
+  {
+    cancelled: string;
+    delivered: string;
+    inTransit: string;
+    assigned: string;
+    failed: string;
+    returned: string;
+    fresh: string;
+    queued: (min: number) => string;
+    preparing: string;
+    confirmed: string;
+    readyWaitingClient: string;
+    readyFindingDriver: string;
+    pickupAtStore: string;
+    fee: (amount: string) => string;
+    promisedNow: string;
+    promisedIn: (min: number) => string;
+    confirm: string;
+    reject: string;
+    readyForPickup: string;
+    deliverToClient: string;
+    deliveryOnTheWay: string;
+  }
+> = {
+  es: {
+    cancelled: 'Cancelado',
+    delivered: 'Entregado',
+    inTransit: 'En camino',
+    assigned: 'Repartidor asignado',
+    failed: 'Entrega fallida',
+    returned: 'Devuelto',
+    fresh: 'Nuevo',
+    queued: (min) => `En cola · ${min} min`,
+    preparing: 'En preparación',
+    confirmed: 'Confirmado',
+    readyWaitingClient: 'Listo · esperando al cliente',
+    readyFindingDriver: 'Listo · buscando repartidor',
+    pickupAtStore: '🏪 Retiro en tienda · el cliente pasa a recogerlo',
+    fee: (amount) => `+ envío ${amount}`,
+    promisedNow: 'Se prometió empezar de inmediato',
+    promisedIn: (min) => `Se prometió empezar en ${min} min`,
+    confirm: 'Confirmar',
+    reject: 'Rechazar',
+    readyForPickup: 'Listo para recoger',
+    deliverToClient: '🏪 Entregar al cliente',
+    deliveryOnTheWay: '🛵 Entrega en camino',
+  },
+  en: {
+    cancelled: 'Cancelled',
+    delivered: 'Delivered',
+    inTransit: 'On the way',
+    assigned: 'Driver assigned',
+    failed: 'Delivery failed',
+    returned: 'Returned',
+    fresh: 'New',
+    queued: (min) => `In queue · ${min} min`,
+    preparing: 'Being prepared',
+    confirmed: 'Confirmed',
+    readyWaitingClient: 'Ready · waiting for the customer',
+    readyFindingDriver: 'Ready · finding a driver',
+    pickupAtStore: '🏪 Pickup at store · the customer will come to collect it',
+    fee: (amount) => `+ delivery ${amount}`,
+    promisedNow: 'Promised to start right away',
+    promisedIn: (min) => `Promised to start in ${min} min`,
+    confirm: 'Confirm',
+    reject: 'Reject',
+    readyForPickup: 'Ready for pickup',
+    deliverToClient: '🏪 Hand over to the customer',
+    deliveryOnTheWay: '🛵 Delivery on the way',
+  },
+};
+
 // The merchant cares where the order stands in THEIR pipeline first, then in the street.
 // Exported so the order-details screen wears the same chip.
 export function statusOf(o: Order): { label: string; color: string } {
-  if (o.status === 'CANCELLED') return { label: 'Cancelado', color: '#dc2626' };
+  const tx = strings(S);
+  if (o.status === 'CANCELLED') return { label: tx.cancelled, color: '#dc2626' };
   switch (o.deliveryStatus) {
-    case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
-    case 'IN_TRANSIT': return { label: 'En camino', color: '#0ea5e9' };
-    case 'ASSIGNED': return { label: 'Repartidor asignado', color: '#2563eb' };
-    case 'FAILED': return { label: 'Entrega fallida', color: '#dc2626' };
-    case 'RETURNED': return { label: 'Devuelto', color: '#dc2626' };
+    case 'DELIVERED': return { label: tx.delivered, color: '#16a34a' };
+    case 'IN_TRANSIT': return { label: tx.inTransit, color: '#0ea5e9' };
+    case 'ASSIGNED': return { label: tx.assigned, color: '#2563eb' };
+    case 'FAILED': return { label: tx.failed, color: '#dc2626' };
+    case 'RETURNED': return { label: tx.returned, color: '#dc2626' };
   }
   switch (o.status) {
-    case 'PENDING': return { label: 'Nuevo', color: '#d97706' };
+    case 'PENDING': return { label: tx.fresh, color: '#d97706' };
     case 'CONFIRMED': {
       // The queue phase the merchant declared at confirm, derived from the clock (orderQueue.ts):
       // EN COLA while the wait runs, EN PREPARACIÓN once it is due -- the stage before "listo para
       // recoger". The screens showing this chip poll, so it advances on its own.
       const remaining = queueRemainingMin(o);
-      if (remaining != null && remaining > 0) return { label: `En cola · ${remaining} min`, color: '#0891b2' };
-      if (remaining === 0) return { label: 'En preparación', color: '#7c3aed' };
-      return { label: 'Confirmado', color: '#2563eb' };
+      if (remaining != null && remaining > 0) return { label: tx.queued(remaining), color: '#0891b2' };
+      if (remaining === 0) return { label: tx.preparing, color: '#7c3aed' };
+      return { label: tx.confirmed, color: '#2563eb' };
     }
-    case 'PREPARING': return { label: 'En preparación', color: '#7c3aed' };
+    case 'PREPARING': return { label: tx.preparing, color: '#7c3aed' };
     // A retiro en tienda waits for its customer, not for a rider.
     case 'READY': return o.pickupAtStore
-      ? { label: 'Listo · esperando al cliente', color: '#16a34a' }
-      : { label: 'Listo · buscando repartidor', color: '#7c3aed' };
-    case 'DELIVERED': return { label: 'Entregado', color: '#16a34a' };
+      ? { label: tx.readyWaitingClient, color: '#16a34a' }
+      : { label: tx.readyFindingDriver, color: '#7c3aed' };
+    case 'DELIVERED': return { label: tx.delivered, color: '#16a34a' };
   }
   return { label: o.status, color: '#64748b' };
 }
@@ -56,6 +132,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
   // screen along with the other actions.
   onTrackDriver?: (id: string) => void;
 }) {
+  const tx = useStrings(S);
   const s = statusOf(order);
   return (
     <Pressable style={styles.card} onPress={() => onOpen(order.id)}>
@@ -78,7 +155,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
       {/* Said on every pickup order, whatever its stage: the counter must know from the first
           glance that no rider is coming for this bag. */}
       {order.pickupAtStore ? (
-        <Text style={styles.address}>🏪 Retiro en tienda · el cliente pasa a recogerlo</Text>
+        <Text style={styles.address}>{tx.pickupAtStore}</Text>
       ) : null}
 
       <Text style={styles.items} numberOfLines={3}>
@@ -89,7 +166,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
       <View style={styles.totalRow}>
         <Text style={styles.total}>{money(order.total)}</Text>
         {order.deliveryFee != null ? (
-          <Text style={styles.fee}>+ envío {money(order.deliveryFee)}</Text>
+          <Text style={styles.fee}>{tx.fee(money(order.deliveryFee))}</Text>
         ) : null}
       </View>
 
@@ -98,8 +175,8 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
       {order.queueMinutes != null && order.status === 'CONFIRMED' ? (
         <Text style={styles.queue}>
           ⏱️ {order.queueMinutes === 0
-            ? 'Se prometió empezar de inmediato'
-            : `Se prometió empezar en ${order.queueMinutes} min`}
+            ? tx.promisedNow
+            : tx.promisedIn(order.queueMinutes)}
         </Text>
       ) : null}
 
@@ -113,14 +190,14 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
             // Through the queue-time modal when the caller offers one; straight through otherwise.
             onPress={() => (onConfirm ? onConfirm(order.id) : onAct(order.id, api.confirmMerchantOrder))}
           >
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>Confirmar</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirm}</Text>}
           </Pressable>
           <Pressable
             style={[styles.action, styles.reject, busy && styles.disabled]}
             disabled={busy}
             onPress={() => onAct(order.id, api.rejectMerchantOrder)}
           >
-            <Text style={styles.actionText}>Rechazar</Text>
+            <Text style={styles.actionText}>{tx.reject}</Text>
           </Pressable>
         </View>
       ) : order.status === 'CONFIRMED' || order.status === 'PREPARING' ? (
@@ -132,7 +209,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
           >
             {/* The accent is near-white, so this button's ink is onAccent, not the white the red
                 and green buttons use -- white on white was an invisible button. */}
-            {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>Listo para recoger</Text>}
+            {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>{tx.readyForPickup}</Text>}
           </Pressable>
         </View>
       ) : null}
@@ -142,7 +219,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
       {onAct != null && order.pickupAtStore && order.status === 'READY' ? (
         <View style={styles.actions}>
           <Pressable style={[styles.action, styles.confirm]} onPress={() => onOpen(order.id)}>
-            <Text style={styles.actionText}>🏪 Entregar al cliente</Text>
+            <Text style={styles.actionText}>{tx.deliverToClient}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -153,7 +230,7 @@ export function MerchantOrderCard({ order, busy = false, onOpen, onAct, onConfir
       {onTrackDriver && (order.deliveryStatus === 'ASSIGNED' || order.deliveryStatus === 'IN_TRANSIT') ? (
         <View style={styles.actions}>
           <Pressable style={[styles.action, styles.track]} onPress={() => onTrackDriver(order.id)}>
-            <Text style={styles.actionText}>🛵 Entrega en camino</Text>
+            <Text style={styles.actionText}>{tx.deliveryOnTheWay}</Text>
           </Pressable>
         </View>
       ) : null}

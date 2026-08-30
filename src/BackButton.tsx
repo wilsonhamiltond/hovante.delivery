@@ -1,6 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { t } from './theme';
+import { useStrings, type Locale } from './i18n';
+
+const S: Record<Locale, { back: string }> = {
+  es: { back: 'Atrás' },
+  en: { back: 'Back' },
+};
 
 // Every header balances its centred title against a spacer of the same width on the other side, so
 // the button has a fixed one and screens use this for that spacer instead of a magic number.
@@ -15,19 +21,21 @@ interface Props {
 // The back control, shaped like the home screen's address pill: a translucent rounded chip with the
 // chevron in its own disc. Previously this was bare "‹ Atrás" text, which read as a caption rather
 // than something tappable -- the same problem the address dropdown had.
-export function BackButton({ onPress, label = 'Atrás' }: Props) {
+export function BackButton({ onPress, label }: Props) {
+  const tx = useStrings(S);
+  const text = label ?? tx.back;
   return (
     <Pressable
       style={styles.pill}
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={text}
     >
       <View style={styles.iconWrap}>
         <FontAwesome5 name="chevron-left" size={10} color={t.text} />
       </View>
-      <Text style={styles.label} numberOfLines={1}>{label}</Text>
+      <Text style={styles.label} numberOfLines={1}>{text}</Text>
     </Pressable>
   );
 }

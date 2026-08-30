@@ -9,6 +9,57 @@ import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
 import { ConfirmDialog } from '../src/ConfirmDialog';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import { GradientBackground, t } from '../src/theme';
+import { useStrings, type Locale } from '../src/i18n';
+
+const S: Record<
+  Locale,
+  {
+    deleted: string;
+    title: string;
+    lead: string;
+    itemPersonal: string;
+    itemAddresses: string;
+    itemPhoto: string;
+    itemAccess: string;
+    noteOrders: string;
+    noteIrreversible: string;
+    deleteMyAccount: string;
+    confirmTitle: string;
+    confirmMessage: string;
+    confirmLabel: string;
+  }
+> = {
+  es: {
+    deleted: 'Tu cuenta fue eliminada.',
+    title: 'Eliminar cuenta',
+    lead: 'Al eliminar tu cuenta se borran de forma permanente:',
+    itemPersonal: '• Tus datos personales (nombre, teléfono, correo)',
+    itemAddresses: '• Tus direcciones guardadas',
+    itemPhoto: '• Tu foto de perfil',
+    itemAccess: '• El acceso a la aplicación con esta cuenta',
+    noteOrders: 'Los pedidos y las facturas ya emitidas se conservan de forma anónima porque forman parte del registro de ventas y fiscal de los comercios, pero dejan de estar vinculados a ti: se les retiran tu nombre, teléfono y dirección.',
+    noteIrreversible: 'Esta acción no se puede deshacer. Si solo quieres salir de la aplicación, usa «Cerrar sesión» en Mi cuenta.',
+    deleteMyAccount: 'Eliminar mi cuenta',
+    confirmTitle: 'Eliminar cuenta',
+    confirmMessage: '¿Seguro que quieres eliminar tu cuenta? Esta acción no se puede deshacer.',
+    confirmLabel: 'Sí, eliminar mi cuenta',
+  },
+  en: {
+    deleted: 'Your account was deleted.',
+    title: 'Delete account',
+    lead: 'Deleting your account permanently erases:',
+    itemPersonal: '• Your personal details (name, phone, email)',
+    itemAddresses: '• Your saved addresses',
+    itemPhoto: '• Your profile picture',
+    itemAccess: '• Access to the app with this account',
+    noteOrders: 'Orders and invoices already issued are kept anonymously because they are part of the merchants’ sales and tax records, but they are no longer linked to you: your name, phone, and address are removed from them.',
+    noteIrreversible: 'This action cannot be undone. If you just want to leave the app, use "Sign out" in My account.',
+    deleteMyAccount: 'Delete my account',
+    confirmTitle: 'Delete account',
+    confirmMessage: 'Are you sure you want to delete your account? This action cannot be undone.',
+    confirmLabel: 'Yes, delete my account',
+  },
+};
 
 // Delete the signed-in account, reached from "Mi cuenta" (App Store 5.1.1(v): an account created
 // in the app must be deletable in the app).
@@ -20,6 +71,7 @@ import { GradientBackground, t } from '../src/theme';
 export default function DeleteAccountScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
+  const tx = useStrings(S);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -37,7 +89,7 @@ export default function DeleteAccountScreen() {
       setNotice({ tone: 'error', message: res.message });
       return;
     }
-    setNotice({ tone: 'success', message: 'Tu cuenta fue eliminada.' });
+    setNotice({ tone: 'success', message: tx.deleted });
   };
 
   // Dismissing the success notice ends the session: the account behind it no longer exists, and
@@ -53,7 +105,7 @@ export default function DeleteAccountScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <BackButton onPress={back} />
-          <Text style={styles.title}>Eliminar cuenta</Text>
+          <Text style={styles.title}>{tx.title}</Text>
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
@@ -63,23 +115,20 @@ export default function DeleteAccountScreen() {
           </View>
 
           <Text style={styles.lead}>
-            Al eliminar tu cuenta se borran de forma permanente:
+            {tx.lead}
           </Text>
           <View style={styles.card}>
-            <Text style={styles.item}>• Tus datos personales (nombre, teléfono, correo)</Text>
-            <Text style={styles.item}>• Tus direcciones guardadas</Text>
-            <Text style={styles.item}>• Tu foto de perfil</Text>
-            <Text style={styles.item}>• El acceso a la aplicación con esta cuenta</Text>
+            <Text style={styles.item}>{tx.itemPersonal}</Text>
+            <Text style={styles.item}>{tx.itemAddresses}</Text>
+            <Text style={styles.item}>{tx.itemPhoto}</Text>
+            <Text style={styles.item}>{tx.itemAccess}</Text>
           </View>
 
           <Text style={styles.note}>
-            Los pedidos y las facturas ya emitidas se conservan de forma anónima porque forman
-            parte del registro de ventas y fiscal de los comercios, pero dejan de estar vinculados
-            a ti: se les retiran tu nombre, teléfono y dirección.
+            {tx.noteOrders}
           </Text>
           <Text style={styles.note}>
-            Esta acción no se puede deshacer. Si solo quieres salir de la aplicación, usa
-            «Cerrar sesión» en Mi cuenta.
+            {tx.noteIrreversible}
           </Text>
         </ScrollView>
 
@@ -87,15 +136,15 @@ export default function DeleteAccountScreen() {
           <Pressable style={[styles.danger, submitting && styles.disabled]} onPress={() => setConfirming(true)} disabled={submitting}>
             {submitting
               ? <ActivityIndicator color={t.onAccent} />
-              : <Text style={styles.dangerText}>Eliminar mi cuenta</Text>}
+              : <Text style={styles.dangerText}>{tx.deleteMyAccount}</Text>}
           </Pressable>
         </View>
 
         <ConfirmDialog
           visible={confirming}
-          title="Eliminar cuenta"
-          message="¿Seguro que quieres eliminar tu cuenta? Esta acción no se puede deshacer."
-          confirmLabel="Sí, eliminar mi cuenta"
+          title={tx.confirmTitle}
+          message={tx.confirmMessage}
+          confirmLabel={tx.confirmLabel}
           onConfirm={remove}
           onCancel={() => setConfirming(false)}
         />
