@@ -156,6 +156,7 @@ export default function MerchantProductsScreen() {
         price: String(p.price),
         active: String(p.active !== false),
         imageUrl: p.imageUrl ?? '',
+        itemTypeId: p.itemTypeId ?? '',
       },
     });
   };

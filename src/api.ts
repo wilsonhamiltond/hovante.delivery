@@ -528,6 +528,9 @@ export interface Product {
   // merchant's own catalogue carries false. Optional so an older API simply reads as "on sale".
   active?: boolean;
   categories: string[];
+  // The product category (item type) the row belongs to. Only the merchant's own catalogue fills
+  // it -- the form preselects it when editing; optional so an older API simply reads as "unknown".
+  itemTypeId?: string | null;
 }
 
 export interface OrderLineInput {
@@ -649,6 +652,9 @@ export interface MerchantProductInput {
   description?: string;
   price: number;
   active: boolean;
+  // The product category picked on the form. Omitted keeps the current one on an edit, and on a
+  // create the server falls back to what the catalogue already uses most.
+  itemTypeId?: string;
 }
 
 export function createMerchantProduct(input: MerchantProductInput) {
@@ -679,6 +685,71 @@ export async function uploadProductImage(
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}/delivery/products/merchant/${id}/image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${currentToken}` },
+      body: form,
+    });
+  } catch {
+    return { success: false, message: strings(S).networkError, data: null as unknown as string };
+  }
+  captureRotatedToken(res);
+  if (sessionExpired(res)) {
+    return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
+  }
+  const json = (await res.json().catch(() => null)) as ApiResponse<string> | null;
+  if (json) return json;
+  return { success: false, message: strings(S).serverError(res.status), data: null as unknown as string };
+}
+
+// A product category (item type) as the merchant's Categorías screen lists it: the global rows
+// every merchant shares plus this company's own. Only `owned` rows are the company's to touch --
+// the shared ones are shown read-only.
+export interface MerchantCategory {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  owned: boolean;
+}
+
+export const CATEGORY_PAGE_SIZE = 10;
+
+// One page of categories, like the product list: the screen pulls `take` from `skip` and appends
+// as it scrolls.
+export function merchantCategories(skip: number, take: number) {
+  const params = new URLSearchParams({ skip: String(skip), take: String(take) });
+  return get<MerchantCategory[]>(`/delivery/categories/merchant?${params.toString()}`);
+}
+
+// Name only: the image goes up afterwards through uploadCategoryImage, like a product's photo --
+// a new category has no id to attach it to until it is saved.
+export function createMerchantCategory(input: { name: string }) {
+  return postAuth<MerchantCategory>('/delivery/categories/merchant', input);
+}
+
+// Renames one of the company's own categories; the shared global ones are refused by the server.
+export function updateMerchantCategory(id: string, input: { name: string }) {
+  return putAuth<MerchantCategory>(`/delivery/categories/merchant/${id}`, input);
+}
+
+// Deletes one of the company's own categories. The server retires (deactivates) one that products
+// still use instead of erasing it, and says so in the message -- show the response's message.
+export function deleteMerchantCategory(id: string) {
+  return deleteAuth<boolean>(`/delivery/categories/merchant/${id}`);
+}
+
+// The category's image. Multipart for the same reason as the product's photo; returns the stored
+// image's public URL as `data`.
+export async function uploadCategoryImage(
+  id: string, uri: string, mimeType: string, fileName: string,
+): Promise<ApiResponse<string>> {
+  if (!currentToken) return { success: false, message: strings(S).noSession, data: null as unknown as string };
+
+  const form = new FormData();
+  await appendImage(form, uri, mimeType, fileName);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/delivery/categories/merchant/${id}/image`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${currentToken}` },
       body: form,

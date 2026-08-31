@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
@@ -8,7 +8,7 @@ import { LocationPicker } from '../src/LocationPicker';
 import { DEFAULT_CENTER } from '../src/mapHtml';
 import { NoticeDialog, type Notice } from '../src/NoticeDialog';
 import {
-  detectCurrentLocation, isCompletePhone, LABEL_CHOICES, splitDisplayName, toE164,
+  detectCurrentLocation, forwardGeocode, isCompletePhone, LABEL_CHOICES, splitDisplayName, toE164,
   type LabelChoice,
 } from '../src/profileForm';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
@@ -105,7 +105,7 @@ const S: Record<
     tapMap: 'Toca el mapa para elegir tu ubicación',
     myLocation: '📍 Mi ubicación',
     addressFieldLabel: 'Dirección',
-    addressFieldPlaceholder: 'Se llena al elegir en el mapa',
+    addressFieldPlaceholder: 'Escribe y busca, o elige en el mapa',
     sendCode: 'Enviar código',
     verify: 'Verificar',
     createAccount: 'Crear cuenta',
@@ -150,7 +150,7 @@ const S: Record<
     tapMap: 'Tap the map to pick your location',
     myLocation: '📍 My location',
     addressFieldLabel: 'Address',
-    addressFieldPlaceholder: 'Filled in when you pick on the map',
+    addressFieldPlaceholder: 'Type and search, or pick on the map',
     sendCode: 'Send code',
     verify: 'Verify',
     createAccount: 'Create account',
@@ -199,6 +199,8 @@ export default function RegisterScreen() {
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [mapKey, setMapKey] = useState(0);
   const [locating, setLocating] = useState(false);
+  // The typed-address lookup ("buscar en el mapa") in flight.
+  const [searching, setSearching] = useState(false);
 
   const back = () => {
     setError(null);
@@ -277,6 +279,25 @@ export default function RegisterScreen() {
     setCoords({ lat: result.location.lat, lng: result.location.lng });
     setMapKey((k) => k + 1);
     if (result.location.address) setAddress(result.location.address);
+  };
+
+  // The reverse of tapping the map: geocode what was typed and take the map there, pin dropped.
+  // Same behavior as the address-new screen: explicit (search key) rather than as-you-type --
+  // every lookup is a billable geocode, and the map remount that recenters it is too heavy to
+  // run per keystroke.
+  const searchAddress = async () => {
+    Keyboard.dismiss();
+    if (!address.trim() || searching) return;
+    setSearching(true);
+    setError(null);
+    const found = await forwardGeocode(address);
+    setSearching(false);
+    // Not found: keep the typed text and the current pin, silently -- the user can keep editing
+    // or just pick the point on the map.
+    if (!found) return;
+    setCoords({ lat: found.lat, lng: found.lng });
+    setMapKey((k) => k + 1);
+    if (found.address) setAddress(found.address);
   };
 
   // "Casa"/"Trabajo" are the label as-is; "Otro" defers to what they typed.
@@ -428,9 +449,17 @@ export default function RegisterScreen() {
               longitude={coords.lng ?? DEFAULT_CENTER.lng}
               onPick={(loc) => { setCoords({ lat: loc.lat, lng: loc.lng }); if (loc.address) setAddress(loc.address); }}
             />
-            <Text style={styles.label}>{tx.addressFieldLabel}</Text>
+            <View style={[styles.locRow, styles.locRowSpaced]}>
+              <Text style={[styles.label, styles.labelInRow]}>{tx.addressFieldLabel}</Text>
+              {searching ? <ActivityIndicator color={t.accent} size="small" /> : null}
+            </View>
+            {/* The return key searches instead of inserting a newline: an address wants commas, not
+                line breaks, and this multiline box otherwise trapped the keyboard open. */}
             <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
-              placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress} multiline />
+              placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress}
+              multiline returnKeyType="search" submitBehavior="blurAndSubmit"
+              blurOnSubmit /* react-native-web ignores submitBehavior; without this, Enter on web never submits */
+              onSubmitEditing={searchAddress} />
           </View>
         )}
 
@@ -481,6 +510,8 @@ const styles = StyleSheet.create({
   locRowSpaced: { marginTop: 16 },
   locBtn: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minWidth: 118, alignItems: 'center' },
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
+  // The label's own top margin, minus the row's centering -- keeps the row aligned with the spinner.
+  labelInRow: { flex: 1, marginTop: 0 },
   addressArea: { minHeight: 68, textAlignVertical: 'top' },
   codeInput: { fontSize: 28, fontWeight: '800', letterSpacing: 10, marginTop: 10 },
   resend: { alignItems: 'center', paddingVertical: 14 },

@@ -48,6 +48,11 @@ const S: Record<
     description: string;
     descriptionPlaceholder: string;
     price: string;
+    category: string;
+    categoryPlaceholder: string;
+    categorySearch: string;
+    categoryClear: string;
+    categoryEmpty: string;
     forSale: string;
     forSaleOn: string;
     forSaleOff: string;
@@ -96,6 +101,11 @@ const S: Record<
     description: 'Descripción (opcional)',
     descriptionPlaceholder: 'Ej: Botella fría, 650 ml',
     price: 'Precio (RD$)',
+    category: 'Categoría',
+    categoryPlaceholder: 'Seleccionar categoría',
+    categorySearch: 'Buscar categoría…',
+    categoryClear: 'Quitar categoría (automática)',
+    categoryEmpty: 'Ninguna categoría coincide.',
     forSale: 'En venta',
     forSaleOn: 'Los clientes pueden pedirlo',
     forSaleOff: 'No aparece en el mercado',
@@ -143,6 +153,11 @@ const S: Record<
     description: 'Description (optional)',
     descriptionPlaceholder: 'E.g. Cold bottle, 650 ml',
     price: 'Price (RD$)',
+    category: 'Category',
+    categoryPlaceholder: 'Select category',
+    categorySearch: 'Search category…',
+    categoryClear: 'Clear category (automatic)',
+    categoryEmpty: 'No category matches.',
     forSale: 'For sale',
     forSaleOn: 'Customers can order it',
     forSaleOff: 'Not shown in the marketplace',
@@ -170,6 +185,7 @@ export default function MerchantProductFormScreen() {
   const tx = useStrings(S);
   const params = useLocalSearchParams<{
     id: string; name?: string; description?: string; price?: string; active?: string; imageUrl?: string;
+    itemTypeId?: string;
   }>();
   const creating = params.id === 'new';
 
@@ -184,6 +200,16 @@ export default function MerchantProductFormScreen() {
   const [active, setActive] = useState(creating ? true : params.active !== 'false');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // The product's category (item type). Preselected from the row when editing; empty on a new
+  // product until one is tapped -- saving without touching it lets the server pick its default.
+  const [itemTypeId, setItemTypeId] = useState<string | null>(
+    creating || !params.itemTypeId ? null : params.itemTypeId,
+  );
+  const [categoryOptions, setCategoryOptions] = useState<api.MerchantCategory[]>([]);
+  // The category dropdown: its sheet, and the filter typed into it (client-side -- the whole
+  // option set is already loaded below).
+  const [catOpen, setCatOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState('');
   // The photo. `photoUrl` is what the product already has (or what an upload just returned);
   // `pickedPhoto` is a local file waiting to be sent, which only happens once the product exists
   // -- a new one has no id to attach an image to until it is saved.
@@ -212,6 +238,24 @@ export default function MerchantProductFormScreen() {
     });
     return () => { alive = false; };
   }, [productId]);
+
+  // Every category the merchant can pick from -- the paged endpoint drained page by page, since a
+  // picker with only its first ten rows would hide the rest. The set is a screenful at most.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const all: api.MerchantCategory[] = [];
+      for (let pages = 0; pages < 20; pages++) {
+        const res = await api.merchantCategories(all.length, api.CATEGORY_PAGE_SIZE);
+        if (!alive || !res.success) return;
+        const rows = res.data ?? [];
+        all.push(...rows.filter((r) => !all.some((c) => c.id === r.id)));
+        if (rows.length < api.CATEGORY_PAGE_SIZE) break;
+      }
+      if (alive) setCategoryOptions(all);
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const openTrCreate = () => {
     // Preselect the first locale not written yet, so adding cannot silently overwrite one.
@@ -318,6 +362,9 @@ export default function MerchantProductFormScreen() {
       description: description.trim() || undefined,
       price: parsed,
       active,
+      // Omitted (not null) when untouched: the server then keeps the current category on an
+      // edit, or picks its usual default on a create.
+      itemTypeId: itemTypeId ?? undefined,
     };
     const res = productId
       ? await api.updateMerchantProduct(productId, input)
@@ -420,6 +467,27 @@ export default function MerchantProductFormScreen() {
               returnKeyType="done"
               onSubmitEditing={Keyboard.dismiss}
             />
+
+            {/* The product's category, as a dropdown field. Hidden until the options arrive -- an
+                empty field would read as "no categories exist". */}
+            {categoryOptions.length > 0 ? (
+              <>
+                <Text style={styles.label}>{tx.category}</Text>
+                <Pressable
+                  style={[styles.input, styles.selectField]}
+                  onPress={() => { setCatFilter(''); setCatOpen(true); }}
+                  accessibilityRole="button"
+                >
+                  <Text
+                    style={itemTypeId ? styles.selectText : styles.selectPlaceholder}
+                    numberOfLines={1}
+                  >
+                    {categoryOptions.find((c) => c.id === itemTypeId)?.name ?? tx.categoryPlaceholder}
+                  </Text>
+                  <Text style={styles.selectChevron}>▾</Text>
+                </Pressable>
+              </>
+            ) : null}
 
             <Pressable style={styles.toggleRow} onPress={() => setActive(!active)} accessibilityRole="button">
               <View style={[styles.checkbox, active && styles.checkboxOn]}>
@@ -541,6 +609,68 @@ export default function MerchantProductFormScreen() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* Category dropdown -- the same bottom sheet, with a filter box on top. The filter is
+            client-side: the whole option set is already in memory. */}
+        <Modal visible={catOpen} transparent animationType="slide" onRequestClose={() => setCatOpen(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable style={styles.scrim} onPress={() => setCatOpen(false)}>
+              <Pressable style={styles.sheet} onPress={() => {}}>
+                <Text style={styles.sheetTitle}>{tx.category}</Text>
+
+                <TextInput
+                  style={styles.input}
+                  value={catFilter}
+                  onChangeText={setCatFilter}
+                  placeholder={tx.categorySearch}
+                  placeholderTextColor={t.textFaint}
+                  autoFocus={Platform.OS === 'web'}
+                />
+
+                <ScrollView style={styles.optionsList} keyboardShouldPersistTaps="handled">
+                  {/* The way back to "let the server decide", only shown while something is picked. */}
+                  {itemTypeId ? (
+                    <Pressable
+                      style={styles.optionRow}
+                      onPress={() => { setItemTypeId(null); setCatOpen(false); }}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.optionClear}>{tx.categoryClear}</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {(() => {
+                    const q = catFilter.trim().toLowerCase();
+                    const matches = categoryOptions.filter((c) => !q || c.name.toLowerCase().includes(q));
+                    if (matches.length === 0) {
+                      return <Text style={styles.optionEmpty}>{tx.categoryEmpty}</Text>;
+                    }
+                    return matches.map((c) => {
+                      const on = itemTypeId === c.id;
+                      return (
+                        <Pressable
+                          key={c.id}
+                          style={[styles.optionRow, on && styles.optionRowOn]}
+                          onPress={() => { setItemTypeId(c.id); setCatOpen(false); }}
+                          accessibilityRole="button"
+                        >
+                          <Text style={[styles.optionText, on && styles.optionTextOn]} numberOfLines={1}>
+                            {c.name}
+                          </Text>
+                          {on ? <Text style={styles.optionCheck}>✓</Text> : null}
+                        </Pressable>
+                      );
+                    });
+                  })()}
+                </ScrollView>
+
+                <Pressable onPress={() => setCatOpen(false)}>
+                  <Text style={styles.cancel}>{tx.cancel}</Text>
+                </Pressable>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
       </SafeAreaView>
     </GradientBackground>
   );
@@ -559,6 +689,22 @@ const styles = StyleSheet.create({
   photoSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },
   label: { fontSize: 13, fontWeight: '700', color: t.textMuted, marginTop: 6 },
   input: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: t.text },
+  selectField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  selectText: { flex: 1, color: t.text, fontSize: 15, fontWeight: '700' },
+  selectPlaceholder: { flex: 1, color: t.textFaint, fontSize: 15 },
+  selectChevron: { color: t.textMuted, fontSize: 14, fontWeight: '800' },
+  optionsList: { maxHeight: 320, marginTop: 4 },
+  optionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderBottomWidth: 1, borderBottomColor: t.border,
+    paddingVertical: 12, paddingHorizontal: 4,
+  },
+  optionRowOn: { backgroundColor: t.card, borderRadius: 10 },
+  optionText: { flex: 1, color: t.text, fontSize: 15, fontWeight: '600' },
+  optionTextOn: { fontWeight: '800' },
+  optionCheck: { color: t.accent, fontSize: 16, fontWeight: '900' },
+  optionClear: { flex: 1, color: t.textMuted, fontSize: 14, fontWeight: '700', fontStyle: 'italic' },
+  optionEmpty: { color: t.textFaint, fontSize: 13, paddingVertical: 14, textAlign: 'center' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
   checkboxOn: { backgroundColor: t.accent, borderColor: t.accent },

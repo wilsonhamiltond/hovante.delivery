@@ -31,6 +31,8 @@ const S: Record<
     myInfo: string;
     addresses: string;
     myVehicle: string;
+    products: string;
+    categories: string;
     hours: string;
     drivers: string;
     changePassword: string;
@@ -56,6 +58,8 @@ const S: Record<
     myInfo: 'Mis datos',
     addresses: 'Direcciones',
     myVehicle: 'Mi vehículo',
+    products: 'Productos',
+    categories: 'Categorías',
     hours: 'Horario',
     drivers: 'Repartidores',
     changePassword: 'Cambiar contraseña',
@@ -80,6 +84,8 @@ const S: Record<
     myInfo: 'My info',
     addresses: 'Addresses',
     myVehicle: 'My vehicle',
+    products: 'Products',
+    categories: 'Categories',
     hours: 'Business hours',
     drivers: 'Drivers',
     changePassword: 'Change password',
@@ -275,9 +281,23 @@ export default function AccountScreen() {
                   <View style={styles.rowDivider} />
                 </>
               ) : null}
-              {/* Merchants only: when the business opens each day of the week. */}
+              {/* Merchants only: the catalogue and its categories, then when the business opens
+                  each day of the week. Productos also lives on the tab bar; the row keeps every
+                  merchant tool findable from one place. */}
               {profile?.isMerchant ? (
                 <>
+                  <Pressable style={styles.row} onPress={() => router.push('/merchant-products')}>
+                    <FontAwesome5 name="box-open" size={15} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>{tx.products}</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                  <Pressable style={styles.row} onPress={() => router.push('/merchant-categories')}>
+                    <FontAwesome5 name="tags" size={15} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>{tx.categories}</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
                   <Pressable style={styles.row} onPress={() => router.push('/business-hours')}>
                     <FontAwesome5 name="clock" size={16} solid color={t.text} style={styles.rowIcon} />
                     <Text style={styles.rowText}>{tx.hours}</Text>
