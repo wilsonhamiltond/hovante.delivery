@@ -246,6 +246,111 @@ const S: Record<
       },
     ],
   },
+  fr: {
+    title: 'Aide',
+    supportTitle: 'Besoin d’aide ?',
+    supportSub: 'Nous sommes là pour vous aider. Écrivez-nous ou appelez-nous.',
+    call: 'Appeler',
+    email: 'E-mail',
+    faqTitle: 'Questions fréquentes',
+    quickLinks: 'Accès rapides',
+    myOrders: 'Mes commandes',
+    myAddresses: 'Mes adresses',
+    myVehicle: 'Mon véhicule',
+    history: 'Historique',
+    groups: [
+      {
+        title: 'Commandes',
+        when: 'client',
+        items: [
+          {
+            q: 'Comment passer une commande ?',
+            a: 'Choisissez un commerce sur l’écran d’accueil, ajoutez des produits au panier et finalisez la commande en suivant les étapes : panier, lieu de livraison et note.',
+          },
+          {
+            q: 'Puis-je commander dans plusieurs commerces à la fois ?',
+            a: 'Non. Chaque commande ne peut contenir que des produits d’un seul commerce. Si vous ajoutez un article d’un autre commerce, il vous sera demandé de vider d’abord votre panier.',
+          },
+          {
+            q: 'Puis-je retirer la commande moi-même ?',
+            a: 'Oui. En finalisant la commande, vous pouvez choisir le retrait en magasin au lieu de la livraison à domicile. Dans ce cas, aucuns frais de livraison ne sont facturés et vous allez la chercher au commerce quand elle est prête.',
+          },
+          {
+            q: 'Comment suivre ma commande ?',
+            a: 'Touchez une commande dans « Vos commandes en cours » (accueil) ou dans « Mes commandes ». Vous verrez son statut en temps réel, avec la date de chaque étape, depuis la confirmation par le commerce jusqu’à l’arrivée à votre porte.',
+          },
+          {
+            q: 'Qu’est-ce que le code de livraison ?',
+            a: 'C’est un code à 4 chiffres qui apparaît dans le suivi de votre commande. Donnez-le au livreur en recevant votre commande : c’est ainsi qu’il confirme que la livraison est correcte.',
+          },
+          {
+            q: 'Comment payer ma commande ?',
+            a: 'Pour le moment, le paiement se fait en espèces, à la réception de la commande, directement au livreur. Le paiement par carte est en cours de développement.',
+          },
+          {
+            q: 'Comment annuler une commande ?',
+            a: 'Depuis le suivi de la commande, touchez « Annuler la commande », choisissez le motif et confirmez. C’est possible tant que le commerce ne l’a pas acceptée ; après cela, écrivez-nous et nous essaierons avec vous.',
+          },
+          {
+            q: 'Comment changer mon adresse de livraison ?',
+            a: 'Choisissez l’emplacement sur la carte lors de l’étape de localisation en passant la commande. Vos adresses les plus utilisées apparaissent dans le menu « Adresses ».',
+          },
+        ],
+      },
+      {
+        title: 'Vos livraisons',
+        when: 'driver',
+        items: [
+          {
+            q: 'Comment voir les commandes disponibles ?',
+            a: 'Sur la carte de l’accueil. Chaque commande prête à être prise apparaît comme un repère, avec celles situées à moins de 5 km de vous. La carte se met à jour toute seule et vous recevez une notification quand une nouvelle arrive à proximité.',
+          },
+          {
+            q: 'Comment prendre et effectuer une livraison ?',
+            a: 'Touchez le repère pour voir le détail et prendre la commande. La carte vous guide d’abord vers le commerce ; à votre arrivée, marquez « Livraison en route » et de là elle vous guide jusqu’au client.',
+          },
+          {
+            q: 'À quoi sert le code de livraison ?',
+            a: 'Le client a un code à 4 chiffres sur son écran. Demandez-le-lui en livrant : c’est la confirmation que la commande est arrivée à la bonne personne.',
+          },
+          {
+            q: 'Dois-je enregistrer mon véhicule ?',
+            a: 'Oui. Dans « Mon véhicule », dans votre compte, indiquez le type de véhicule. La marque, le modèle, l’année, la couleur et la plaque sont facultatifs, mais ils aident le commerce à vous identifier.',
+          },
+          {
+            q: 'Que se passe-t-il si je perds le signal pendant une livraison ?',
+            a: 'Vous pouvez continuer à travailler. Les actions effectuées hors connexion sont enregistrées sur le téléphone et envoyées automatiquement dès que l’internet revient.',
+          },
+        ],
+      },
+      {
+        title: 'Votre comptoir',
+        when: 'merchant',
+        items: [
+          {
+            q: 'Comment savoir qu’une commande est arrivée ?',
+            a: 'Les nouvelles commandes apparaissent d’elles-mêmes sur l’accueil, sans recharger ni vous reconnecter, et vous recevez une notification sur le téléphone.',
+          },
+          {
+            q: 'Que se passe-t-il quand j’accepte une commande ?',
+            a: 'En l’acceptant, nous vous demandons dans combien de minutes vous pourrez commencer à la préparer. Cette information permet d’indiquer au client quand elle sera prête et de chercher un livreur au bon moment.',
+          },
+          {
+            q: 'Puis-je refuser une commande ?',
+            a: 'Oui. Si vous ne pouvez pas la préparer, refusez-la depuis le même écran : la commande quitte le comptoir et le client en est informé.',
+          },
+          {
+            q: 'Puis-je voir où se trouve le livreur ?',
+            a: 'Oui. Depuis la commande, vous pouvez suivre le livreur sur la carte pendant qu’il vient au commerce et pendant qu’il apporte la commande au client.',
+          },
+          {
+            q: 'Où voir les commandes déjà terminées ?',
+            a: 'Dans l’onglet Historique. L’accueil ne montre que ce qui reste en attente au comptoir.',
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export default function HelpScreen() {

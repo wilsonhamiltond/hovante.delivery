@@ -30,6 +30,14 @@ const S: Record<
     done: (time) => `Done · ${time}`,
     cancel: 'Cancel',
   },
+  fr: {
+    am: 'AM',
+    pm: 'PM',
+    hour: 'Heure',
+    minutes: 'Minutes',
+    done: (time) => `OK · ${time}`,
+    cancel: 'Annuler',
+  },
 };
 
 // A time-of-day field: an input-shaped control showing "9:00 a. m." that opens a picker sheet

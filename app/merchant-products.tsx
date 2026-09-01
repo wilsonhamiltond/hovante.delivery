@@ -61,6 +61,22 @@ const S: Record<
     deleteYes: 'Yes, delete',
     no: 'No',
   },
+  fr: {
+    deleted: 'Produit supprimé.',
+    title: 'Produits',
+    subtitle: 'Ce que votre commerce vend dans l’application',
+    newBtn: '+ Nouveau',
+    searchPlaceholder: 'Rechercher par nom',
+    emptySearch: (query) => `Aucun produit ne correspond à « ${query} ».`,
+    emptyCatalogue: 'Votre commerce n’a pas encore de produits. Touchez « + Nouveau » pour ajouter le premier.',
+    unavailable: 'Indisponible',
+    edit: '✏️ Modifier',
+    remove: '🗑️ Supprimer',
+    deleteTitle: 'Supprimer le produit ?',
+    deleteBody: 'S’il a déjà des commandes, il sera retiré de la vente au lieu d’être supprimé.',
+    deleteYes: 'Oui, supprimer',
+    no: 'Non',
+  },
 };
 
 // The merchant's own catalogue as an infinite scroll, and the counter's way to maintain it: add a

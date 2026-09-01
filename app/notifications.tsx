@@ -50,6 +50,19 @@ const S: Record<
     emptyHintMerchant: "Here you'll see incoming orders and how they progress: confirmed, picked up, and delivered.",
     emptyHintClient: "Here you'll see the status of your orders: when the store confirms it, when a driver takes it, and when it reaches your door.",
   },
+  fr: {
+    now: 'maintenant',
+    minsAgo: (mins) => `il y a ${mins} min`,
+    hoursAgo: (hours) => `il y a ${hours} h`,
+    dateLocale: 'fr-FR',
+    title: 'Notifications',
+    clearAllLabel: 'Effacer toutes les notifications',
+    clear: 'Effacer',
+    empty: "Vous n'avez aucune notification.",
+    emptyHintDriver: "Ici, vous verrez l'état de vos livraisons : quand vous en prenez une, quand vous partez avec et quand vous la terminez.",
+    emptyHintMerchant: 'Ici, vous verrez les commandes qui arrivent et leur avancement : confirmées, récupérées et livrées.',
+    emptyHintClient: "Ici, vous verrez l'état de vos commandes : quand le commerce la confirme, quand un livreur la prend et quand elle arrive à votre porte.",
+  },
 };
 
 // "Hace 5 min" / "hace 2 h" / a date once it stops being today's news.

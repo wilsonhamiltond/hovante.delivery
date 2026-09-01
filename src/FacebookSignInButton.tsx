@@ -15,6 +15,10 @@ const S: Record<Locale, { error: string; label: string }> = {
     error: 'Could not sign in with Facebook.',
     label: 'Continue with Facebook',
   },
+  fr: {
+    error: 'Impossible de se connecter avec Facebook.',
+    label: 'Continuer avec Facebook',
+  },
 };
 
 interface Props {

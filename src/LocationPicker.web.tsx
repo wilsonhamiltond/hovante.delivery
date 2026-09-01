@@ -7,6 +7,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { pickLocation: string }> = {
   es: { pickLocation: 'Seleccionar ubicación' },
   en: { pickLocation: 'Pick a location' },
+  fr: { pickLocation: 'Choisir un emplacement' },
 };
 
 // Web build: renders the Google map in a real <iframe> (this file only loads on web, where the tree

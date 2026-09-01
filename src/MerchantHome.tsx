@@ -49,6 +49,17 @@ const S: Record<
     inProgress: 'In progress',
     fresh: 'New',
   },
+  fr: {
+    companyFallback: 'Votre commerce',
+    subtitle: (fresh, working) => `${fresh} nouvelle(s) · ${working} en cours`,
+    markAllSeenLabel: 'Marquer toutes les notifications comme vues',
+    markAllSeen: (count) => `Tout marquer comme vu · ${count} notification${count === 1 ? '' : 's'}`,
+    allClear: 'Tout est à jour',
+    allClearBody: 'Aucune commande n’attend au comptoir. Les nouvelles apparaissent ici toutes seules, sans recharger ni se reconnecter.',
+    allClearHint: 'Les commandes terminées se trouvent dans l’Historique.',
+    inProgress: 'En cours',
+    fresh: 'Nouvelles',
+  },
 };
 
 // The merchant's phone view: the counter's queue -- the orders still to be dealt with -- with the

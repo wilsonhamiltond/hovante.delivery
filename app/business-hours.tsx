@@ -76,6 +76,26 @@ const S: Record<
     closes: 'Closes',
     save: 'Save hours',
   },
+  fr: {
+    dayNames: {
+      1: 'Lundi',
+      2: 'Mardi',
+      3: 'Mercredi',
+      4: 'Jeudi',
+      5: 'Vendredi',
+      6: 'Samedi',
+      0: 'Dimanche',
+    },
+    invalidTime: (day) => `${day} : choisissez une heure valide.`,
+    closeAfterOpen: (day) => `${day} : l’heure de fermeture doit être après celle d’ouverture.`,
+    saved: 'Horaires enregistrés.',
+    title: 'Horaires',
+    hint: 'Cochez les jours d’ouverture de votre commerce et choisissez l’heure d’ouverture et de fermeture.',
+    closed: 'Fermé',
+    opens: 'Ouvre',
+    closes: 'Ferme',
+    save: 'Enregistrer les horaires',
+  },
 };
 
 // A sensible first fill for a day just switched on, so the merchant edits two times rather than

@@ -9,6 +9,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { frameTitle: string }> = {
   es: { frameTitle: 'Mapa de puntos' },
   en: { frameTitle: 'Points map' },
+  fr: { frameTitle: 'Carte des points' },
 };
 
 // Web: the N-marker map in a real <iframe> (this file only loads on web), listening for the map's

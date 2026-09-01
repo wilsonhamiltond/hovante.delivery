@@ -66,6 +66,23 @@ const S: Record<
     repeatPlaceholder: 'Type it again',
     save: 'Save password',
   },
+  fr: {
+    enterCurrent: 'Saisissez votre mot de passe actuel.',
+    enterNew: 'Saisissez votre nouveau mot de passe.',
+    newTooShort: (min) => `Le nouveau mot de passe doit comporter au moins ${min} caractères.`,
+    newMustDiffer: 'Le nouveau mot de passe doit être différent de l’actuel.',
+    passwordsMismatch: 'Les mots de passe ne correspondent pas.',
+    updated: 'Votre mot de passe a été mis à jour.',
+    title: 'Mot de passe',
+    lead: 'Saisissez votre mot de passe actuel et le nouveau. Vous resterez connecté.',
+    currentLabel: 'Mot de passe actuel',
+    currentPlaceholder: 'Votre mot de passe actuel',
+    newLabel: 'Nouveau mot de passe',
+    newPlaceholder: (min) => `Au moins ${min} caractères`,
+    repeatLabel: 'Répéter le nouveau mot de passe',
+    repeatPlaceholder: 'Saisissez-le à nouveau',
+    save: 'Enregistrer le mot de passe',
+  },
 };
 
 // Change the password of the signed-in account, reached from "Mi cuenta".

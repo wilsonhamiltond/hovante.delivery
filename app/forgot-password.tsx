@@ -39,6 +39,16 @@ const S: Record<
     remembered: 'Remembered it? ',
     signIn: 'Sign in',
   },
+  fr: {
+    enterEmail: 'Saisissez votre adresse e-mail.',
+    title: 'Réinitialiser le mot de passe',
+    subtitle: 'Saisissez votre e-mail et nous vous enverrons un code pour créer un nouveau mot de passe.',
+    emailPlaceholder: 'Adresse e-mail',
+    sendCode: 'Envoyer le code',
+    haveCode: 'J’ai déjà un code',
+    remembered: 'Vous vous en souvenez ? ',
+    signIn: 'Se connecter',
+  },
 };
 
 export default function ForgotPasswordScreen() {

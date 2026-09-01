@@ -27,6 +27,12 @@ const S: Record<
     noSession: 'You are not signed in.',
     sessionExpired: 'Your session expired. Please sign in again.',
   },
+  fr: {
+    networkError: 'Impossible de se connecter au serveur.',
+    serverError: (status) => `Erreur du serveur (${status}).`,
+    noSession: 'Vous n’êtes pas connecté.',
+    sessionExpired: 'Votre session a expiré. Veuillez vous reconnecter.',
+  },
 };
 
 // Puts a picked image into a FormData as an actual FILE, on both hosts.

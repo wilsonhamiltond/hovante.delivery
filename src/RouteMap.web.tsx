@@ -7,6 +7,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { frameTitle: string }> = {
   es: { frameTitle: 'Mapa de la ruta' },
   en: { frameTitle: 'Route map' },
+  fr: { frameTitle: 'Carte de l’itinéraire' },
 };
 
 // Web: the map in a real <iframe> (this file only loads on web).

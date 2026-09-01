@@ -9,6 +9,7 @@ import { strings, type Locale } from './i18n';
 const S: Record<Locale, { missingKey: string }> = {
   es: { missingKey: 'Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY para ver el mapa.' },
   en: { missingKey: 'Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to see the map.' },
+  fr: { missingKey: 'Configurez EXPO_PUBLIC_GOOGLE_MAPS_API_KEY pour voir la carte.' },
 };
 
 // A read-only map of N markers (branch choice, the driver home's pickup pool). Same conventions as

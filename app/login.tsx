@@ -39,6 +39,15 @@ const S: Record<
     exploreAsGuest: 'Browse without an account',
     version: (label) => `Version ${label}`,
   },
+  fr: {
+    tagline: 'Commandez ce que vous voulez, on vous le livre',
+    or: 'ou',
+    continueWithEmail: 'Continuer avec e-mail ou téléphone',
+    haveAccount: 'Vous avez déjà un compte ? ',
+    signIn: 'Connectez-vous',
+    exploreAsGuest: 'Explorer sans compte',
+    version: (label) => `Version ${label}`,
+  },
 };
 
 // Welcome / step 1 of onboarding: the Volao logo over the gradient, the three social sign-in

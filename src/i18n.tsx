@@ -10,14 +10,15 @@ import * as SecureStore from 'expo-secure-store';
 // No expo-localization on purpose: it is a native module, and adding one would strand the
 // existing dev-client/EAS builds. Device detection instead uses Intl (Hermes ships it) with
 // navigator.language on web, which needs nothing native.
-export type Locale = 'es' | 'en';
+export type Locale = 'es' | 'en' | 'fr';
 
-export const LOCALES: readonly Locale[] = ['es', 'en'];
+export const LOCALES: readonly Locale[] = ['es', 'en', 'fr'];
 export const DEFAULT_LOCALE: Locale = 'es';
 
 export const LOCALE_LABELS: Record<Locale, string> = {
   es: 'Español',
   en: 'English',
+  fr: 'Français',
 };
 
 // Persisted alongside the auth token (see storage.ts for the web/native split rationale).

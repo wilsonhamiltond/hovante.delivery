@@ -10,6 +10,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { companyFallback: string }> = {
   es: { companyFallback: 'Tu comercio' },
   en: { companyFallback: 'Your business' },
+  fr: { companyFallback: 'Votre commerce' },
 };
 
 // The merchant screens' shared top bar -- the "🏪 comercio" row with the bell that the home wears,

@@ -59,6 +59,21 @@ const S: Record<
     confirmMessage: 'Are you sure you want to delete your account? This action cannot be undone.',
     confirmLabel: 'Yes, delete my account',
   },
+  fr: {
+    deleted: 'Votre compte a été supprimé.',
+    title: 'Supprimer le compte',
+    lead: 'La suppression de votre compte efface de façon permanente :',
+    itemPersonal: '• Vos données personnelles (nom, téléphone, e-mail)',
+    itemAddresses: '• Vos adresses enregistrées',
+    itemPhoto: '• Votre photo de profil',
+    itemAccess: '• L’accès à l’application avec ce compte',
+    noteOrders: 'Les commandes et les factures déjà émises sont conservées de façon anonyme car elles font partie des registres de ventes et fiscaux des commerces, mais elles ne sont plus liées à vous : votre nom, votre téléphone et votre adresse en sont retirés.',
+    noteIrreversible: 'Cette action est irréversible. Si vous souhaitez simplement quitter l’application, utilisez « Se déconnecter » dans Mon compte.',
+    deleteMyAccount: 'Supprimer mon compte',
+    confirmTitle: 'Supprimer le compte',
+    confirmMessage: 'Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.',
+    confirmLabel: 'Oui, supprimer mon compte',
+  },
 };
 
 // Delete the signed-in account, reached from "Mi cuenta" (App Store 5.1.1(v): an account created

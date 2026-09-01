@@ -6,6 +6,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { cancel: string }> = {
   es: { cancel: 'Cancelar' },
   en: { cancel: 'Cancel' },
+  fr: { cancel: 'Annuler' },
 };
 
 interface Props {

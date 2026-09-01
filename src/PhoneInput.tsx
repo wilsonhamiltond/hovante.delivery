@@ -30,6 +30,13 @@ const S: Record<
     searchPlaceholder: 'Search country or code',
     noResults: 'No results',
   },
+  fr: {
+    countryA11y: (name, dial) => `Pays : ${name}, +${dial}`,
+    phonePlaceholder: 'Numéro de téléphone',
+    countryTitle: 'Pays',
+    searchPlaceholder: 'Rechercher un pays ou un indicatif',
+    noResults: 'Aucun résultat',
+  },
 };
 
 interface Props {

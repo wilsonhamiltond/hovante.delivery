@@ -35,6 +35,12 @@ const S: Record<
     signIn: 'Sign in',
     cancel: 'Cancel',
   },
+  fr: {
+    title: 'Connectez-vous pour continuer',
+    message: "Cette partie de l'application nécessite un compte. Connectez-vous avec le vôtre ou créez-en un nouveau.",
+    signIn: 'Se connecter',
+    cancel: 'Annuler',
+  },
 };
 
 interface AuthPromptState {

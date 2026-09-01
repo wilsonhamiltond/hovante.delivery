@@ -32,6 +32,13 @@ const S: Record<
     deliverAt: 'Deliver to',
     addressLabel: 'Address',
   },
+  fr: {
+    locationTitle: 'Emplacement',
+    noLocation: 'Cette adresse n’a pas d’emplacement.',
+    merchant: 'Commerce',
+    deliverAt: 'Livrer à',
+    addressLabel: 'Adresse',
+  },
 };
 
 // One point on a map, in the app rather than handing off to Google Maps. Used by both order-detail

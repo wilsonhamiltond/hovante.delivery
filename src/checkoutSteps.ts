@@ -23,6 +23,13 @@ const S: Record<Locale, Record<StepKey, string>> = {
     note: 'Note',
     summary: 'Summary',
   },
+  fr: {
+    cart: 'Panier',
+    details: 'Détails',
+    location: 'Emplacement',
+    note: 'Note',
+    summary: 'Récapitulatif',
+  },
 };
 
 export const STEP_TITLES: Record<StepKey, string> = S.es;

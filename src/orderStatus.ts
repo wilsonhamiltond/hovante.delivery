@@ -61,6 +61,20 @@ const S: Record<
     readyForPickup: 'Ready for pickup',
     findingDriver: 'Finding a driver',
   },
+  fr: {
+    cancelled: 'Annulée',
+    delivered: 'Livrée',
+    inTransit: 'En route',
+    assigned: 'Livreur assigné',
+    failed: 'Livraison échouée',
+    returned: 'Retournée',
+    queued: (min) => `En file d’attente · ~${min} min`,
+    pending: 'En attente du commerce',
+    confirmed: 'Confirmée',
+    preparing: 'En préparation',
+    readyForPickup: 'Prête à retirer',
+    findingDriver: 'Recherche d’un livreur',
+  },
 };
 
 export function orderStatusChip(o: Order, now: number = Date.now()): OrderStatusChip {

@@ -20,6 +20,10 @@ const S: Record<
     cartWithCount: (count) => `Cart, ${count} ${count === 1 ? 'item' : 'items'}`,
     cartEmpty: 'Cart is empty',
   },
+  fr: {
+    cartWithCount: (count) => `Panier, ${count} ${count === 1 ? 'article' : 'articles'}`,
+    cartEmpty: 'Panier vide',
+  },
 };
 
 // The cart, reachable from the top of any customer screen rather than only from the bar that

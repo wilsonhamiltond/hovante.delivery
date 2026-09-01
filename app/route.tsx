@@ -75,6 +75,24 @@ const S: Record<
     toCollect: 'to collect',
     call: '📞 Call',
   },
+  fr: {
+    status: {
+      PENDING: 'En attente',
+      ASSIGNED: 'À récupérer au commerce',
+      IN_TRANSIT: 'En route vers le client',
+    },
+    title: 'Ma tournée',
+    inProgress: (n) => `${n} livraison(s) en cours`,
+    pendingSync: (n) => `${n} action(s) en attente de synchronisation. Faites glisser pour réessayer.`,
+    emptyTitle: 'Aucune livraison en cours',
+    emptySubtitle: "Prenez une commande depuis la carte d'accueil et elle apparaîtra ici comme votre tournée.",
+    delivery: 'Livraison',
+    pickupPrefix: '🏪 Récupérer : ',
+    recipient: 'Destinataire',
+    noAddress: 'Sans adresse',
+    toCollect: 'à encaisser',
+    call: '📞 Appeler',
+  },
 };
 
 const money = (n: number) => `RD$${n.toFixed(2)}`;

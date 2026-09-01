@@ -26,6 +26,7 @@ const TONES = {
 const S: Record<Locale, { errorTitle: string; successTitle: string; ok: string }> = {
   es: { errorTitle: 'Revisa los datos', successTitle: 'Listo', ok: 'Entendido' },
   en: { errorTitle: 'Check your details', successTitle: 'Done', ok: 'Got it' },
+  fr: { errorTitle: 'Vérifiez vos informations', successTitle: 'Terminé', ok: 'Compris' },
 };
 
 // A themed replacement for the line of red text under the form. Used by the sign-up wizard so every

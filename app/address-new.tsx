@@ -75,6 +75,25 @@ const S: Record<
     saveChanges: 'Save changes',
     saveAddress: 'Save address',
   },
+  fr: {
+    locPermTitle: 'Autorisation de localisation',
+    locPermBody: 'Activez l’autorisation de localisation pour utiliser votre position actuelle.',
+    locTitle: 'Localisation',
+    locFailed: 'Impossible d’obtenir votre position actuelle.',
+    chooseAddressLabel: 'Choisissez un nom pour votre adresse.',
+    writeAddressLabel: 'Saisissez le nom de votre adresse.',
+    pickOnMap: 'Choisissez votre position sur la carte.',
+    editTitle: 'Modifier l’adresse',
+    newTitle: 'Nouvelle adresse',
+    addressNameLabel: 'Nom de l’adresse',
+    customLabelPlaceholder: 'Ex. Chez maman',
+    tapMap: 'Touchez la carte pour choisir votre position',
+    myLocation: '📍 Ma position',
+    addressFieldLabel: 'Adresse',
+    addressPlaceholder: 'Saisissez et recherchez, ou choisissez sur la carte',
+    saveChanges: 'Enregistrer les modifications',
+    saveAddress: 'Enregistrer l’adresse',
+  },
 };
 
 // Add or edit a delivery address, reached from the home header's address dropdown and from the

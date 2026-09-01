@@ -10,6 +10,7 @@ import { strings, type Locale } from './i18n';
 const S: Record<Locale, { channelName: string }> = {
   es: { channelName: 'Entregas' },
   en: { channelName: 'Deliveries' },
+  fr: { channelName: 'Livraisons' },
 };
 
 // Push notifications for drivers: the app hands its NATIVE device token to the API, and the API

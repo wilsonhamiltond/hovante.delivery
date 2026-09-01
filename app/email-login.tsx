@@ -43,6 +43,17 @@ const S: Record<
     noAccount: "Don't have an account? ",
     register: 'Sign up',
   },
+  fr: {
+    missingFields: 'Saisissez votre e-mail et votre mot de passe.',
+    title: 'Se connecter',
+    subtitle: 'Connectez-vous avec votre e-mail et votre mot de passe',
+    emailPlaceholder: 'Adresse e-mail',
+    passwordPlaceholder: 'Mot de passe',
+    forgot: 'Mot de passe oublié ?',
+    signIn: 'Se connecter',
+    noAccount: 'Vous n’avez pas de compte ? ',
+    register: 'Inscrivez-vous',
+  },
 };
 
 // Sign in with an existing account. Reached from the welcome screen's "Ya tengo cuenta"; new users

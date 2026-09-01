@@ -30,6 +30,11 @@ const S: Record<
     noAccessBody: 'Ask your administrator to enable "Acceso App Delivery" for your user.',
     signOut: 'Sign out',
   },
+  fr: {
+    noAccessTitle: 'Ce compte n’a pas accès à l’application',
+    noAccessBody: 'Demandez à votre administrateur d’activer "Acceso App Delivery" pour votre utilisateur.',
+    signOut: 'Se déconnecter',
+  },
 };
 
 // Routes the home by role: a merchant (ERP account) gets their orders screen, a driver gets

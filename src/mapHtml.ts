@@ -16,6 +16,11 @@ const S: Record<Locale, { missingKey: string; deliverHere: string; store: string
     deliverHere: 'Deliver here',
     store: 'Store',
   },
+  fr: {
+    missingKey: 'Configurez EXPO_PUBLIC_GOOGLE_MAPS_API_KEY pour voir la carte.',
+    deliverHere: 'Livrer ici',
+    store: 'Commerce',
+  },
 };
 
 // Shared, platform-agnostic pieces for the location-picker map. No React/RN imports here so both the

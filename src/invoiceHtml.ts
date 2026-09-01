@@ -67,6 +67,25 @@ const S: Record<
     total: 'Total',
     notes: 'Notes',
   },
+  fr: {
+    dateLocale: 'fr-FR',
+    fallbackTitle: 'Facture',
+    customer: 'Client',
+    customerDoc: 'RNC/Pièce d’identité :',
+    dateLabel: 'Date :',
+    dueLabel: 'Échéance :',
+    thDescription: 'Description',
+    thQty: 'Qté',
+    thPrice: 'Prix',
+    thDiscount: 'Rem.',
+    thTax: 'Taxe',
+    thTotal: 'Total',
+    noLines: 'Aucune ligne',
+    subtotal: 'Sous-total',
+    tax: 'Taxe',
+    total: 'Total',
+    notes: 'Notes',
+  },
 };
 
 const esc = (s: string | null | undefined): string =>

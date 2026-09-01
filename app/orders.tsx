@@ -43,6 +43,15 @@ const S: Record<
     history: 'History',
     noPastOrders: 'No previous orders.',
   },
+  fr: {
+    deliveryFee: (amount) => `Livraison ${amount}`,
+    track: 'Suivre ›',
+    title: 'Mes commandes',
+    noOrders: "Vous n'avez pas encore de commandes.",
+    inProgress: 'En cours',
+    history: 'Historique',
+    noPastOrders: 'Aucune commande antérieure.',
+  },
 };
 
 // How many history rows each page brings; the list asks for the next page as the end scrolls near.

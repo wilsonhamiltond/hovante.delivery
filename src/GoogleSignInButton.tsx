@@ -16,6 +16,10 @@ const S: Record<Locale, { error: string; label: string }> = {
     error: 'Could not sign in with Google.',
     label: 'Continue with Google',
   },
+  fr: {
+    error: 'Impossible de se connecter avec Google.',
+    label: 'Continuer avec Google',
+  },
 };
 
 interface Props {

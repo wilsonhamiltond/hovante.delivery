@@ -28,6 +28,11 @@ const S: Record<Locale, { socialMessage: string }> = {
       'Signing in with Google, Facebook, and Apple does not work inside Expo Go. '
       + 'Use the installed app (the APK), or sign in with your email and password.',
   },
+  fr: {
+    socialMessage:
+      'La connexion avec Google, Facebook et Apple ne fonctionne pas dans Expo Go. '
+      + 'Utilisez l’application installée (l’APK), ou connectez-vous avec votre e-mail et votre mot de passe.',
+  },
 };
 
 /** What to tell someone who taps a social sign-in inside Expo Go. A function (not a constant) so

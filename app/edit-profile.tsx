@@ -76,6 +76,26 @@ const S: Record<
     closureNotePlaceholder: 'Note (optional). E.g.: Closed for inventory',
     save: 'Save changes',
   },
+  fr: {
+    title: 'Mes informations',
+    errName: 'Saisissez votre prénom et votre nom.',
+    errLastName: 'Saisissez votre prénom et votre nom.',
+    errPhone: 'Saisissez un numéro de téléphone valide pour le pays sélectionné.',
+    closureFailed: (msg) => `Vos informations ont été enregistrées, mais pas la fermeture d’aujourd’hui : ${msg}`,
+    savedWithClosure: (msg) => `Vos informations ont été mises à jour. ${msg}`,
+    saved: 'Vos informations ont été mises à jour.',
+    email: 'E-mail',
+    emailHint: 'Votre e-mail identifie votre compte et ne peut pas être modifié.',
+    fullName: 'Prénom et nom',
+    fullNamePlaceholder: 'Ex. Ana Pérez',
+    phone: 'Téléphone',
+    myBusiness: 'Mon commerce',
+    closedToday: 'Fermé aujourd’hui',
+    closedTodayOn: 'Vos produits n’apparaissent pas sur le marché aujourd’hui ; demain vous ouvrez normalement.',
+    closedTodayOff: 'Cochez cette case pour ne pas vendre aujourd’hui seulement, sans modifier vos horaires.',
+    closureNotePlaceholder: 'Note (facultatif). Ex. : Fermé pour inventaire',
+    save: 'Enregistrer les modifications',
+  },
 };
 
 // Edit the account's own details, reached from "Mi cuenta".

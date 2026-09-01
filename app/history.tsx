@@ -62,6 +62,22 @@ const S: Record<
     receivedByPrefix: 'Received by: ',
     reasonPrefix: 'Reason: ',
   },
+  fr: {
+    status: {
+      DELIVERED: 'Livrée',
+      FAILED: 'Échouée',
+      RETURNED: 'Retournée',
+      CANCELLED: 'Annulée',
+    },
+    dateLocale: 'fr-FR',
+    title: 'Historique des livraisons',
+    empty: 'Vous n’avez pas encore de livraisons terminées.',
+    delivery: 'Livraison',
+    recipient: 'Destinataire',
+    noAddress: 'Sans adresse',
+    receivedByPrefix: 'Reçu par : ',
+    reasonPrefix: 'Motif : ',
+  },
 };
 
 const fmtDate = (iso: string | null, locale: string): string => {

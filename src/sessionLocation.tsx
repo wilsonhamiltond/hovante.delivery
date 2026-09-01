@@ -61,6 +61,7 @@ export function useSessionLocation(): SessionLocationState {
 const S: Record<Locale, { sessionLocationLabel: string }> = {
   es: { sessionLocationLabel: 'Ubicación actual' },
   en: { sessionLocationLabel: 'Current location' },
+  fr: { sessionLocationLabel: 'Position actuelle' },
 };
 
 /** What the header pill calls it, so it is obvious this is not one of the saved addresses. */

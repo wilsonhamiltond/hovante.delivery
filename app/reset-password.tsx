@@ -80,6 +80,28 @@ const S: Record<
     resendCode: 'Resend code',
     backToSignIn: 'Back to sign in',
   },
+  fr: {
+    resentNotice: 'Si un compte existe, nous vous avons envoyé un autre code.',
+    enterEmailedCode: "Saisissez le code à 6 chiffres reçu par e-mail.",
+    missingLinkCode: 'Le code du lien de réinitialisation est manquant.',
+    passwordTooShort: 'Le mot de passe doit contenir au moins 7 caractères.',
+    passwordsMismatch: 'Les mots de passe ne correspondent pas.',
+    doneTitle: 'Mot de passe mis à jour',
+    doneSubtitle: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.',
+    signIn: 'Se connecter',
+    title: 'Nouveau mot de passe',
+    subtitleSent: (email) => `Si un compte existe pour ${email}, nous vous avons envoyé un code à 6 chiffres. Saisissez-le ici avec votre nouveau mot de passe.`,
+    subtitleChoose: "Choisissez un mot de passe d'au moins 7 caractères.",
+    linkCodePlaceholder: 'Code du lien',
+    newPasswordPlaceholder: 'Nouveau mot de passe',
+    confirmPasswordPlaceholder: 'Confirmer le mot de passe',
+    savePassword: 'Enregistrer le mot de passe',
+    noCode: "Vous n'avez pas reçu le code ? ",
+    sending: 'Envoi…',
+    resendIn: (s) => `Renvoyer dans ${s}s`,
+    resendCode: 'Renvoyer le code',
+    backToSignIn: 'Retour à la connexion',
+  },
 };
 
 export default function ResetPasswordScreen() {

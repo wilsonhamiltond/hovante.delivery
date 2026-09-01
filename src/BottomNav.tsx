@@ -30,6 +30,15 @@ const S: Record<Locale, Record<TabKey, string>> = {
     history: 'History',
     products: 'Products',
   },
+  fr: {
+    home: 'Accueil',
+    explore: 'Explorer',
+    orders: 'Commandes',
+    account: 'Compte',
+    route: 'Ma tournée',
+    history: 'Historique',
+    products: 'Produits',
+  },
 };
 
 // Primary navigation, fixed to the bottom (replaces the old top-right drawer). Each role gets its

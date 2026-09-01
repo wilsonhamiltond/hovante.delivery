@@ -64,6 +64,24 @@ const S: Record<
     noEmail: 'The customer has no email on file; the invoice will not be sent by email.',
     close: 'Close',
   },
+  fr: {
+    dateLocale: 'fr-FR',
+    title: 'Facture',
+    docTypeFallback: 'Facture',
+    printError: 'Impossible d\'ouvrir l\'impression sur cet appareil.',
+    dateLabel: 'Date :',
+    customer: 'Client',
+    customerDoc: 'RNC/Pièce d\'identité :',
+    unitEach: (price) => `${price} l'unité`,
+    taxPct: (pct) => ` · Taxe ${pct}%`,
+    subtotal: 'Sous-total',
+    tax: 'Taxe',
+    total: 'Total',
+    print: 'Imprimer',
+    emailWillSend: (email) => `La facture est envoyée à ${email} à la livraison de la commande.`,
+    noEmail: 'Le client n\'a pas d\'adresse e-mail enregistrée ; la facture ne sera pas envoyée par e-mail.',
+    close: 'Fermer',
+  },
 };
 
 const fmtDate = (iso: string | null | undefined): string =>

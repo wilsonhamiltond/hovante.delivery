@@ -5,6 +5,7 @@ import { strings, type Locale } from './i18n';
 const S: Record<Locale, { you: string }> = {
   es: { you: 'Tú' },
   en: { you: 'You' },
+  fr: { you: 'Vous' },
 };
 
 // Every marker in the app, as one block of JavaScript the three map documents embed.

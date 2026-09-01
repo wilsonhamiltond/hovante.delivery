@@ -6,6 +6,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { back: string }> = {
   es: { back: 'Atrás' },
   en: { back: 'Back' },
+  fr: { back: 'Retour' },
 };
 
 // Every header balances its centred title against a spacer of the same width on the other side, so

@@ -52,6 +52,18 @@ const S: Record<
     pickupAt: 'Pick up at',
     deliverTo: 'Deliver to',
   },
+  fr: {
+    routeTitle: 'Itinéraire',
+    notFound: 'Livraison introuvable.',
+    pickupTitle: 'Récupérer',
+    deliverTitle: 'Livrer',
+    totalEta: (eta) => `⏱️ Total ${eta}`,
+    yourLocation: 'Votre position',
+    liveAccuracy: (m) => `En direct · ±${m} m`,
+    live: 'En direct',
+    pickupAt: 'Récupérer à',
+    deliverTo: 'Livrer à',
+  },
 };
 
 // A map of one delivery's two stops -- where to pick up (merchant) and where to deliver (client) --

@@ -50,6 +50,17 @@ const S: Record<
     reported: (ago) => ` · reported ${ago}`,
     noReportYet: 'The driver has not reported their location yet. The map will update on its own.',
   },
+  fr: {
+    justNow: 'il y a un instant',
+    agoMin: (mins) => `il y a ${mins} min`,
+    agoHours: (hours, mins) => `il y a ${hours} h ${mins} min`,
+    driverFallback: 'Livreur',
+    notFound: 'Commande introuvable.',
+    noOfficeLocation: 'Votre commerce n’a pas de succursale avec un emplacement sur la carte.',
+    enRoute: (driver, office) => `🛵 ${driver} en route vers ${office}`,
+    reported: (ago) => ` · signalé ${ago}`,
+    noReportYet: 'Le livreur n’a pas encore signalé sa position. La carte se mettra à jour toute seule.',
+  },
 };
 
 const fmtAgo = (iso?: string | null): string | null => {

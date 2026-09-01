@@ -24,6 +24,10 @@ const S: Record<
     title: 'Order history',
     empty: 'You have no finished orders yet.',
   },
+  fr: {
+    title: 'Historique des commandes',
+    empty: 'Vous n’avez pas encore de commandes terminées.',
+  },
 };
 
 // The merchant's finished orders (delivered, rejected, failed) as an infinite scroll: the first 10

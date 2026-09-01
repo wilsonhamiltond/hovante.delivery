@@ -23,6 +23,11 @@ const S: Record<
     facebookError: 'Could not sign in with Facebook.',
     appleError: 'Could not sign in with Apple.',
   },
+  fr: {
+    googleError: 'Impossible de se connecter avec Google.',
+    facebookError: 'Impossible de se connecter avec Facebook.',
+    appleError: 'Impossible de se connecter avec Apple.',
+  },
 };
 
 interface AuthState {

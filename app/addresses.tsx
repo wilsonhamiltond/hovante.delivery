@@ -81,6 +81,28 @@ const S: Record<
     confirmMessage: (address) => `Delete "${address}"?`,
     confirmLabel: 'Yes, delete',
   },
+  fr: {
+    title: 'Adresses',
+    addA11y: 'Ajouter une adresse',
+    add: 'Ajouter',
+    savedTitle: 'Vos adresses',
+    savedHint: 'Enregistrées dans votre compte',
+    pastTitle: 'De commandes précédentes',
+    pastHint: 'Utilisées pour commander, non enregistrées',
+    empty: 'Vous n’avez pas encore d’adresses. Celles que vous utilisez pour commander apparaîtront ici.',
+    principal: 'Principale',
+    usageMeta: (times, date) => `${times === 1 ? 'Utilisée 1 fois' : `Utilisée ${times} fois`} · Dernière commande ${date}`,
+    savedFallback: 'Enregistrée',
+    deleteLabel: 'Supprimer',
+    deleteA11y: (address) => `Supprimer ${address}`,
+    makePrimaryLabel: 'Définir comme principale',
+    makePrimaryA11y: (address) => `Définir ${address} comme principale`,
+    editLabel: 'Modifier',
+    editA11y: (address) => `Modifier ${address}`,
+    confirmTitle: 'Supprimer l’adresse',
+    confirmMessage: (address) => `Supprimer « ${address} » ?`,
+    confirmLabel: 'Oui, supprimer',
+  },
 };
 
 const fmtDate = (iso: string): string => {

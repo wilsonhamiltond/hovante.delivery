@@ -56,6 +56,21 @@ const S: Record<
     confirm: 'Cancel order',
     keep: 'Go back without cancelling',
   },
+  fr: {
+    reasons: {
+      'Cambié de opinión': 'J’ai changé d’avis',
+      'Lo pedí por error': 'Je l’ai commandé par erreur',
+      'La espera es muy larga': 'L’attente est trop longue',
+      'Quiero cambiar los productos': 'Je veux changer les produits',
+      'Otro': 'Autre',
+    },
+    title: 'Annuler la commande',
+    lead: 'Dites-nous pourquoi vous annulez. La commande ne peut être annulée que tant que le commerce ne l’a pas confirmée.',
+    notesLabel: 'Notes (facultatif)',
+    notesPlaceholder: 'Dites-nous en plus…',
+    confirm: 'Annuler la commande',
+    keep: 'Revenir sans annuler',
+  },
 };
 
 // The cancel screen: reached from the tracking screen's "Cancelar pedido", collects the reason

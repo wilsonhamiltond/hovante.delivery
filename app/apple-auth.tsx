@@ -18,6 +18,11 @@ const S: Record<Locale, { failed: string; goBack: string; signingIn: string }> =
     goBack: 'Go back',
     signingIn: 'Signing in with Apple…',
   },
+  fr: {
+    failed: 'Impossible de se connecter avec Apple.',
+    goBack: 'Retour',
+    signingIn: 'Connexion avec Apple…',
+  },
 };
 
 // On web this screen IS the popup the auth session opened: this hands the URL (with the token on

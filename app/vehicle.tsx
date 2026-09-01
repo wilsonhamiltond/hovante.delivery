@@ -80,6 +80,27 @@ const S: Record<
     colorPlaceholder: 'Black, red…',
     save: 'Save vehicle',
   },
+  fr: {
+    typeLabels: { moto: 'Moto', carro: 'Voiture', bicicleta: 'Vélo' },
+    chooseType: 'Choisissez le type de véhicule.',
+    plateRequired: "Saisissez la plaque d'immatriculation du véhicule.",
+    invalidYear: 'Saisissez une année valide.',
+    saved: 'Véhicule enregistré.',
+    title: 'Mon véhicule',
+    lead: 'Les informations de votre véhicule aident le commerce et le client à vous reconnaître à votre arrivée.',
+    type: 'Type',
+    plate: 'Plaque',
+    platePlaceholder: 'A123456',
+    brand: 'Marque',
+    brandPlaceholder: 'Honda, Yamaha, Toyota…',
+    model: 'Modèle',
+    modelPlaceholder: 'CG 150, Corolla…',
+    year: 'Année',
+    yearPlaceholder: '2019',
+    color: 'Couleur',
+    colorPlaceholder: 'Noir, rouge…',
+    save: 'Enregistrer le véhicule',
+  },
 };
 
 // "Mi vehículo": the courier's own vehicle, reached from "Mi cuenta". One vehicle per driver, so

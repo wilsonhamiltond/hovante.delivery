@@ -14,6 +14,10 @@ const S: Record<Locale, { bell: string; bellUnread: (n: number) => string }> = {
     bell: 'Notifications',
     bellUnread: (n) => `Notifications, ${n} unread`,
   },
+  fr: {
+    bell: 'Notifications',
+    bellUnread: (n) => `Notifications, ${n} non lues`,
+  },
 };
 
 // The bell, wherever a home has one -- customer, driver or merchant. Each passes the audience it

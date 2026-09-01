@@ -18,6 +18,10 @@ const S: Record<Locale, { error: string; label: string }> = {
     error: 'Could not sign in with Apple.',
     label: 'Continue with Apple',
   },
+  fr: {
+    error: 'Impossible de se connecter avec Apple.',
+    label: 'Continuer avec Apple',
+  },
 };
 
 interface Props {

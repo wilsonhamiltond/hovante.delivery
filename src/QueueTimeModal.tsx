@@ -45,6 +45,19 @@ const S: Record<
     confirm: 'Confirm',
     cancel: 'Cancel',
   },
+  fr: {
+    title: (order) => `Confirmer ${order}`,
+    orderFallback: 'commande',
+    lead: 'Dans combien de temps commencerez-vous à préparer cette commande ?',
+    now: 'Maintenant',
+    minutes: (m) => `${m} min`,
+    customLabel: 'Autre délai (minutes)',
+    customPlaceholder: 'Ex. : 45',
+    confirmNow: 'Confirmer · on commence maintenant',
+    confirmIn: (min) => `Confirmer · dans ${min} min`,
+    confirm: 'Confirmer',
+    cancel: 'Annuler',
+  },
 };
 
 // Asked when the merchant confirms an order: how long will it queue before the counter starts

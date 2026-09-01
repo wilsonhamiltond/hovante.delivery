@@ -18,6 +18,11 @@ const S: Record<Locale, { failed: string; goBack: string; signingIn: string }> =
     goBack: 'Go back',
     signingIn: 'Signing in with Google…',
   },
+  fr: {
+    failed: 'Impossible de se connecter avec Google.',
+    goBack: 'Retour',
+    signingIn: 'Connexion avec Google…',
+  },
 };
 
 // On web this screen IS the popup the auth session opened: this hands the URL (with the token on

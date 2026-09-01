@@ -14,6 +14,12 @@ const S: Record<Locale, { title: string; body: string }> = {
       + ' application restriction (or that it includes volao.com.do), that the Maps JavaScript and'
       + ' Geocoding APIs are enabled, and that the project has billing active.',
   },
+  fr: {
+    title: 'Le chargement de la carte a échoué',
+    body: 'Google a rejeté la clé de ce build. Vérifiez, dans Google Cloud Console : que la clé n\'a'
+      + ' pas de restriction d\'application (ou qu\'elle inclut volao.com.do), que les API Maps'
+      + ' JavaScript et Geocoding sont activées, et que la facturation du projet est active.',
+  },
 };
 
 // What a map shows when Google refuses the key (gm_authFailure). Google's own answer is a grey box

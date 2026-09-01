@@ -7,6 +7,7 @@ import { useStrings, type Locale } from './i18n';
 const S: Record<Locale, { addedToCart: string }> = {
   es: { addedToCart: 'Agregado al carrito' },
   en: { addedToCart: 'Added to cart' },
+  fr: { addedToCart: 'Ajouté au panier' },
 };
 
 /** How long the tick stays before the button turns back into "add". */
