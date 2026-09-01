@@ -577,6 +577,9 @@ export interface Order {
   payWithAmount?: number | null;
   // Why the customer cancelled, when they did; shown back on the tracking screen.
   cancelReason?: string | null;
+  // The merchant's message to the customer about the order as a whole (product-specific notes
+  // ride the lines). Optional-null: an older API, or no message written.
+  merchantNote?: string | null;
   // How many minutes the merchant said the order would queue before preparation starts, declared
   // when they confirmed -- and when that confirm happened, which the wait counts from (see
   // orderQueue.ts). Optional-null: an older API, an order confirmed from the web (which does not
@@ -584,7 +587,7 @@ export interface Order {
   queueMinutes?: number | null;
   confirmedAt?: string | null;
   createdAt: string;
-  items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number }[];
+  items: { id: string; itemId: string; name: string; unitPrice: number; quantity: number; lineTotal: number; merchantNote?: string | null }[];
   // The fulfilling delivery's status (from /orders/mine), used to tell active orders from finished.
   deliveryStatus?: string | null;
   // Who to deliver to -- populated on the merchant view only (null in the customer's own list).
@@ -902,6 +905,32 @@ export function readyMerchantOrder(id: string) {
 export function rejectMerchantOrder(id: string, reason?: string, notes?: string) {
   return postAuth<Order>(`/delivery/orders/${id}/reject`,
     reason ? { reason, notes: notes || undefined } : {});
+}
+
+// One message in an order's customer↔merchant conversation. Both sides read the same thread on
+// their order screen; sending pushes the text to the other side.
+export interface OrderMessage {
+  id: string;
+  // "customer" or "merchant" -- each app renders its own side on the right.
+  sender: string;
+  text: string;
+  createdAt: string;
+}
+
+export function orderMessages(id: string) {
+  return get<OrderMessage[]>(`/delivery/orders/${id}/messages`);
+}
+
+// The sender is derived server-side from the token against the order, never sent here.
+export function sendOrderMessage(id: string, text: string) {
+  return postAuth<OrderMessage>(`/delivery/orders/${id}/messages`, { text });
+}
+
+// The merchant messaging the customer about the order before fulfilling it: a note on one product
+// line (lineId = the order line's id, for a product issue) or on the order as a whole (no lineId).
+// Writing replaces the previous note; an empty note clears it.
+export function setMerchantOrderNote(id: string, note: string, lineId?: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/merchant-note`, { note, lineId: lineId || undefined });
 }
 
 // The counter handing a pickup ("retiro en tienda") order to its customer: the code is what the

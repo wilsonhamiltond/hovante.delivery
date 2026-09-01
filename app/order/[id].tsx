@@ -6,6 +6,7 @@ import * as api from '../../src/api';
 import type { Order, OrderTracking } from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { InvoiceModal } from '../../src/InvoiceModal';
+import { OrderMessages } from '../../src/OrderMessages';
 import { GradientBackground, t } from '../../src/theme';
 import { orderStatusChip } from '../../src/orderStatus';
 import { queueRemainingMin } from '../../src/orderQueue';
@@ -40,6 +41,7 @@ const S: Record<
     mapBtn: string;
     noteLabel: string;
     productsLabel: string;
+    merchantNoteLabel: string;
     subtotal: string;
     shipping: string;
     total: string;
@@ -105,6 +107,7 @@ const S: Record<
     mapBtn: '🗺️ Mapa',
     noteLabel: 'Nota',
     productsLabel: 'Productos',
+    merchantNoteLabel: 'Mensaje del comercio',
     subtotal: 'Subtotal',
     shipping: 'Envío',
     total: 'Total',
@@ -164,6 +167,7 @@ const S: Record<
     mapBtn: '🗺️ Map',
     noteLabel: 'Note',
     productsLabel: 'Products',
+    merchantNoteLabel: 'Message from the merchant',
     subtotal: 'Subtotal',
     shipping: 'Delivery fee',
     total: 'Total',
@@ -223,6 +227,7 @@ const S: Record<
     mapBtn: '🗺️ Carte',
     noteLabel: 'Note',
     productsLabel: 'Produits',
+    merchantNoteLabel: 'Message du commerce',
     subtotal: 'Sous-total',
     shipping: 'Livraison',
     total: 'Total',
@@ -496,13 +501,29 @@ export default function OrderTrackingScreen() {
           {order.notes ? (<><Text style={styles.label}>{tx.noteLabel}</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
         </View>
 
+        {/* The conversation with the merchant: ask about the order, hear about substitutions.
+            The composer closes when the order does; an empty closed thread renders nothing. */}
+        <OrderMessages orderId={order.id} viewer="customer" closed={failed || delivered} />
+
+        {/* The merchant's message about the order, sent while it was still being shaped. */}
+        {order.merchantNote ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>{tx.merchantNoteLabel}</Text>
+            <Text style={styles.merchantNote}>💬 {order.merchantNote}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.label}>{tx.productsLabel}</Text>
           {order.items.map((it) => (
-            <View key={it.id} style={styles.line}>
-              <Text style={styles.lineQty}>{it.quantity}×</Text>
-              <Text style={styles.lineName} numberOfLines={1}>{it.name}</Text>
-              <Text style={styles.linePrice}>{money(it.lineTotal)}</Text>
+            <View key={it.id}>
+              <View style={styles.line}>
+                <Text style={styles.lineQty}>{it.quantity}×</Text>
+                <Text style={styles.lineName} numberOfLines={1}>{it.name}</Text>
+                <Text style={styles.linePrice}>{money(it.lineTotal)}</Text>
+              </View>
+              {/* What the merchant said about THIS product ("solo queda la grande"). */}
+              {it.merchantNote ? <Text style={styles.merchantNote}>💬 {it.merchantNote}</Text> : null}
             </View>
           ))}
           {order.deliveryFee != null ? (
@@ -637,4 +658,6 @@ const styles = StyleSheet.create({
   cancelBtn: { marginTop: 10, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   cancelBtnText: { color: '#fecaca', fontSize: 16, fontWeight: '800' },
   cancelReason: { marginTop: 12, color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  // The merchant's note, on a line or on the order: quiet card tone, read not tapped.
+  merchantNote: { fontSize: 13, color: t.text, backgroundColor: t.cardStrong, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, overflow: 'hidden', marginTop: 6 },
 });

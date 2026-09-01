@@ -6,6 +6,7 @@ import * as api from '../../src/api';
 import type { Order } from '../../src/api';
 import { statusOf } from '../../src/MerchantOrderCard';
 import { QueueTimeModal } from '../../src/QueueTimeModal';
+import { OrderMessages } from '../../src/OrderMessages';
 import { InvoiceModal } from '../../src/InvoiceModal';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
@@ -55,6 +56,10 @@ const S: Record<
     rejectNotesLabel: string;
     rejectNotesPlaceholder: string;
     rejectYes: string;
+    noteToClient: string;
+    notePlaceholder: string;
+    noteSend: string;
+    noteEdit: string;
     no: string;
     readyForPickup: string;
     deliverToClient: string;
@@ -100,6 +105,10 @@ const S: Record<
     rejectNotesLabel: 'Notas (opcional)',
     rejectNotesPlaceholder: 'Cuéntale más al cliente…',
     rejectYes: 'Sí, rechazar',
+    noteToClient: '💬 Mensaje al cliente',
+    notePlaceholder: 'Escribe una nota para el cliente…',
+    noteSend: 'Enviar nota',
+    noteEdit: '✎ Nota',
     no: 'No',
     readyForPickup: 'Listo para recoger',
     deliverToClient: 'Entregar al cliente',
@@ -149,6 +158,10 @@ const S: Record<
     rejectNotesLabel: 'Notes (optional)',
     rejectNotesPlaceholder: 'Tell the customer more…',
     rejectYes: 'Yes, reject',
+    noteToClient: '💬 Message the customer',
+    notePlaceholder: 'Write a note for the customer…',
+    noteSend: 'Send note',
+    noteEdit: '✎ Note',
     no: 'No',
     readyForPickup: 'Ready for pickup',
     deliverToClient: 'Hand over to the customer',
@@ -198,6 +211,10 @@ const S: Record<
     rejectNotesLabel: 'Notes (facultatif)',
     rejectNotesPlaceholder: 'Dites-en plus au client…',
     rejectYes: 'Oui, refuser',
+    noteToClient: '💬 Message au client',
+    notePlaceholder: 'Écrivez une note pour le client…',
+    noteSend: 'Envoyer la note',
+    noteEdit: '✎ Note',
     no: 'Non',
     readyForPickup: 'Prête à récupérer',
     deliverToClient: 'Remettre au client',
@@ -246,6 +263,10 @@ export default function MerchantOrderDetail() {
   const [confirmReject, setConfirmReject] = useState(false);
   const [rejectReason, setRejectReason] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
+  // The note editor: closed (null), open on the whole order ({ lineId: null }), or open on one
+  // product line. The text is seeded from whatever note already stands there.
+  const [noteTarget, setNoteTarget] = useState<{ lineId: string | null } | null>(null);
+  const [noteText, setNoteText] = useState('');
   // The confirm flow goes through the queue-time modal: it asks how long the order will wait
   // before preparation starts, and only then calls the API.
   const [confirming, setConfirming] = useState(false);
@@ -286,6 +307,20 @@ export default function MerchantOrderDetail() {
     });
     return () => { alive = false; };
   }, [merchantCompanyId, officeId]);
+
+  // Sending (or clearing -- an emptied box) the note the editor holds. On success the editor
+  // closes and the reload shows the note standing on the order/line.
+  const sendNote = async () => {
+    if (!order || !noteTarget) return;
+    setBusy(true);
+    setError(null);
+    const res = await api.setMerchantOrderNote(order.id, noteText.trim(), noteTarget.lineId ?? undefined);
+    setBusy(false);
+    if (!res.success) { setError(res.message); return; }
+    setNoteTarget(null);
+    setNoteText('');
+    await load();
+  };
 
   const act = async (fn: (id: string) => Promise<api.ApiResponse<Order>>) => {
     if (!order) return false;
@@ -454,20 +489,62 @@ export default function MerchantOrderDetail() {
           </View>
         ) : null}
 
-        {/* Every line with its price -- what the counter packs and charges. */}
+        {/* Every line with its price -- what the counter packs and charges. While the order is
+            still the counter's to shape (pending/confirmed), each line can carry a note to the
+            customer ("solo queda la grande"), and the order a message as a whole. */}
         <View style={styles.card}>
           <Text style={styles.label}>{tx.products}</Text>
-          {order.items.map((li) => (
-            <View key={li.id} style={styles.line}>
-              <Text style={styles.lineQty}>{li.quantity}×</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.lineName} numberOfLines={2}>{li.name}</Text>
-                <Text style={styles.lineUnit}>{tx.perUnit(money(li.unitPrice))}</Text>
+          {order.items.map((li) => {
+            const canNote = order.status === 'PENDING' || order.status === 'CONFIRMED';
+            const editingThis = noteTarget?.lineId === li.id;
+            return (
+              <View key={li.id}>
+                <View style={styles.line}>
+                  <Text style={styles.lineQty}>{li.quantity}×</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.lineName} numberOfLines={2}>{li.name}</Text>
+                    <Text style={styles.lineUnit}>{tx.perUnit(money(li.unitPrice))}</Text>
+                  </View>
+                  {canNote ? (
+                    <Pressable
+                      style={styles.noteBtn}
+                      onPress={() => {
+                        setNoteTarget(editingThis ? null : { lineId: li.id });
+                        setNoteText(editingThis ? '' : (li.merchantNote ?? ''));
+                      }}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.noteBtnText}>{tx.noteEdit}</Text>
+                    </Pressable>
+                  ) : null}
+                  <Text style={styles.linePrice}>{money(li.lineTotal)}</Text>
+                </View>
+                {li.merchantNote && !editingThis ? (
+                  <Text style={styles.merchantNote}>💬 {li.merchantNote}</Text>
+                ) : null}
+                {editingThis ? (
+                  <View style={styles.noteEditor}>
+                    <TextInput
+                      style={styles.noteInput}
+                      placeholder={tx.notePlaceholder}
+                      placeholderTextColor={t.textFaint}
+                      value={noteText}
+                      onChangeText={setNoteText}
+                      multiline
+                    />
+                    <Pressable style={[styles.action, styles.ready, busy && styles.disabled]} disabled={busy} onPress={sendNote}>
+                      {busy ? <ActivityIndicator color={t.onAccent} /> : <Text style={[styles.actionText, styles.readyText]}>{tx.noteSend}</Text>}
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
-              <Text style={styles.linePrice}>{money(li.lineTotal)}</Text>
-            </View>
-          ))}
+            );
+          })}
           {order.notes ? <Text style={styles.notes}>📝 {order.notes}</Text> : null}
+
+          {/* An order-level note written before the conversation thread existed still shows;
+              new whole-order messages go through the thread card below instead. */}
+          {order.merchantNote ? <Text style={styles.merchantNote}>💬 {order.merchantNote}</Text> : null}
 
           <View style={styles.totalRow}><Text style={styles.totalLabel}>{tx.subtotal}</Text><Text style={styles.subValue}>{money(order.total)}</Text></View>
           {order.deliveryFee != null ? (
@@ -483,6 +560,10 @@ export default function MerchantOrderDetail() {
             </>
           ) : null}
         </View>
+
+        {/* The conversation with the customer: substitutions offered, questions answered. The
+            composer closes when the order does; a closed, empty thread renders nothing. */}
+        <OrderMessages orderId={order.id} viewer="merchant" closed={delivered || order.status === 'CANCELLED'} />
 
         {/* The invoice, issued when the order went "listo" (or "Facturar" on the web). Tapping it
             opens the invoice itself, with printing. */}
@@ -669,6 +750,15 @@ const styles = StyleSheet.create({
   lineUnit: { fontSize: 12, color: t.textFaint, marginTop: 1 },
   linePrice: { fontSize: 14, fontWeight: '800', color: t.text },
   notes: { fontSize: 13, color: t.textMuted, fontStyle: 'italic' },
+  // The merchant→customer note machinery: the pill that opens the editor on a line, the note as
+  // it stands once written, and the editor itself.
+  noteBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  noteBtnText: { color: t.text, fontSize: 12, fontWeight: '800' },
+  merchantNote: { fontSize: 13, color: t.text, backgroundColor: t.cardStrong, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, overflow: 'hidden' },
+  noteEditor: { gap: 8 },
+  noteInput: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 12, minHeight: 52, fontSize: 14, color: t.text, textAlignVertical: 'top' },
+  noteToggle: { borderWidth: 1, borderColor: t.border, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  noteToggleText: { color: t.text, fontSize: 14, fontWeight: '800' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, borderTopWidth: 1, borderTopColor: t.border, paddingTop: 10 },
   subRow: { flexDirection: 'row', justifyContent: 'space-between' },
   totalLabel: { fontSize: 14, fontWeight: '700', color: t.textMuted },
