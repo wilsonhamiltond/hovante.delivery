@@ -2,7 +2,7 @@
   "expo": {
     "name": "Volao",
     "slug": "hovante-delivery",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/ios/AppIcon.appiconset/AppIcon-1024.png",
     "scheme": "hovantedelivery",
