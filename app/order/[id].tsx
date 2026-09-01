@@ -44,6 +44,7 @@ const S: Record<
     shipping: string;
     total: string;
     cancelReasonLine: (reason: string) => string;
+    modifyOrder: string;
     cancelOrder: string;
     viewInvoice: string;
     viewMyOrders: string;
@@ -108,6 +109,7 @@ const S: Record<
     shipping: 'Envío',
     total: 'Total',
     cancelReasonLine: (reason) => `Motivo: ${reason}`,
+    modifyOrder: 'Modificar pedido',
     cancelOrder: 'Cancelar pedido',
     viewInvoice: '🧾 Ver factura',
     viewMyOrders: 'Ver mis pedidos',
@@ -166,6 +168,7 @@ const S: Record<
     shipping: 'Delivery fee',
     total: 'Total',
     cancelReasonLine: (reason) => `Reason: ${reason}`,
+    modifyOrder: 'Modify order',
     cancelOrder: 'Cancel order',
     viewInvoice: '🧾 View invoice',
     viewMyOrders: 'View my orders',
@@ -224,6 +227,7 @@ const S: Record<
     shipping: 'Livraison',
     total: 'Total',
     cancelReasonLine: (reason) => `Motif : ${reason}`,
+    modifyOrder: 'Modifier la commande',
     cancelOrder: 'Annuler la commande',
     viewInvoice: '🧾 Voir la facture',
     viewMyOrders: 'Voir mes commandes',
@@ -519,6 +523,15 @@ export default function OrderTrackingScreen() {
           <Text style={styles.cancelReason}>{tx.cancelReasonLine(order.cancelReason)}</Text>
         ) : null}
 
+        {/* Modify: only while the merchant has not confirmed (PENDING) -- narrower than cancel,
+            which also rides the declared queue. Opens the edit screen; a window closing mid-edit
+            is refused by the server rather than half-applied here. */}
+        {order.status === 'PENDING' && !failed ? (
+          <Pressable style={styles.editBtn} onPress={() => router.push(`/edit-order/${order.id}`)}>
+            <Text style={styles.editBtnText}>{tx.modifyOrder}</Text>
+          </Pressable>
+        ) : null}
+
         {/* Cancel: only while the merchant has not confirmed (PENDING). Opens the cancel screen,
             which collects the reason before anything happens; the moment the merchant confirms,
             the button disappears on the next poll and the server refuses stragglers anyway. */}
@@ -619,7 +632,9 @@ const styles = StyleSheet.create({
   invoiceBtn: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
   invoiceBtnText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
 
-  cancelBtn: { marginTop: 16, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  editBtn: { marginTop: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.cardStrong, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  editBtnText: { color: t.text, fontSize: 16, fontWeight: '800' },
+  cancelBtn: { marginTop: 10, borderWidth: 1, borderColor: 'rgba(252,165,165,0.6)', backgroundColor: 'rgba(220,38,38,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   cancelBtnText: { color: '#fecaca', fontSize: 16, fontWeight: '800' },
   cancelReason: { marginTop: 12, color: t.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

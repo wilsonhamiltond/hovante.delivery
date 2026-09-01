@@ -847,6 +847,21 @@ export function createOrder(input: CreateOrderInput) {
   return postAuth<Order>('/delivery/orders', input);
 }
 
+// What the edit screen sends to change a still-PENDING order: the replacement lines, plus the
+// note and the cash bill (both overwrite what the order had). Address, branch and mode are
+// immutable -- changing where an order goes is a cancel-and-reorder.
+export interface UpdateOrderInput {
+  items: OrderLineInput[];
+  notes?: string;
+  cashPayWith?: number;
+}
+
+// Modify one of the customer's own orders. The server refuses it once the merchant has confirmed,
+// so the button only exists while the tracking still shows "esperando confirmación".
+export function updateOrder(id: string, input: UpdateOrderInput) {
+  return putAuth<Order>(`/delivery/orders/${id}`, input);
+}
+
 // The customer's ACTIVE orders; finished ones come from the paginated history below.
 export function myOrders() {
   return get<Order[]>('/delivery/orders/mine');
@@ -882,8 +897,11 @@ export function readyMerchantOrder(id: string) {
   return postAuth<Order>(`/delivery/orders/${id}/ready`, {});
 }
 
-export function rejectMerchantOrder(id: string) {
-  return postAuth<Order>(`/delivery/orders/${id}/reject`, {});
+// Reject an order, saying why (e.g. a product the store has run out of). The reason travels to the
+// customer's tracking screen and their push notification; optional server-side for older clients.
+export function rejectMerchantOrder(id: string, reason?: string, notes?: string) {
+  return postAuth<Order>(`/delivery/orders/${id}/reject`,
+    reason ? { reason, notes: notes || undefined } : {});
 }
 
 // The counter handing a pickup ("retiro en tienda") order to its customer: the code is what the

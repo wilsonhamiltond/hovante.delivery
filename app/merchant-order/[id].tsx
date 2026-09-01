@@ -51,6 +51,9 @@ const S: Record<
     confirmOrder: string;
     reject: string;
     rejectAsk: string;
+    rejectReasons: Record<string, string>;
+    rejectNotesLabel: string;
+    rejectNotesPlaceholder: string;
     rejectYes: string;
     no: string;
     readyForPickup: string;
@@ -92,7 +95,10 @@ const S: Record<
     cancelReason: (reason) => `Motivo de cancelación: ${reason}`,
     confirmOrder: 'Confirmar pedido',
     reject: 'Rechazar',
-    rejectAsk: '¿Seguro que quieres rechazar este pedido?',
+    rejectAsk: '¿Por qué rechazas este pedido? El cliente verá el motivo.',
+    rejectReasons: {},
+    rejectNotesLabel: 'Notas (opcional)',
+    rejectNotesPlaceholder: 'Cuéntale más al cliente…',
     rejectYes: 'Sí, rechazar',
     no: 'No',
     readyForPickup: 'Listo para recoger',
@@ -133,7 +139,15 @@ const S: Record<
     cancelReason: (reason) => `Cancellation reason: ${reason}`,
     confirmOrder: 'Confirm order',
     reject: 'Reject',
-    rejectAsk: 'Are you sure you want to reject this order?',
+    rejectAsk: 'Why are you rejecting this order? The customer will see the reason.',
+    rejectReasons: {
+      'Producto no disponible': 'Product not available',
+      'Estamos muy ocupados': 'We are too busy right now',
+      'Cerrado en este momento': 'Closed at the moment',
+      'Otro': 'Other',
+    },
+    rejectNotesLabel: 'Notes (optional)',
+    rejectNotesPlaceholder: 'Tell the customer more…',
     rejectYes: 'Yes, reject',
     no: 'No',
     readyForPickup: 'Ready for pickup',
@@ -174,7 +188,15 @@ const S: Record<
     cancelReason: (reason) => `Motif d’annulation : ${reason}`,
     confirmOrder: 'Confirmer la commande',
     reject: 'Refuser',
-    rejectAsk: 'Voulez-vous vraiment refuser cette commande ?',
+    rejectAsk: 'Pourquoi refusez-vous cette commande ? Le client verra le motif.',
+    rejectReasons: {
+      'Producto no disponible': 'Produit non disponible',
+      'Estamos muy ocupados': 'Nous sommes trop occupés',
+      'Cerrado en este momento': 'Fermé en ce moment',
+      'Otro': 'Autre',
+    },
+    rejectNotesLabel: 'Notes (facultatif)',
+    rejectNotesPlaceholder: 'Dites-en plus au client…',
     rejectYes: 'Oui, refuser',
     no: 'Non',
     readyForPickup: 'Prête à récupérer',
@@ -185,6 +207,16 @@ const S: Record<
     invoiceOrder: '🧾 Facturer la commande',
   },
 };
+
+// Why a counter usually turns an order down. Like the customer's cancel reasons, the canonical
+// values sent to the API stay Spanish whatever the UI language -- the customer reads the reason
+// back on their tracking screen -- and only the button label translates (see S.rejectReasons).
+const REJECT_REASONS = [
+  'Producto no disponible',
+  'Estamos muy ocupados',
+  'Cerrado en este momento',
+  'Otro',
+];
 
 // "hace 2 min" -- how fresh the driver's reported position is, so the pin is trusted exactly as
 // much as it deserves.
@@ -209,8 +241,11 @@ export default function MerchantOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The reject flow: an inline "¿seguro?" step rather than Alert (whose buttons do not render on web).
+  // The reject flow: an inline "¿seguro?" step rather than Alert (whose buttons do not render on
+  // web), asking why -- the reason travels to the customer's tracking screen and push.
   const [confirmReject, setConfirmReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
   // The confirm flow goes through the queue-time modal: it asks how long the order will wait
   // before preparation starts, and only then calls the API.
   const [confirming, setConfirming] = useState(false);
@@ -483,11 +518,39 @@ export default function MerchantOrderDetail() {
         {order.status === 'PENDING' && confirmReject ? (
           <View style={styles.card}>
             <Text style={styles.rejectAsk}>{tx.rejectAsk}</Text>
+            {/* Same radio-row pattern as the customer's cancel screen: pick why, elaborate if
+                needed. The choice is required -- the reason is the point of asking. */}
+            {REJECT_REASONS.map((r) => (
+              <Pressable
+                key={r}
+                style={[styles.reason, rejectReason === r && styles.reasonActive]}
+                onPress={() => setRejectReason(r)}
+                accessibilityRole="button"
+              >
+                <View style={[styles.radio, rejectReason === r && styles.radioActive]}>
+                  {rejectReason === r ? <View style={styles.radioDot} /> : null}
+                </View>
+                <Text style={[styles.reasonText, rejectReason === r && styles.reasonTextActive]}>{tx.rejectReasons[r] ?? r}</Text>
+              </Pressable>
+            ))}
+            <Text style={styles.rejectNotesLabel}>{tx.rejectNotesLabel}</Text>
+            <TextInput
+              style={styles.rejectNotesInput}
+              placeholder={tx.rejectNotesPlaceholder}
+              placeholderTextColor={t.textFaint}
+              value={rejectNotes}
+              onChangeText={setRejectNotes}
+              multiline
+            />
             <View style={styles.actions}>
-              <Pressable style={[styles.action, styles.reject, busy && styles.disabled]} disabled={busy} onPress={() => act(api.rejectMerchantOrder)}>
+              <Pressable
+                style={[styles.action, styles.reject, (busy || !rejectReason) && styles.disabled]}
+                disabled={busy || !rejectReason}
+                onPress={() => act((i) => api.rejectMerchantOrder(i, rejectReason!, rejectNotes.trim() || undefined))}
+              >
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.rejectYes}</Text>}
               </Pressable>
-              <Pressable style={[styles.action, styles.neutral]} disabled={busy} onPress={() => setConfirmReject(false)}>
+              <Pressable style={[styles.action, styles.neutral]} disabled={busy} onPress={() => { setConfirmReject(false); setRejectReason(null); setRejectNotes(''); }}>
                 <Text style={styles.actionText}>{tx.no}</Text>
               </Pressable>
             </View>
@@ -629,6 +692,20 @@ const styles = StyleSheet.create({
   // On the near-white accent button, white ink would vanish.
   readyText: { color: t.onAccent },
   rejectAsk: { color: t.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  // The reject reasons: the customer cancel screen's radio rows, restyled onto this card.
+  reason: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 14,
+  },
+  reasonActive: { borderColor: '#fca5a5', backgroundColor: 'rgba(220,38,38,0.18)' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: t.border, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: '#fca5a5' },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fca5a5' },
+  reasonText: { color: t.textMuted, fontSize: 15, flex: 1 },
+  reasonTextActive: { color: t.text, fontWeight: '700' },
+  rejectNotesLabel: { fontSize: 13, fontWeight: '700', color: t.textMuted },
+  rejectNotesInput: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 12, minHeight: 56, fontSize: 15, color: t.text, textAlignVertical: 'top' },
   deliverHint: { color: t.textMuted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   // Roomy digits, spaced like the code card the customer is reading from.
   codeInput: {
