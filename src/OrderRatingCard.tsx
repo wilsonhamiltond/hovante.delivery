@@ -52,10 +52,12 @@ const emptyDraft = (): Draft =>
 // viewer may rate: the customer rates the merchant and the driver, and both of them rate the
 // customer back. Already-given stars load back in, and picking again revises them -- the server
 // keeps one rating per (order, rater, target).
-export function OrderRatingCard({ orderId, targets, style }: {
+export function OrderRatingCard({ orderId, targets, style, hideTitle }: {
   orderId: string;
   targets: { role: RatingRole; name?: string | null }[];
   style?: StyleProp<ViewStyle>;
+  /** The popup dialog carries its own heading, so the card's would just repeat it. */
+  hideTitle?: boolean;
 }) {
   const tx = useStrings(S);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -98,7 +100,7 @@ export function OrderRatingCard({ orderId, targets, style }: {
 
   return (
     <View style={[styles.card, style]}>
-      <Text style={styles.label}>{tx.title}</Text>
+      {!hideTitle ? <Text style={styles.label}>{tx.title}</Text> : null}
       {targets.map(({ role, name }) => {
         const d = drafts[role] ?? emptyDraft();
         // The button only appears while there is something new to send: nothing picked yet means

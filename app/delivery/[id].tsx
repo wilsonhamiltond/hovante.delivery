@@ -10,6 +10,7 @@ import type { OutboxItem } from '../../src/outbox';
 import { formatEta, useRouteEta } from '../../src/eta';
 import { OrderMessages } from '../../src/OrderMessages';
 import { OrderRatingCard } from '../../src/OrderRatingCard';
+import { OrderRatingDialog } from '../../src/OrderRatingDialog';
 import { GradientBackground, t } from '../../src/theme';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { useStrings, type Locale } from '../../src/i18n';
@@ -230,6 +231,9 @@ export default function DeliveryDetail() {
   const [code, setCode] = useState('');
   const [reason, setReason] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  // The rate-the-order popup, raised the moment the delivery is confirmed: rating right then is
+  // one tap, and closing it is what performs the usual trip back to the route.
+  const [rateOpen, setRateOpen] = useState(false);
 
   // The list endpoint is already driver-scoped, so re-use it and pick this stop out of it rather
   // than adding a per-id endpoint.
@@ -285,19 +289,33 @@ export default function DeliveryDetail() {
     delivery?.latitude, delivery?.longitude,
   );
 
+  const leave = () => {
+    // Back to the route, which flushes and refetches on focus. Fall back to the home when this screen
+    // was opened directly (no history) so the action does not end on a "GO_BACK not handled" error.
+    if (router.canGoBack()) router.back();
+    else router.replace('/home');
+  };
+
   // Every action goes through the outbox: online it applies immediately, offline it queues and the
-  // driver still moves on. Either way we return to the route, which flushes and refetches on focus.
-  const runAction = async (build: (key: string) => OutboxItem) => {
+  // driver still moves on. Either way we return to the route, which flushes and refetches on focus
+  // -- except a completed handover, which first raises the rating popup and leaves when it closes.
+  const runAction = async (build: (key: string) => OutboxItem, thenRate = false) => {
     if (!token || !delivery) return;
     setBusy(true);
     setError(null);
     const res = await outbox.submit(build(outbox.newKey()));
     setBusy(false);
     if (!res.ok) { setError(res.error ?? tx.actionFailed); return; }
-    // Back to the route, which flushes and refetches on focus. Fall back to the home when this screen
-    // was opened directly (no history) so the action does not end on a "GO_BACK not handled" error.
-    if (router.canGoBack()) router.back();
-    else router.replace('/home');
+    if (thenRate && delivery.orderId) {
+      setPanel('none');
+      setCode('');
+      // Refreshed so the screen behind the popup already reads DELIVERED (and its inline rating
+      // card is there when the popup closes).
+      void load();
+      setRateOpen(true);
+      return;
+    }
+    leave();
   };
 
   if (loading) {
@@ -403,11 +421,14 @@ export default function DeliveryDetail() {
           />
         ) : null}
 
-        {/* Delivered: the driver rates the customer back. */}
+        {/* Delivered: the driver rates the customer and the merchant back. */}
         {delivery.orderId && delivery.status === 'DELIVERED' ? (
           <OrderRatingCard
             orderId={delivery.orderId}
-            targets={[{ role: 'customer', name: delivery.recipientName }]}
+            targets={[
+              { role: 'customer', name: delivery.recipientName },
+              { role: 'merchant', name: delivery.pickupName },
+            ]}
           />
         ) : null}
 
@@ -448,10 +469,10 @@ export default function DeliveryDetail() {
               returnKeyType="done"
               onSubmitEditing={() => {
                 if (busy || code.length !== 4) return;
-                runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }));
+                runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }), true);
               }}
             />
-            <Pressable style={[styles.action, styles.success, code.length !== 4 && styles.disabled]} disabled={busy || code.length !== 4} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }))}>
+            <Pressable style={[styles.action, styles.success, code.length !== 4 && styles.disabled]} disabled={busy || code.length !== 4} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }), true)}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmDelivery}</Text>}
             </Pressable>
             <Pressable onPress={() => { setPanel('none'); setCode(''); }}><Text style={styles.cancel}>{tx.cancel}</Text></Pressable>
@@ -475,6 +496,19 @@ export default function DeliveryDetail() {
         ) : null}
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Raised the moment the handover is confirmed; closing it makes the usual trip back. */}
+      {delivery.orderId ? (
+        <OrderRatingDialog
+          visible={rateOpen}
+          orderId={delivery.orderId}
+          targets={[
+            { role: 'customer', name: delivery.recipientName },
+            { role: 'merchant', name: delivery.pickupName },
+          ]}
+          onClose={() => { setRateOpen(false); leave(); }}
+        />
+      ) : null}
     </SafeAreaView>
     </GradientBackground>
   );
