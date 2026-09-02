@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -249,6 +249,10 @@ export default function MerchantProductFormScreen() {
   const [name, setName] = useState(creating ? '' : params.name ?? '');
   const [description, setDescription] = useState(creating ? '' : params.description ?? '');
   const [price, setPrice] = useState(creating ? '' : params.price ?? '');
+  // Enter walks the form: name → description → price. Refs are what lets one field hand the
+  // keyboard to the next instead of dropping it.
+  const descriptionRef = useRef<TextInput>(null);
+  const priceRef = useRef<TextInput>(null);
   const [active, setActive] = useState(creating ? true : params.active !== 'false');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -494,15 +498,24 @@ export default function MerchantProductFormScreen() {
               onChangeText={setName}
               placeholder={tx.namePlaceholder}
               placeholderTextColor={t.textFaint}
+              returnKeyType="next"
+              submitBehavior="submit"
+              blurOnSubmit={false} /* react-native-web ignores submitBehavior; keeps focus moving on Enter */
+              onSubmitEditing={() => descriptionRef.current?.focus()}
             />
 
             <Text style={styles.label}>{tx.description}</Text>
             <TextInput
+              ref={descriptionRef}
               style={styles.input}
               value={description}
               onChangeText={setDescription}
               placeholder={tx.descriptionPlaceholder}
               placeholderTextColor={t.textFaint}
+              returnKeyType="next"
+              submitBehavior="submit"
+              blurOnSubmit={false}
+              onSubmitEditing={() => priceRef.current?.focus()}
             />
 
             <Text style={styles.label}>{tx.price}</Text>
@@ -510,6 +523,7 @@ export default function MerchantProductFormScreen() {
                 checkmark and the submit handler puts the keyboard away, since the price is the
                 last thing typed before the toggle and the save button. */}
             <TextInput
+              ref={priceRef}
               style={styles.input}
               value={price}
               onChangeText={setPrice}

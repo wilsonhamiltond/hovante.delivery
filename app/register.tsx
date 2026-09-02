@@ -239,7 +239,9 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   // Step 5
   const [address, setAddress] = useState('');
-  const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(null);
+  // "Casa" pre-selected: nearly every first address is home, so the common case is zero taps and
+  // the choice row still lets anyone pick otherwise.
+  const [labelChoice, setLabelChoice] = useState<LabelChoice | null>(LABEL_CHOICES[0]);
   const [customLabel, setCustomLabel] = useState('');
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [mapKey, setMapKey] = useState(0);
@@ -443,6 +445,10 @@ export default function RegisterScreen() {
               country={phoneCountry}
               national={phone}
               onChange={({ country, national }) => { setPhoneCountry(country); setPhone(national); }}
+              // Enter (web) or the keyboard's action key (native) is the "Continuar" button below:
+              // same handler, same validation.
+              returnKeyType="done"
+              onSubmitEditing={() => { if (!submitting) next(); }}
             />
           </ScrollView>
         )}

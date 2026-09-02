@@ -150,6 +150,9 @@ export interface Me {
 export interface Delivery {
   id: string;
   deliveryNumber: string | null;
+  // The marketplace order behind the delivery, so the driver's screens can reach the order's
+  // conversation and ratings. Null on ERP dispatches with no order behind them.
+  orderId?: string | null;
   status: string;
   scheduledDate: string | null;
   sequence: number;
@@ -907,11 +910,11 @@ export function rejectMerchantOrder(id: string, reason?: string, notes?: string)
     reason ? { reason, notes: notes || undefined } : {});
 }
 
-// One message in an order's customer↔merchant conversation. Both sides read the same thread on
-// their order screen; sending pushes the text to the other side.
+// One message in an order's conversation. The customer, the merchant and (once assigned) the
+// driver read the same thread on their order screens; sending pushes the text to the other sides.
 export interface OrderMessage {
   id: string;
-  // "customer" or "merchant" -- each app renders its own side on the right.
+  // "customer", "merchant" or "driver" -- each app renders its own side on the right.
   sender: string;
   text: string;
   createdAt: string;
@@ -924,6 +927,26 @@ export function orderMessages(id: string) {
 // The sender is derived server-side from the token against the order, never sent here.
 export function sendOrderMessage(id: string, text: string) {
   return postAuth<OrderMessage>(`/delivery/orders/${id}/messages`, { text });
+}
+
+// A rating on a finished order. The triangle mirrors the conversation's: the customer rates the
+// merchant and the driver, and both of them rate the customer back. The GET returns only the
+// CALLER's own ratings (whose side the server works out from the token), so each app knows which
+// stars it has already given; rating the same target again revises them.
+export interface OrderRating {
+  // Which side the stars are about: "customer", "merchant" or "driver".
+  targetRole: string;
+  stars: number;
+  comment: string | null;
+  createdAt: string;
+}
+
+export function orderRatings(id: string) {
+  return get<OrderRating[]>(`/delivery/orders/${id}/ratings`);
+}
+
+export function rateOrder(id: string, input: { targetRole: string; stars: number; comment?: string }) {
+  return postAuth<OrderRating>(`/delivery/orders/${id}/ratings`, input);
 }
 
 // The merchant messaging the customer about the order before fulfilling it: a note on one product

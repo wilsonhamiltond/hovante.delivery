@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ import { detectCurrentLocation } from '../src/profileForm';
 import { sessionLocationLabel, useSessionLocation } from '../src/sessionLocation';
 import { stepTitles, stepsFor, type StepKey } from '../src/checkoutSteps';
 import { BackButton, BACK_BUTTON_WIDTH } from '../src/BackButton';
+import { KeyboardCloseButton } from '../src/KeyboardCloseButton';
 import { GradientBackground, t } from '../src/theme';
 import { useStrings, type Locale } from '../src/i18n';
 
@@ -299,6 +300,9 @@ export default function CartScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [mapKey, setMapKey] = useState(0); // bump to recenter the map on a new location
   const [locating, setLocating] = useState(false);
+  // Whether the delivery-address box is being edited: it is multiline, so Enter cannot put the
+  // keyboard away, and the close pill beside its label stands in for that missing key.
+  const [addrFocused, setAddrFocused] = useState(false);
 
   // Pre-fill the location from the customer's default address, so the location step opens on where
   // they usually deliver instead of an empty map.
@@ -699,10 +703,12 @@ export default function CartScreen() {
             </View>
           ) : null}
           <View style={styles.labelRow}>
-            <Text style={styles.labelText}>{tx.deliveryAddress}</Text>
+            <Text style={[styles.labelText, { flex: 1 }]}>{tx.deliveryAddress}</Text>
             {addressLabel ? <Text style={styles.labelBadge}>{addressLabel}</Text> : null}
+            <KeyboardCloseButton visible={addrFocused} />
           </View>
-          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder={tx.deliveryAddress} placeholderTextColor={t.textFaint} multiline />
+          <TextInput style={styles.addressInput} value={address} onChangeText={setAddress} placeholder={tx.deliveryAddress} placeholderTextColor={t.textFaint} multiline
+            onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)} />
           {/* A saved address or a GPS fix can land outside the area without any tap being refused,
               so the step is gated on the point itself rather than only on the map's own check. */}
           {areas.length > 0 && !insideArea(coords.lat, coords.lng) ? (
@@ -724,7 +730,12 @@ export default function CartScreen() {
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>{tx.notesLabel}</Text>
-            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder={tx.notesPlaceholder} placeholderTextColor={t.textFaint} multiline />
+            {/* Enter closes the keyboard instead of inserting a newline: a delivery note wants
+                commas, and the multiline box otherwise trapped the keyboard open. */}
+            <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder={tx.notesPlaceholder} placeholderTextColor={t.textFaint}
+              multiline returnKeyType="done" submitBehavior="blurAndSubmit"
+              blurOnSubmit /* react-native-web ignores submitBehavior; without this, Enter on web never submits */
+              onSubmitEditing={() => Keyboard.dismiss()} />
 
             {/* Cash only: with what bill will they pay, so whoever hands the order over brings the
                 change. Empty is fine -- it reads as exact payment. */}
@@ -738,6 +749,8 @@ export default function CartScreen() {
                   placeholder={tx.payWithPlaceholder(money(grandTotal))}
                   placeholderTextColor={t.textFaint}
                   keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
                 />
                 {payWithNum != null && !payWithValid ? (
                   <Text style={styles.payWithError}>

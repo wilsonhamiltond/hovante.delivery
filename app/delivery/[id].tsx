@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth';
@@ -8,6 +8,8 @@ import * as outbox from '../../src/outbox';
 import type { Delivery } from '../../src/api';
 import type { OutboxItem } from '../../src/outbox';
 import { formatEta, useRouteEta } from '../../src/eta';
+import { OrderMessages } from '../../src/OrderMessages';
+import { OrderRatingCard } from '../../src/OrderRatingCard';
 import { GradientBackground, t } from '../../src/theme';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { useStrings, type Locale } from '../../src/i18n';
@@ -325,7 +327,10 @@ export default function DeliveryDetail() {
         <Text style={styles.heading} numberOfLines={1}>{delivery.deliveryNumber ?? tx.delivery}</Text>
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
-      <ScrollView contentContainerStyle={styles.container}>
+      {/* Lifts the scroll over the keyboard so the message composer (and the panels' inputs)
+          stay visible above it instead of underneath it. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.rowBetween}>
           <Text style={styles.number}>{delivery.deliveryNumber ?? tx.delivery}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
@@ -386,6 +391,25 @@ export default function DeliveryDetail() {
         {delivery.notes ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
         {finished && delivery.receiverName ? <Text style={styles.notes}>{tx.receivedByPrefix}{delivery.receiverName}</Text> : null}
         {finished && delivery.failureReason ? <Text style={styles.notes}>{tx.reasonPrefix}{delivery.failureReason}</Text> : null}
+
+        {/* The order's conversation: the same thread the customer and the merchant read, with the
+            driver as its third voice ("ya voy en camino", "el timbre no suena"). Only marketplace
+            orders have one -- an ERP dispatch has no orderId and no thread. */}
+        {delivery.orderId ? (
+          <OrderMessages
+            orderId={delivery.orderId}
+            viewer="driver"
+            closed={finished || delivery.status === 'CANCELLED' || delivery.status === 'RETURNED'}
+          />
+        ) : null}
+
+        {/* Delivered: the driver rates the customer back. */}
+        {delivery.orderId && delivery.status === 'DELIVERED' ? (
+          <OrderRatingCard
+            orderId={delivery.orderId}
+            targets={[{ role: 'customer', name: delivery.recipientName }]}
+          />
+        ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -450,6 +474,7 @@ export default function DeliveryDetail() {
           </View>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
     </GradientBackground>
   );

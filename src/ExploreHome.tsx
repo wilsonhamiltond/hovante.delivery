@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from './api';
@@ -554,7 +554,10 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
 
   return (
     <GradientBackground>
-    <View style={styles.root}>
+    {/* The root takes unclaimed taps to put the keyboard away: typing a search and then tapping
+        anywhere outside the box should not leave the keyboard standing over half the grid.
+        Interactive children still claim their own taps first, so nothing else changes. */}
+    <Pressable style={styles.root} onPress={Keyboard.dismiss} accessible={false}>
       {/* Header: location + search, over the blue gradient. */}
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.headerBand}>
@@ -621,6 +624,9 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        // Scrolling the grid also puts the keyboard away -- the search box stays filled either way.
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         onEndReached={loadMore}
         // Half a screen from the bottom, so the next page is usually there before the scroll is.
         onEndReachedThreshold={0.5}
@@ -948,7 +954,7 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
       </Modal>
 
       <BottomNav active="explore" />
-    </View>
+    </Pressable>
     </GradientBackground>
   );
 }
