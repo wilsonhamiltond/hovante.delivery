@@ -89,6 +89,23 @@ function captureRotatedToken(res: Response) {
   }
 }
 
+// One authenticated fetch, tried a second time when the 401 itself carried a fresh token: the
+// access token lapsed while the app was closed, but the server checked the account and re-issued
+// (the refresh middleware rides even on a 401), so the request is repeated with the new token
+// instead of ending a session the server just vouched for. Any other 401 falls through to
+// sessionExpired() at the call site exactly as before. `make` builds the request from the token
+// to send, so the retry actually carries the rotated one.
+async function fetchWithRefresh(make: (token: string | null) => Promise<Response>): Promise<Response> {
+  const sent = currentToken;
+  let res = await make(sent);
+  captureRotatedToken(res);
+  if (res.status === 401 && sent && currentToken && currentToken !== sent) {
+    res = await make(currentToken);
+    captureRotatedToken(res);
+  }
+  return res;
+}
+
 // A 401 on an authenticated call means the held session is no longer good -- expired, or revoked
 // server-side. No screen can do anything about that, so rather than each one rendering its own
 // failure the client drops the token and tells the app the session is over; the gate in _layout
@@ -325,13 +342,12 @@ export function changePassword(currentPassword: string, password: string) {
 async function get<T>(path: string): Promise<ApiResponse<T>> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
-      headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : undefined,
-    });
+    res = await fetchWithRefresh((token) => fetch(`${API_BASE_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    }));
   } catch {
     return { success: false, message: strings(S).networkError, data: null as T };
   }
-  captureRotatedToken(res);
   if (sessionExpired(res)) return { success: false, message: strings(S).sessionExpired, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;
@@ -410,15 +426,14 @@ export async function uploadProfileImage(uri: string, mimeType: string, fileName
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/auth/profile-image`, {
+    res = await fetchWithRefresh((token) => fetch(`${API_BASE_URL}/auth/profile-image`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${currentToken}` },
+      headers: { Authorization: `Bearer ${token}` },
       body: form,
-    });
+    }));
   } catch {
     return { success: false, message: strings(S).networkError, data: null as unknown as string };
   }
-  captureRotatedToken(res);
   if (sessionExpired(res)) {
     return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
   }
@@ -696,15 +711,14 @@ export async function uploadProductImage(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/delivery/products/merchant/${id}/image`, {
+    res = await fetchWithRefresh((token) => fetch(`${API_BASE_URL}/delivery/products/merchant/${id}/image`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${currentToken}` },
+      headers: { Authorization: `Bearer ${token}` },
       body: form,
-    });
+    }));
   } catch {
     return { success: false, message: strings(S).networkError, data: null as unknown as string };
   }
-  captureRotatedToken(res);
   if (sessionExpired(res)) {
     return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
   }
@@ -761,15 +775,14 @@ export async function uploadCategoryImage(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/delivery/categories/merchant/${id}/image`, {
+    res = await fetchWithRefresh((token) => fetch(`${API_BASE_URL}/delivery/categories/merchant/${id}/image`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${currentToken}` },
+      headers: { Authorization: `Bearer ${token}` },
       body: form,
-    });
+    }));
   } catch {
     return { success: false, message: strings(S).networkError, data: null as unknown as string };
   }
-  captureRotatedToken(res);
   if (sessionExpired(res)) {
     return { success: false, message: strings(S).sessionExpired, data: null as unknown as string };
   }
@@ -1269,18 +1282,21 @@ async function sendAuth<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body
   if (!currentToken) return { success: false, message: strings(S).noSession, data: null as T };
   let res: Response;
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${currentToken}` };
-    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-    res = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      // DELETE carries no body: some proxies drop one, and the id is already in the path.
-      body: method === 'DELETE' ? undefined : JSON.stringify(body ?? {}),
+    res = await fetchWithRefresh((token) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      // The retry reuses the same key on purpose: it is the same action, and the key is what
+      // lets the server recognise it as such.
+      if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+      return fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        // DELETE carries no body: some proxies drop one, and the id is already in the path.
+        body: method === 'DELETE' ? undefined : JSON.stringify(body ?? {}),
+      });
     });
   } catch {
     return { success: false, message: strings(S).networkError, data: null as T };
   }
-  captureRotatedToken(res);
   if (sessionExpired(res)) return { success: false, message: strings(S).sessionExpired, data: null as T };
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
   if (json) return json;

@@ -644,7 +644,9 @@ export function ExploreHome({ profile, initialSearch, initialCompany, initialPre
             <Pressable
               style={styles.tile}
               onPress={() => openPreview(item)}
-              accessibilityRole="button"
+              // Native only: on web this role renders a real <button>, and HTML forbids the
+              // add-to-cart <button> below inside it -- React warns and hydration breaks.
+              accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
               accessibilityLabel={tx.viewItem(item.name)}
             >
               {/* The item's own photo once the merchant has set one; the merchant's category icon
