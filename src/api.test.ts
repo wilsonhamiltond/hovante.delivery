@@ -156,7 +156,66 @@ describe('expired session', () => {
     globalThis.fetch = originalFetch;
     api.setAuthToken(null);
     api.setUnauthorizedHandler(null);
+    api.setTokenRotationHandler(() => {});
     api.clearCachedMe();
+  });
+
+  // The refresh middleware rides even on a 401: a lapsed token whose account is still good comes
+  // back refused but WITH a fresh token in x-new-access-token. That is the server vouching for
+  // the session, so the client repeats the request with the new token instead of signing out --
+  // this is what turns "opened the app after a month" into a seamless return instead of a bounce
+  // to the welcome screen.
+  it('retries once with the fresh token a 401 carries, and keeps the session', async () => {
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({
+        status: 401,
+        headers: { get: (name: string) => (name === 'x-new-access-token' ? 'fresh-jwt' : null) },
+        json: async () => { throw new Error('no body'); },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ success: true, message: 'ok', data: { email: 'a@b.c' } }),
+      });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    api.setAuthToken('lapsed-jwt');
+    const onUnauthorized = jest.fn();
+    api.setUnauthorizedHandler(onUnauthorized);
+    const rotated = jest.fn();
+    api.setTokenRotationHandler(rotated);
+
+    const res = await api.me();
+
+    expect(res.success).toBe(true);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The second try actually carries the rotated credential, and it is persisted for next launch.
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer fresh-jwt');
+    expect(rotated).toHaveBeenCalledWith('fresh-jwt');
+  });
+
+  it('retries only once: a refused retry ends the session instead of looping', async () => {
+    // Both refusals carry a rotation header, which is exactly the shape that could loop forever
+    // if the retry were not single-shot.
+    const refusal = (rotatedToken: string) => ({
+      status: 401,
+      headers: { get: (name: string) => (name === 'x-new-access-token' ? rotatedToken : null) },
+      json: async () => { throw new Error('no body'); },
+    });
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce(refusal('fresh-jwt'))
+      .mockResolvedValueOnce(refusal('fresh-jwt-2'));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    api.setAuthToken('lapsed-jwt');
+    const onUnauthorized = jest.fn();
+    api.setUnauthorizedHandler(onUnauthorized);
+
+    const res = await api.me();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(res.success).toBe(false);
+    expect(res.message).toBe(api.SESSION_EXPIRED);
   });
 
   it('drops the token and calls the handler when an authenticated read comes back 401', async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Keyboard, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as api from '../src/api';
 import type { Product } from '../src/api';
@@ -191,7 +191,9 @@ export default function MerchantProductsScreen() {
 
   return (
     <GradientBackground>
-    <View style={styles.safe}>
+    {/* The root takes unclaimed taps to put the keyboard away: after typing a search, tapping
+        anywhere outside the box closes the keyboard. Buttons still claim their own taps first. */}
+    <Pressable style={styles.safe} onPress={Keyboard.dismiss} accessible={false}>
       {/* The same "🏪 comercio" bar the home wears; the top safe area rides inside it. */}
       <MerchantTopBar />
       <View style={styles.header}>
@@ -237,6 +239,9 @@ export default function MerchantProductsScreen() {
           data={products}
           keyExtractor={(p) => p.id}
           contentContainerStyle={styles.list}
+          // Scrolling the list also puts the keyboard away -- the search stays filled either way.
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
@@ -319,7 +324,7 @@ export default function MerchantProductsScreen() {
       </Modal>
 
       <BottomNav active="products" variant="merchant" />
-    </View>
+    </Pressable>
     </GradientBackground>
   );
 }

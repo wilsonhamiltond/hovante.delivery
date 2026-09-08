@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
@@ -7,6 +7,8 @@ import type { Order } from '../../src/api';
 import { statusOf } from '../../src/MerchantOrderCard';
 import { QueueTimeModal } from '../../src/QueueTimeModal';
 import { OrderMessages } from '../../src/OrderMessages';
+import { OrderRatingCard } from '../../src/OrderRatingCard';
+import { OrderRatingDialog } from '../../src/OrderRatingDialog';
 import { InvoiceModal } from '../../src/InvoiceModal';
 import { PointsMap } from '../../src/PointsMap';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
@@ -272,6 +274,9 @@ export default function MerchantOrderDetail() {
   const [confirming, setConfirming] = useState(false);
   // The customer's tracking-screen code, typed at the counter to hand a pickup order over.
   const [deliverCode, setDeliverCode] = useState('');
+  // The rate-the-client popup, raised the moment the counter hands a pickup order over --
+  // rating right then is one tap; the card also stays on the screen for later.
+  const [rateOpen, setRateOpen] = useState(false);
   // The invoice sheet, opened by tapping the invoice number on its card.
   const [showInvoice, setShowInvoice] = useState(false);
   // The branch the order is collected from, so the customer map draws the route office → cliente
@@ -385,7 +390,10 @@ export default function MerchantOrderDetail() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header title={order.orderNumber} onBack={back} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      {/* Lifts the scroll over the keyboard so the message composer (and the note editors) stay
+          visible above it instead of underneath it. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.rowBetween}>
           <Text style={styles.placedAt}>{fmtStamp(order.createdAt) ?? ''}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
@@ -561,9 +569,22 @@ export default function MerchantOrderDetail() {
           ) : null}
         </View>
 
-        {/* The conversation with the customer: substitutions offered, questions answered. The
-            composer closes when the order does; a closed, empty thread renders nothing. */}
+        {/* The conversation with the customer (and the driver, once one claims the ride):
+            substitutions offered, questions answered. The composer closes when the order does; a
+            closed, empty thread renders nothing. */}
         <OrderMessages orderId={order.id} viewer="merchant" closed={delivered || order.status === 'CANCELLED'} />
+
+        {/* Once the order is in the customer's hands, the counter rates them back -- and the
+            driver who rode it, when there was one (a pickup order never had one). */}
+        {delivered ? (
+          <OrderRatingCard
+            orderId={order.id}
+            targets={[
+              { role: 'customer', name: order.customerName },
+              ...(order.driverName ? [{ role: 'driver' as const, name: order.driverName }] : []),
+            ]}
+          />
+        ) : null}
 
         {/* The invoice, issued when the order went "listo" (or "Facturar" on the web). Tapping it
             opens the invoice itself, with printing. */}
@@ -666,7 +687,11 @@ export default function MerchantOrderDetail() {
             <Pressable
               style={[styles.action, styles.confirm, (busy || deliverCode.trim().length < 4) && styles.disabled]}
               disabled={busy || deliverCode.trim().length < 4}
-              onPress={() => act((i) => api.deliverMerchantOrder(i, deliverCode.trim()))}
+              // The handover lands and the rating popup comes right up: the customer is still at
+              // the counter, which is exactly when the counter knows what to say about them.
+              onPress={async () => {
+                if (await act((i) => api.deliverMerchantOrder(i, deliverCode.trim()))) setRateOpen(true);
+              }}
             >
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.deliverOrder}</Text>}
             </Pressable>
@@ -689,6 +714,7 @@ export default function MerchantOrderDetail() {
           )
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <QueueTimeModal
         visible={confirming}
@@ -703,6 +729,17 @@ export default function MerchantOrderDetail() {
         orderId={order.id}
         visible={showInvoice}
         onClose={() => setShowInvoice(false)}
+      />
+
+      {/* A pickup handover has no driver to rate; the popup asks about the customer alone. */}
+      <OrderRatingDialog
+        visible={rateOpen}
+        orderId={order.id}
+        targets={[
+          { role: 'customer', name: order.customerName },
+          ...(order.driverName ? [{ role: 'driver' as const, name: order.driverName }] : []),
+        ]}
+        onClose={() => setRateOpen(false)}
       />
     </SafeAreaView>
     </GradientBackground>

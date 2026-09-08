@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import * as api from './api';
 import { t } from './theme';
+import { KeyboardCloseButton } from './KeyboardCloseButton';
 import { useStrings, type Locale } from './i18n';
 
 const S: Record<
@@ -10,46 +11,51 @@ const S: Record<
     title: string;
     placeholder: string;
     send: string;
-    other: { customer: string; merchant: string };
+    other: { customer: string; merchant: string; driver: string };
   }
 > = {
   es: {
     title: 'Mensajes',
     placeholder: 'Escribe un mensaje…',
     send: 'Enviar',
-    other: { customer: 'Cliente', merchant: 'Comercio' },
+    other: { customer: 'Cliente', merchant: 'Comercio', driver: 'Repartidor' },
   },
   en: {
     title: 'Messages',
     placeholder: 'Write a message…',
     send: 'Send',
-    other: { customer: 'Customer', merchant: 'Merchant' },
+    other: { customer: 'Customer', merchant: 'Merchant', driver: 'Driver' },
   },
   fr: {
     title: 'Messages',
     placeholder: 'Écrivez un message…',
     send: 'Envoyer',
-    other: { customer: 'Client', merchant: 'Commerce' },
+    other: { customer: 'Client', merchant: 'Commerce', driver: 'Livreur' },
   },
 };
 
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-// The order's customer↔merchant conversation, embedded as a card on either side's order screen.
-// `viewer` says which side is reading, so their own messages sit on the right. Polls alongside the
-// screens that host it (they refresh every 15 s too); `closed` (delivered/cancelled) hides the
-// composer, and a closed, empty thread renders nothing at all.
-export function OrderMessages({ orderId, viewer, closed }: {
+// The order's conversation, embedded as a card on each side's order screen. Three parties read the
+// same thread: the customer, the merchant's counter and (once assigned) the driver. `viewer` says
+// which side is reading, so their own messages sit on the right and everyone else's are named.
+// Polls alongside the screens that host it (they refresh every 15 s too); `closed`
+// (delivered/cancelled) hides the composer, and a closed, empty thread renders nothing at all.
+export function OrderMessages({ orderId, viewer, closed, style }: {
   orderId: string;
-  viewer: 'customer' | 'merchant';
+  viewer: 'customer' | 'merchant' | 'driver';
   closed?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const tx = useStrings(S);
   const [messages, setMessages] = useState<api.OrderMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The composer's focus, for the close pill: the box is multiline, so Enter cannot put the
+  // keyboard away and the pill stands in for that missing key.
+  const [focused, setFocused] = useState(false);
   // Send replaces the list from its own response reload; the poll must not clobber a newer list
   // with an older in-flight answer, so each load carries a ticket and stale ones are dropped.
   const ticket = useRef(0);
@@ -79,20 +85,21 @@ export function OrderMessages({ orderId, viewer, closed }: {
     await load();
   };
 
+  const senderName = (sender: string) =>
+    sender === 'customer' ? tx.other.customer
+      : sender === 'driver' ? tx.other.driver
+        : tx.other.merchant;
+
   if (closed && messages.length === 0) return null;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <Text style={styles.label}>{tx.title}</Text>
       {messages.map((m) => {
         const mine = m.sender === viewer;
         return (
           <View key={m.id} style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-            {!mine ? (
-              <Text style={styles.sender}>
-                {m.sender === 'customer' ? tx.other.customer : tx.other.merchant}
-              </Text>
-            ) : null}
+            {!mine ? <Text style={styles.sender}>{senderName(m.sender)}</Text> : null}
             <Text style={[styles.text, mine && styles.textMine]}>{m.text}</Text>
             <Text style={[styles.time, mine && styles.timeMine]}>{timeOf(m.createdAt)}</Text>
           </View>
@@ -108,7 +115,10 @@ export function OrderMessages({ orderId, viewer, closed }: {
             value={text}
             onChangeText={setText}
             multiline
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
+          <KeyboardCloseButton visible={focused} />
           <Pressable
             style={[styles.sendBtn, (sending || !text.trim()) && styles.disabled]}
             disabled={sending || !text.trim()}

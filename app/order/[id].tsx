@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
@@ -7,6 +7,7 @@ import type { Order, OrderTracking } from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { InvoiceModal } from '../../src/InvoiceModal';
 import { OrderMessages } from '../../src/OrderMessages';
+import { OrderRatingCard } from '../../src/OrderRatingCard';
 import { GradientBackground, t } from '../../src/theme';
 import { orderStatusChip } from '../../src/orderStatus';
 import { queueRemainingMin } from '../../src/orderQueue';
@@ -423,7 +424,10 @@ export default function OrderTrackingScreen() {
     <GradientBackground>
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header onBack={() => router.replace('/orders')} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      {/* Lifts the scroll over the keyboard so the message composer (and anything else being
+          typed into) stays visible above it instead of underneath it. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.numberRow}>
           <Text style={styles.orderNumber}>{order.orderNumber}</Text>
           {/* The current state, said outright. The queue wins while it runs: "confirmado" alone
@@ -501,9 +505,23 @@ export default function OrderTrackingScreen() {
           {order.notes ? (<><Text style={styles.label}>{tx.noteLabel}</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
         </View>
 
-        {/* The conversation with the merchant: ask about the order, hear about substitutions.
-            The composer closes when the order does; an empty closed thread renders nothing. */}
-        <OrderMessages orderId={order.id} viewer="customer" closed={failed || delivered} />
+        {/* The conversation with the merchant and the driver: ask about the order, hear about
+            substitutions. The composer closes when the order does; an empty closed thread renders
+            nothing. The card carries the same top margin as its siblings, which set their own. */}
+        <OrderMessages orderId={order.id} viewer="customer" closed={failed || delivered} style={styles.messagesCard} />
+
+        {/* Once the order is in their hands, the customer rates the merchant -- and the driver,
+            when one rode it (a pickup order never had one). */}
+        {delivered ? (
+          <OrderRatingCard
+            orderId={order.id}
+            targets={[
+              { role: 'merchant', name: order.merchantName },
+              ...(driverName ? [{ role: 'driver' as const, name: driverName }] : []),
+            ]}
+            style={styles.messagesCard}
+          />
+        ) : null}
 
         {/* The merchant's message about the order, sent while it was still being shaped. */}
         {order.merchantNote ? (
@@ -572,6 +590,7 @@ export default function OrderTrackingScreen() {
           <Text style={styles.secondaryText}>{tx.viewMyOrders}</Text>
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <InvoiceModal
         orderId={order.id}
@@ -631,6 +650,9 @@ const styles = StyleSheet.create({
   stageSub: { fontSize: 13, color: t.textMuted, marginTop: 2 },
 
   card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 16, marginTop: 14 },
+  // The shared conversation/rating cards bring no margin of their own; this hands them the same
+  // rhythm as the cards above, which each carry marginTop themselves.
+  messagesCard: { marginTop: 14 },
   label: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
   value: { fontSize: 15, color: t.text, marginTop: 3, fontWeight: '600' },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
+import { KeyboardCloseButton } from '../../src/KeyboardCloseButton';
 import { GradientBackground, t } from '../../src/theme';
 import { emojiFor } from '../../src/categoryEmoji';
 import { useStrings, type Locale } from '../../src/i18n';
@@ -121,6 +122,10 @@ export default function EditOrderScreen() {
   const [lines, setLines] = useState<EditLine[]>([]);
   const [notes, setNotes] = useState('');
   const [payWith, setPayWith] = useState('');
+  // Which of the two keyboard-trapping fields is being edited: the note is multiline (Enter types
+  // a newline) and the amount rides a numeric pad (no return key on iOS), so each label wears a
+  // close pill while its field is focused.
+  const [focusedField, setFocusedField] = useState<'notes' | 'payWith' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The add-products section: the order's merchant's catalogue, filtered by the search box and
@@ -343,7 +348,10 @@ export default function EditOrderScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>{tx.notesLabel}</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, styles.labelInRow]}>{tx.notesLabel}</Text>
+                <KeyboardCloseButton visible={focusedField === 'notes'} />
+              </View>
               <TextInput
                 style={styles.input}
                 placeholder={tx.notesPlaceholder}
@@ -351,9 +359,14 @@ export default function EditOrderScreen() {
                 value={notes}
                 onChangeText={setNotes}
                 multiline
+                onFocus={() => setFocusedField('notes')}
+                onBlur={() => setFocusedField((f) => (f === 'notes' ? null : f))}
               />
 
-              <Text style={styles.label}>{tx.payWithLabel}</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, styles.labelInRow]}>{tx.payWithLabel}</Text>
+                <KeyboardCloseButton visible={focusedField === 'payWith'} />
+              </View>
               <TextInput
                 style={styles.input}
                 placeholder={tx.payWithPlaceholder}
@@ -361,6 +374,10 @@ export default function EditOrderScreen() {
                 value={payWith}
                 onChangeText={setPayWith}
                 keyboardType="numeric"
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
+                onFocus={() => setFocusedField('payWith')}
+                onBlur={() => setFocusedField((f) => (f === 'payWith' ? null : f))}
               />
 
               <View style={styles.totals}>
@@ -437,6 +454,9 @@ const styles = StyleSheet.create({
   thumbEmoji: { fontSize: 22 },
 
   label: { fontSize: 14, fontWeight: '700', color: t.textMuted, marginTop: 8 },
+  // The label beside its close pill: the row carries the top margin, the label loses its own.
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  labelInRow: { flex: 1, marginTop: 0 },
   input: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 14, fontSize: 15, color: t.text, textAlignVertical: 'top' },
 
   totals: { marginTop: 10, gap: 4 },

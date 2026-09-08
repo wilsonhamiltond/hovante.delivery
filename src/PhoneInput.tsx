@@ -45,12 +45,15 @@ interface Props {
   national: string;
   onChange: (next: { country: CountryCode; national: string }) => void;
   placeholder?: string;
+  /** Passed straight to the number field, so a form can make Enter its submit button. */
+  returnKeyType?: 'done' | 'next' | 'send' | 'go' | 'search';
+  onSubmitEditing?: () => void;
 }
 
 // A country picker and a number field, side by side. The country decides how the number is grouped
 // as it is typed and what counts as complete, so the two belong in one control rather than as two
 // fields a caller has to keep in step.
-export function PhoneInput({ country, national, onChange, placeholder }: Props) {
+export function PhoneInput({ country, national, onChange, placeholder, returnKeyType, onSubmitEditing }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const selected = countryByIso(country);
@@ -98,6 +101,8 @@ export function PhoneInput({ country, national, onChange, placeholder }: Props) 
           keyboardType="phone-pad"
           // The country is chosen beside it, so a leading + typed here would be a second one.
           autoComplete="tel-national"
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
         />
       </View>
 
