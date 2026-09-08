@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/auth';
@@ -60,6 +60,7 @@ const S: Record<
     myLocation: string;
     addressFieldLabel: string;
     addressFieldPlaceholder: string;
+    hideKeyboard: string;
     sendCode: string;
     verify: string;
     createAccount: string;
@@ -106,6 +107,7 @@ const S: Record<
     myLocation: '📍 Mi ubicación',
     addressFieldLabel: 'Dirección',
     addressFieldPlaceholder: 'Escribe y busca, o elige en el mapa',
+    hideKeyboard: 'Ocultar teclado',
     sendCode: 'Enviar código',
     verify: 'Verificar',
     createAccount: 'Crear cuenta',
@@ -151,6 +153,7 @@ const S: Record<
     myLocation: '📍 My location',
     addressFieldLabel: 'Address',
     addressFieldPlaceholder: 'Type and search, or pick on the map',
+    hideKeyboard: 'Hide keyboard',
     sendCode: 'Send code',
     verify: 'Verify',
     createAccount: 'Create account',
@@ -196,6 +199,7 @@ const S: Record<
     myLocation: '📍 Ma position',
     addressFieldLabel: 'Adresse',
     addressFieldPlaceholder: 'Saisissez et recherchez, ou choisissez sur la carte',
+    hideKeyboard: 'Masquer le clavier',
     sendCode: 'Envoyer le code',
     verify: 'Vérifier',
     createAccount: 'Créer un compte',
@@ -246,6 +250,15 @@ export default function RegisterScreen() {
   const [locating, setLocating] = useState(false);
   // The typed-address lookup ("buscar en el mapa") in flight.
   const [searching, setSearching] = useState(false);
+  // The map step is a plain View, not a ScrollView like the other steps, so tapping outside the
+  // address field never releases the keyboard -- and a tap on the map drops the pin instead. While
+  // the field is focused, a button in its label row is the way out; it only blurs, the text stays.
+  const [addressFocused, setAddressFocused] = useState(false);
+  const addressInputRef = useRef<TextInput>(null);
+  const hideAddressKeyboard = () => {
+    addressInputRef.current?.blur();
+    Keyboard.dismiss();
+  };
 
   const back = () => {
     setError(null);
@@ -378,6 +391,10 @@ export default function RegisterScreen() {
   return (
     <GradientBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Keeps the focused field above the keyboard -- on the map step the address box sits at
+            the bottom, where the keyboard otherwise covers it (the map, being the flex element,
+            is what shrinks). iOS pads; Android's window resize does the same on its own. */}
+        <KeyboardAvoidingView style={styles.avoid} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <BackButton onPress={back} />
           <Text style={styles.title}>{tx.steps[step - 1]}</Text>
@@ -497,11 +514,17 @@ export default function RegisterScreen() {
             <View style={[styles.locRow, styles.locRowSpaced]}>
               <Text style={[styles.label, styles.labelInRow]}>{tx.addressFieldLabel}</Text>
               {searching ? <ActivityIndicator color={t.accent} size="small" /> : null}
+              {addressFocused ? (
+                <Pressable style={styles.hideKbBtn} onPress={hideAddressKeyboard} accessibilityRole="button">
+                  <Text style={styles.hideKbText}>{tx.hideKeyboard}</Text>
+                </Pressable>
+              ) : null}
             </View>
             {/* The return key searches instead of inserting a newline: an address wants commas, not
                 line breaks, and this multiline box otherwise trapped the keyboard open. */}
-            <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
+            <TextInput ref={addressInputRef} style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
               placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress}
+              onFocus={() => setAddressFocused(true)} onBlur={() => setAddressFocused(false)}
               multiline returnKeyType="search" submitBehavior="blurAndSubmit"
               blurOnSubmit /* react-native-web ignores submitBehavior; without this, Enter on web never submits */
               onSubmitEditing={searchAddress} />
@@ -517,6 +540,7 @@ export default function RegisterScreen() {
             )}
           </Pressable>
         </View>
+        </KeyboardAvoidingView>
         <NoticeDialog notice={notice} onClose={() => setNotice(null)} />
       </SafeAreaView>
     </GradientBackground>
@@ -525,6 +549,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
+  avoid: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text },
 
@@ -557,6 +582,8 @@ const styles = StyleSheet.create({
   locBtnText: { color: t.onAccent, fontWeight: '800', fontSize: 13 },
   // The label's own top margin, minus the row's centering -- keeps the row aligned with the spinner.
   labelInRow: { flex: 1, marginTop: 0 },
+  hideKbBtn: { borderWidth: 1, borderColor: t.border, backgroundColor: t.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  hideKbText: { color: t.textMuted, fontSize: 12, fontWeight: '700' },
   addressArea: { minHeight: 68, textAlignVertical: 'top' },
   codeInput: { fontSize: 28, fontWeight: '800', letterSpacing: 10, marginTop: 10 },
   resend: { alignItems: 'center', paddingVertical: 14 },
