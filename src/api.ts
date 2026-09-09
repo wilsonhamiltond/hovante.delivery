@@ -274,8 +274,11 @@ export function loginWithAppleNative(identityToken: string, name?: string) {
 }
 
 // Both endpoints return the JWT as `data` on success.
+// rememberMe: an app session lasts until "Cerrar sesión", never expiring on its own. Delivery
+// accounts get this server-side regardless, but a merchant (ERP-company) account signing in here
+// would otherwise inherit the ERP's 15-minute idle expiry and be silently signed out.
 export function login(email: string, password: string) {
-  return post<string>('/auth/login', { email, password });
+  return post<string>('/auth/login', { email, password, rememberMe: true });
 }
 
 export function register(payload: RegisterPayload) {
