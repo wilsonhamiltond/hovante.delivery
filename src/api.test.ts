@@ -19,7 +19,9 @@ describe('api client', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain('/auth/login');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ email: 'a@b.com', password: 'secret' });
+    // rememberMe keeps the session alive until an explicit sign-out, even for ERP-company
+    // accounts the server would otherwise give the short 15-minute lifetime.
+    expect(JSON.parse(init.body)).toEqual({ email: 'a@b.com', password: 'secret', rememberMe: true });
   });
 
   it('sends the register payload to /auth/register', async () => {

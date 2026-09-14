@@ -92,6 +92,7 @@ cannot be sideloaded, because Play splits it into per-device APKs on its own ser
 directly, correctly signed, in one command:
 
 ```bash
+npx eas-cli build --platform android --profile production --local --output ./build-production.aab
 npx eas-cli build --platform android --profile preview
 ```
 
@@ -170,6 +171,7 @@ and the APNs key on the first build — it signs into App Store Connect, creates
 stores them. Doing it by hand buys nothing and a lost certificate is a nuisance to rotate.
 
 ```bash
+npx eas-cli build --platform ios --profile production --local --output ./build-production.ipa
 npx eas-cli build --platform ios --profile production
 ```
 
