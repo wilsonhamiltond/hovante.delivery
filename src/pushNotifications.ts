@@ -144,7 +144,8 @@ export interface PushTarget {
   /**
    * 'pool' -> an order anyone may claim; 'assigned' -> one already on this driver's route;
    * 'order' -> an order at the merchant's counter; 'customer-order' -> the customer's own order,
-   * on any status change the API pushes about.
+   * on any status change the API pushes about; 'merchant-invite' -> a merchant invited this
+   * driver to its fleet (the code is typed on Comercios).
    */
   type?: string;
   deliveryId?: string;
@@ -195,6 +196,9 @@ export function routeForNotification(data: PushTarget | null | undefined): strin
   // deliveryId -- an order's delivery exists from creation but is parked in AWAITING_MERCHANT, so
   // there is nothing about it a shop could act on yet.
   if (data?.type === 'order' && data.orderId) return `/merchant-order/${data.orderId}`;
+
+  // A fleet invitation: the screen with the pending list and its code box.
+  if (data?.type === 'merchant-invite') return '/driver-merchants';
 
   if (!data?.deliveryId) return null;
   // A pool order is not the driver's yet, so it opens the claim screen; an assigned one opens the

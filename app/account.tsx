@@ -31,6 +31,7 @@ const S: Record<
     myInfo: string;
     addresses: string;
     myVehicle: string;
+    myMerchants: string;
     products: string;
     categories: string;
     hours: string;
@@ -58,6 +59,7 @@ const S: Record<
     myInfo: 'Mis datos',
     addresses: 'Direcciones',
     myVehicle: 'Mi vehículo',
+    myMerchants: 'Comercios',
     products: 'Productos',
     categories: 'Categorías',
     hours: 'Horario',
@@ -84,6 +86,7 @@ const S: Record<
     myInfo: 'My info',
     addresses: 'Addresses',
     myVehicle: 'My vehicle',
+    myMerchants: 'Merchants',
     products: 'Products',
     categories: 'Categories',
     hours: 'Business hours',
@@ -110,6 +113,7 @@ const S: Record<
     myInfo: 'Mes informations',
     addresses: 'Adresses',
     myVehicle: 'Mon véhicule',
+    myMerchants: 'Commerces',
     products: 'Produits',
     categories: 'Catégories',
     hours: 'Horaires',
@@ -302,6 +306,13 @@ export default function AccountScreen() {
                   <Pressable style={styles.row} onPress={() => router.push('/vehicle')}>
                     <FontAwesome5 name="motorcycle" size={16} solid color={t.text} style={styles.rowIcon} />
                     <Text style={styles.rowText}>{tx.myVehicle}</Text>
+                    <Text style={styles.rowChevron}>›</Text>
+                  </Pressable>
+                  <View style={styles.rowDivider} />
+                  {/* The fleets this driver belongs to, and merchant invitations waiting for a code. */}
+                  <Pressable style={styles.row} onPress={() => router.push('/driver-merchants')}>
+                    <FontAwesome5 name="store" size={15} solid color={t.text} style={styles.rowIcon} />
+                    <Text style={styles.rowText}>{tx.myMerchants}</Text>
                     <Text style={styles.rowChevron}>›</Text>
                   </Pressable>
                   <View style={styles.rowDivider} />

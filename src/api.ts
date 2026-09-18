@@ -1042,8 +1042,12 @@ export function autoInvoiceMerchantOrder(id: string) {
 
 // --- The merchant's fleet ("Repartidores") and delivery settings --------------------------------
 //
-// A merchant links drivers to its company. A linked driver only sees that fleet's deliveries; a
-// driver with no fleet works the public pool -- merchants whose allowPublicOrders flag is on.
+// A merchant links drivers to its company. A linked (accepted) driver only sees that fleet's
+// deliveries; a driver with no fleet works the public pool -- merchants whose allowPublicOrders
+// flag is on. Linking is a handshake: "Agregar" creates a PENDING invitation with a code the
+// merchant hands to the driver, who types it on their Comercios screen to accept.
+
+export type MerchantDriverStatus = 'PENDING' | 'ACCEPTED';
 
 export interface MerchantDriver {
   driverUserId: string;
@@ -1053,8 +1057,13 @@ export interface MerchantDriver {
   // The driver's login email -- searchable and shown on the card, since it is often the one
   // thing the merchant actually knows about them.
   email: string | null;
-  // In search results: already on this merchant's team. The linked list is all true.
+  // In search results: already linked (pending or accepted) to this merchant. The team list is
+  // all true.
   linked: boolean;
+  // Null when not linked.
+  status: MerchantDriverStatus | null;
+  // Only while PENDING: the code the merchant must pass to the driver.
+  inviteCode: string | null;
 }
 
 export interface MerchantDeliverySettings {
@@ -1083,6 +1092,34 @@ export function linkMerchantDriver(driverUserId: string) {
 
 export function unlinkMerchantDriver(driverUserId: string) {
   return deleteAuth<boolean>(`/delivery/merchant-drivers/${driverUserId}`);
+}
+
+// --- The driver's merchants ("Comercios") -----------------------------------------------------
+//
+// The other side of the link: fleets the driver has joined and invitations waiting for a code.
+// The code is never in this payload -- the driver gets it from the merchant.
+
+export interface DriverMerchant {
+  merchantCompanyId: string;
+  name: string | null;
+  phone: string | null;
+  address: string | null;
+  status: MerchantDriverStatus;
+  invitedAt: string;
+  acceptedAt: string | null;
+}
+
+export function driverMerchants() {
+  return get<DriverMerchant[]>('/delivery/driver-merchants');
+}
+
+export function acceptMerchantInvite(merchantCompanyId: string, inviteCode: string) {
+  return postAuth<DriverMerchant>('/delivery/driver-merchants/accept', { merchantCompanyId, inviteCode });
+}
+
+// Declines a pending invitation, or leaves a fleet already joined -- the same call.
+export function leaveMerchant(merchantCompanyId: string) {
+  return deleteAuth<boolean>(`/delivery/driver-merchants/${merchantCompanyId}`);
 }
 
 // Cancel one of the customer's own orders, saying why (the cancel screen collects the reason).

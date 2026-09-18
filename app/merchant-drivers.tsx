@@ -22,6 +22,9 @@ const S: Record<
     publicOff: string;
     yourTeam: string;
     emptyTeam: string;
+    pendingCode: (code: string) => string;
+    pendingHint: string;
+    invited: string;
     removeLabel: (name: string) => string;
     remove: string;
     addDriver: string;
@@ -46,6 +49,9 @@ const S: Record<
     publicOff: 'Solo los repartidores de tu equipo pueden ver y tomar tus pedidos.',
     yourTeam: 'Tu equipo',
     emptyTeam: 'Aún no tienes repartidores en tu equipo. Búscalos abajo por nombre, teléfono, correo o cédula.',
+    pendingCode: (code) => `Pendiente · código ${code}`,
+    pendingHint: 'Se lo enviamos por correo al repartidor; también puedes compartírselo. Al escribirlo en su app se une a tu equipo.',
+    invited: 'Invitado',
     removeLabel: (name) => `Quitar a ${name}`,
     remove: 'Quitar',
     addDriver: 'Agregar repartidor',
@@ -69,6 +75,9 @@ const S: Record<
     publicOff: 'Only the drivers on your team can see and take your orders.',
     yourTeam: 'Your team',
     emptyTeam: 'You have no drivers on your team yet. Search for them below by name, phone, email, or ID number.',
+    pendingCode: (code) => `Pending · code ${code}`,
+    pendingHint: 'We emailed it to the driver; you can also share it yourself. Typing it in their app joins them to your team.',
+    invited: 'Invited',
     removeLabel: (name) => `Remove ${name}`,
     remove: 'Remove',
     addDriver: 'Add driver',
@@ -92,6 +101,9 @@ const S: Record<
     publicOff: 'Seuls les livreurs de votre équipe peuvent voir et prendre vos commandes.',
     yourTeam: 'Votre équipe',
     emptyTeam: 'Vous n’avez pas encore de livreurs dans votre équipe. Recherchez-les ci-dessous par nom, téléphone, e-mail ou numéro de pièce d’identité.',
+    pendingCode: (code) => `En attente · code ${code}`,
+    pendingHint: 'Nous l’avons envoyé par e-mail au livreur ; vous pouvez aussi le lui partager. En le saisissant dans son application, il rejoint votre équipe.',
+    invited: 'Invité',
     removeLabel: (name) => `Retirer ${name}`,
     remove: 'Retirer',
     addDriver: 'Ajouter un livreur',
@@ -113,6 +125,9 @@ const S: Record<
 //  - the "pedidos públicos" switch: whether released orders enter the public driver pool;
 //  - the team list: drivers linked to this merchant, who are the ONLY ones to see its orders
 //    when the switch is off (and who see nothing but their fleets' orders in any case).
+// Adding a driver is an invitation: the server hands back a code, shown on the pending card,
+// that the driver types on their Comercios screen. Until then the row is "pendiente" and the
+// driver is not on the team yet.
 export default function MerchantDriversScreen() {
   const router = useRouter();
   const tx = useStrings(S);
@@ -177,10 +192,14 @@ export default function MerchantDriversScreen() {
       setNotice({ tone: 'error', message: res.message });
       return;
     }
-    // The result row lands on the team, and the search result flips to "ya en tu equipo".
+    // The invitation lands on the team list (as pending, with its code), the search result
+    // flips to "invitado", and the merchant is told the code to pass along.
     await load();
     setResults((prev) => prev?.map((r) =>
-      r.driverUserId === driver.driverUserId ? { ...r, linked: true } : r) ?? null);
+      r.driverUserId === driver.driverUserId
+        ? { ...r, linked: true, status: res.data?.status ?? 'PENDING' }
+        : r) ?? null);
+    if (res.message) setNotice({ tone: 'success', message: res.message });
   };
 
   const remove = async (driver: MerchantDriver) => {
@@ -194,7 +213,7 @@ export default function MerchantDriversScreen() {
     }
     await load();
     setResults((prev) => prev?.map((r) =>
-      r.driverUserId === driver.driverUserId ? { ...r, linked: false } : r) ?? null);
+      r.driverUserId === driver.driverUserId ? { ...r, linked: false, status: null } : r) ?? null);
   };
 
   const driverLine = (d: MerchantDriver) =>
@@ -248,6 +267,12 @@ export default function MerchantDriversScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.driverName}>{d.name || tx.driverFallback}</Text>
                   <Text style={styles.hint}>{driverLine(d)}</Text>
+                  {d.status === 'PENDING' && d.inviteCode ? (
+                    <>
+                      <Text style={styles.pendingCode}>{tx.pendingCode(d.inviteCode)}</Text>
+                      <Text style={styles.hint}>{tx.pendingHint}</Text>
+                    </>
+                  ) : null}
                 </View>
                 {busyId === d.driverUserId
                   ? <ActivityIndicator size="small" color={t.text} />
@@ -307,7 +332,9 @@ export default function MerchantDriversScreen() {
                 {busyId === d.driverUserId
                   ? <ActivityIndicator size="small" color={t.text} />
                   : d.linked ? (
-                    <Text style={styles.linkedBadge}>{tx.onYourTeam}</Text>
+                    <Text style={d.status === 'PENDING' ? styles.pendingBadge : styles.linkedBadge}>
+                      {d.status === 'PENDING' ? tx.invited : tx.onYourTeam}
+                    </Text>
                   ) : (
                     <Pressable
                       style={[styles.pill, styles.pillAccent]}
@@ -360,6 +387,8 @@ const styles = StyleSheet.create({
   pillAccent: { borderColor: t.accent, backgroundColor: t.accent },
   pillAccentText: { color: t.onAccent, fontSize: 13, fontWeight: '800' },
   linkedBadge: { color: t.success, fontSize: 12, fontWeight: '800' },
+  pendingBadge: { color: t.textMuted, fontSize: 12, fontWeight: '800' },
+  pendingCode: { color: t.text, fontSize: 13, fontWeight: '800', marginTop: 4, letterSpacing: 1 },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {
     flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12,
