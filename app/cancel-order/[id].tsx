@@ -26,6 +26,7 @@ const S: Record<
     reasons: Record<string, string>;
     title: string;
     lead: string;
+    mandaoLead: string;
     notesLabel: string;
     notesPlaceholder: string;
     confirm: string;
@@ -36,6 +37,7 @@ const S: Record<
     reasons: {},
     title: 'Cancelar pedido',
     lead: 'Cuéntanos por qué cancelas. El pedido solo puede cancelarse mientras el comercio no lo haya confirmado.',
+    mandaoLead: 'Cuéntanos por qué cancelas. Tu Volao Mandao solo puede cancelarse mientras ningún conductor lo haya tomado.',
     notesLabel: 'Notas (opcional)',
     notesPlaceholder: 'Cuéntanos más…',
     confirm: 'Cancelar pedido',
@@ -51,6 +53,7 @@ const S: Record<
     },
     title: 'Cancel order',
     lead: "Tell us why you're cancelling. The order can only be cancelled while the merchant hasn't confirmed it.",
+    mandaoLead: "Tell us why you're cancelling. Your Volao Mandao can only be cancelled while no driver has taken it.",
     notesLabel: 'Notes (optional)',
     notesPlaceholder: 'Tell us more…',
     confirm: 'Cancel order',
@@ -66,6 +69,7 @@ const S: Record<
     },
     title: 'Annuler la commande',
     lead: 'Dites-nous pourquoi vous annulez. La commande ne peut être annulée que tant que le commerce ne l’a pas confirmée.',
+    mandaoLead: 'Dites-nous pourquoi vous annulez. Votre Volao Mandao ne peut être annulé que tant qu’aucun chauffeur ne l’a pris.',
     notesLabel: 'Notes (facultatif)',
     notesPlaceholder: 'Dites-nous en plus…',
     confirm: 'Annuler la commande',
@@ -78,7 +82,8 @@ const S: Record<
 // has not confirmed meanwhile, so a refusal here surfaces as the inline error rather than a
 // silently half-cancelled order.
 export default function CancelOrderScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // mandao=1: opened from a Volao Mandao, whose window closes when a driver takes it.
+  const { id, mandao } = useLocalSearchParams<{ id: string; mandao?: string }>();
   const router = useRouter();
   const tx = useStrings(S);
   const [reason, setReason] = useState<string | null>(null);
@@ -110,7 +115,7 @@ export default function CancelOrderScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.lead}>
-          {tx.lead}
+          {mandao === '1' ? tx.mandaoLead : tx.lead}
         </Text>
 
         {REASONS.map((r) => (

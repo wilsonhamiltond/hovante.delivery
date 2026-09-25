@@ -1,4 +1,12 @@
-import { deliveryFeeRd } from './deliveryFee';
+import { deliveryFeeRd, mandaoFeeRd } from './deliveryFee';
+
+describe('mandaoFeeRd', () => {
+  it('is the delivery tariff plus the RD$50 Mandao charge', () => {
+    expect(mandaoFeeRd(0)).toBe(100);       // 50 flat + 50 Mandao
+    expect(mandaoFeeRd(2000)).toBe(140);    // 90 for 2 km + 50
+    expect(mandaoFeeRd(6000)).toBe(210);    // 160 for 6 km + 50
+  });
+});
 
 describe('deliveryFeeRd', () => {
   it('bills in started half-kilometres', () => {

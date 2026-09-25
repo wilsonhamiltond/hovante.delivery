@@ -11,6 +11,16 @@ export const DELIVERY_EXTRA_HALF_KM_RD = 5;
 /** How many km the first stretch covers. */
 export const DELIVERY_FIRST_KM_COUNT = 5;
 
+// Volao Mandao: the ride pickup -> door on the same tariff, plus a flat charge for the driver's
+// time finding, buying or queueing. Mirrors the API's DeliveryTariff.MandaoFeeRd.
+export const MANDAO_SURCHARGE_RD = 50;
+/** The most a customer may ask a driver to spend for them (they front it in cash). */
+export const MANDAO_MAX_BUDGET_RD = 2000;
+
+export function mandaoFeeRd(distanceM: number): number {
+  return deliveryFeeRd(distanceM) + MANDAO_SURCHARGE_RD;
+}
+
 export function deliveryFeeRd(distanceM: number): number {
   // Started half-kilometres, the tariff's billing unit.
   const halves = Math.ceil(distanceM / 500);

@@ -14,6 +14,7 @@ import { OrderRatingDialog } from '../../src/OrderRatingDialog';
 import { GradientBackground, t } from '../../src/theme';
 import { BackButton, BACK_BUTTON_WIDTH } from '../../src/BackButton';
 import { useStrings, type Locale } from '../../src/i18n';
+import { MANDAO_MAX_BUDGET_RD } from '../../src/deliveryFee';
 
 // Named by leg, matching Mi ruta: a claimed delivery is a ride to the merchant's office, and a
 // started one is the ride to the customer. Same wording in both places so a driver reads one story.
@@ -69,6 +70,19 @@ const S: Record<
     failTitle: string;
     notesPlaceholder: string;
     confirmFail: string;
+    mandaoLabel: string;
+    mandaoAssigned: string;
+    mandaoGoKind: string;
+    mandaoGoTitle: string;
+    mandaoServiceToCollect: string;
+    mandaoPlusSpent: (budget: string) => string;
+    mandaoNothingToBuy: string;
+    mandaoCollected: string;
+    mandaoCollectedHint: string;
+    mandaoSpentLabel: string;
+    mandaoSpentHint: (max: string) => string;
+    mandaoSpentPlaceholder: string;
+    mandaoToCollect: (amount: string) => string;
   }
 > = {
   es: {
@@ -118,6 +132,19 @@ const S: Record<
     failTitle: 'Motivo del fallo',
     notesPlaceholder: 'Notas (opcional)',
     confirmFail: 'Confirmar fallo',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoAssigned: 'Ir al mandado',
+    mandaoGoKind: '1 · IR A',
+    mandaoGoTitle: 'Ir a',
+    mandaoServiceToCollect: 'SERVICIO A COBRAR',
+    mandaoPlusSpent: (budget) => `Más lo que gastes en el mandado (hasta ${budget}).`,
+    mandaoNothingToBuy: 'No hay que comprar nada.',
+    mandaoCollected: 'Ya tengo el mandado',
+    mandaoCollectedHint: 'Confírmalo cuando tengas lo que pidió el cliente: la ruta pasa entonces a su dirección.',
+    mandaoSpentLabel: '¿Cuánto gastaste?',
+    mandaoSpentHint: (max) => `Lo que pagaste por el cliente (0 si no compraste nada). Máximo ${max}.`,
+    mandaoSpentPlaceholder: 'Ej: 750',
+    mandaoToCollect: (amount) => `A cobrar al cliente: ${amount}`,
   },
   en: {
     status: {
@@ -166,6 +193,19 @@ const S: Record<
     failTitle: 'Failure reason',
     notesPlaceholder: 'Notes (optional)',
     confirmFail: 'Confirm failure',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoAssigned: 'Go run the errand',
+    mandaoGoKind: '1 · GO TO',
+    mandaoGoTitle: 'Go to',
+    mandaoServiceToCollect: 'SERVICE TO COLLECT',
+    mandaoPlusSpent: (budget) => `Plus what you spend on the errand (up to ${budget}).`,
+    mandaoNothingToBuy: 'Nothing needs buying.',
+    mandaoCollected: 'I have the errand',
+    mandaoCollectedHint: 'Confirm it once you have what the customer asked for: the route then switches to their address.',
+    mandaoSpentLabel: 'How much did you spend?',
+    mandaoSpentHint: (max) => `What you paid for the customer (0 if you bought nothing). Maximum ${max}.`,
+    mandaoSpentPlaceholder: 'E.g.: 750',
+    mandaoToCollect: (amount) => `To collect from the customer: ${amount}`,
   },
   fr: {
     status: {
@@ -214,6 +254,19 @@ const S: Record<
     failTitle: 'Motif de l’échec',
     notesPlaceholder: 'Notes (facultatif)',
     confirmFail: 'Confirmer l’échec',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoAssigned: 'Aller faire la course',
+    mandaoGoKind: '1 · ALLER À',
+    mandaoGoTitle: 'Aller à',
+    mandaoServiceToCollect: 'SERVICE À ENCAISSER',
+    mandaoPlusSpent: (budget) => `Plus ce que vous dépensez pour la course (jusqu’à ${budget}).`,
+    mandaoNothingToBuy: 'Rien à acheter.',
+    mandaoCollected: 'J’ai la course',
+    mandaoCollectedHint: 'Confirmez-le quand vous avez ce que le client a demandé : l’itinéraire passe alors à son adresse.',
+    mandaoSpentLabel: 'Combien avez-vous dépensé ?',
+    mandaoSpentHint: (max) => `Ce que vous avez payé pour le client (0 si rien acheté). Maximum ${max}.`,
+    mandaoSpentPlaceholder: 'Ex. : 750',
+    mandaoToCollect: (amount) => `À encaisser auprès du client : ${amount}`,
   },
 };
 
@@ -229,6 +282,8 @@ export default function DeliveryDetail() {
   // Which inline panel is open, plus its inputs.
   const [panel, setPanel] = useState<'none' | 'deliver' | 'fail'>('none');
   const [code, setCode] = useState('');
+  // Volao Mandao: what the driver spent for the customer, declared with the handover code.
+  const [spent, setSpent] = useState('');
   const [reason, setReason] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   // The rate-the-order popup, raised the moment the delivery is confirmed: rating right then is
@@ -277,7 +332,7 @@ export default function DeliveryDetail() {
     lat: delivery?.pickupLatitude,
     lng: delivery?.pickupLongitude,
     address: delivery?.pickupAddress,
-    title: delivery?.pickupName ?? tx.pickupTitle,
+    title: delivery?.isMandao ? tx.mandaoGoTitle : (delivery?.pickupName ?? tx.pickupTitle),
     img: delivery?.pickupImageUrl,
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
@@ -325,7 +380,25 @@ export default function DeliveryDetail() {
     return <GradientBackground><SafeAreaView style={styles.safe}><View style={styles.center}><Text style={styles.muted}>{tx.notFound}</Text></View></SafeAreaView></GradientBackground>;
   }
 
-  const s = { label: tx.status[delivery.status] ?? delivery.status, color: STATUS_COLORS[delivery.status] ?? '#64748b' };
+  const mandao = !!delivery.isMandao;
+  const s = {
+    label: mandao && delivery.status === 'ASSIGNED' ? tx.mandaoAssigned : (tx.status[delivery.status] ?? delivery.status),
+    color: STATUS_COLORS[delivery.status] ?? '#64748b',
+  };
+  // The Mandao handover needs what was spent (0 is a valid answer) on top of the code.
+  const spentNum = spent.trim() === '' ? null : Number(spent.trim());
+  const spentValid = !mandao || (spentNum != null && Number.isFinite(spentNum) && spentNum >= 0 && spentNum <= MANDAO_MAX_BUDGET_RD);
+  const canConfirm = code.length === 4 && spentValid;
+  const deliverItem = (key: string): OutboxItem => ({
+    key, deliveryId: delivery.id, type: 'deliver', code,
+    ...(mandao && spentNum != null ? { spentAmount: spentNum } : {}),
+    createdAt: new Date().toISOString(),
+  });
+  // Who the driver rates back: the customer, and the merchant when there is one.
+  const rateTargets = [
+    { role: 'customer' as const, name: delivery.recipientName },
+    ...(mandao ? [] : [{ role: 'merchant' as const, name: delivery.pickupName }]),
+  ];
   // Still on the way to the office, so the outstanding action is collecting the order there. The
   // 'start' transition IS the collection: it is what moves the delivery onto the client leg.
   const canCollect = delivery.status === 'ASSIGNED' || delivery.status === 'PENDING';
@@ -356,7 +429,20 @@ export default function DeliveryDetail() {
 
         {/* What the driver collects at the door: the order's grand total, with the envío spelled
             out so the number is explained. Hidden on deliveries with no order amounts. */}
-        {delivery.orderTotal != null ? (
+        {/* A Volao Mandao: the errand first, then what it pays -- the service fee, plus whatever
+            the driver fronts for the customer, declared at the handover. */}
+        {mandao ? (
+          <View style={styles.payCard}>
+            <Text style={styles.payLabel}>{tx.mandaoLabel}</Text>
+            <Text style={styles.mandaoText}>{delivery.notes}</Text>
+            <View style={styles.payRule} />
+            <Text style={styles.payLabel}>{tx.mandaoServiceToCollect}</Text>
+            <Text style={styles.payValue}>{money(delivery.orderDeliveryFee ?? 0)}</Text>
+            <Text style={styles.paySub}>
+              {delivery.mandaoBudget ? tx.mandaoPlusSpent(money(delivery.mandaoBudget)) : tx.mandaoNothingToBuy}
+            </Text>
+          </View>
+        ) : delivery.orderTotal != null ? (
           <View style={styles.payCard}>
             <Text style={styles.payLabel}>{tx.totalToCollect}</Text>
             <Text style={styles.payValue}>{money(delivery.orderTotal + (delivery.orderDeliveryFee ?? 0))}</Text>
@@ -371,7 +457,7 @@ export default function DeliveryDetail() {
         {/* Pickup: where the driver collects the order (merchant). */}
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>{tx.pickupKind}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{mandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
             <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
@@ -406,7 +492,8 @@ export default function DeliveryDetail() {
           {eta ? <Text style={styles.routeEta}>{tx.etaLabel(formatEta(eta))}</Text> : null}
         </Pressable>
 
-        {delivery.notes ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
+        {/* On a Mandao the notes ARE the errand, already shown at the top. */}
+        {delivery.notes && !mandao ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
         {finished && delivery.receiverName ? <Text style={styles.notes}>{tx.receivedByPrefix}{delivery.receiverName}</Text> : null}
         {finished && delivery.failureReason ? <Text style={styles.notes}>{tx.reasonPrefix}{delivery.failureReason}</Text> : null}
 
@@ -425,10 +512,7 @@ export default function DeliveryDetail() {
         {delivery.orderId && delivery.status === 'DELIVERED' ? (
           <OrderRatingCard
             orderId={delivery.orderId}
-            targets={[
-              { role: 'customer', name: delivery.recipientName },
-              { role: 'merchant', name: delivery.pickupName },
-            ]}
+            targets={rateTargets}
           />
         ) : null}
 
@@ -438,9 +522,9 @@ export default function DeliveryDetail() {
         {canCollect ? (
           <View style={{ gap: 6 }}>
             <Pressable style={[styles.action, styles.primary]} disabled={busy} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'start', createdAt: new Date().toISOString() }))}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.collected}</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{mandao ? tx.mandaoCollected : tx.collected}</Text>}
             </Pressable>
-            <Text style={styles.panelHint}>{tx.collectedHint}</Text>
+            <Text style={styles.panelHint}>{mandao ? tx.mandaoCollectedHint : tx.collectedHint}</Text>
           </View>
         ) : null}
 
@@ -453,6 +537,26 @@ export default function DeliveryDetail() {
 
         {panel === 'deliver' ? (
           <View style={styles.panel}>
+            {/* Mandao: what was spent comes first -- it is what the driver then asks for at the door. */}
+            {mandao ? (
+              <>
+                <Text style={styles.panelTitle}>{tx.mandaoSpentLabel}</Text>
+                <Text style={styles.panelHint}>{tx.mandaoSpentHint(money(MANDAO_MAX_BUDGET_RD))}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={tx.mandaoSpentPlaceholder}
+                  placeholderTextColor={t.textFaint}
+                  value={spent}
+                  onChangeText={(v) => setSpent(v.replace(/[^0-9.]/g, ''))}
+                  keyboardType="decimal-pad"
+                />
+                {spentNum != null && spentValid ? (
+                  <Text style={styles.mandaoCollect}>
+                    {tx.mandaoToCollect(money((delivery.orderDeliveryFee ?? 0) + spentNum))}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
             <Text style={styles.panelTitle}>{tx.codeTitle}</Text>
             <Text style={styles.panelHint}>{tx.codeHint}</Text>
             <TextInput
@@ -468,11 +572,11 @@ export default function DeliveryDetail() {
               // button below, under the same guards: 4 digits typed and nothing already running.
               returnKeyType="done"
               onSubmitEditing={() => {
-                if (busy || code.length !== 4) return;
-                runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }), true);
+                if (busy || !canConfirm) return;
+                runAction(deliverItem, true);
               }}
             />
-            <Pressable style={[styles.action, styles.success, code.length !== 4 && styles.disabled]} disabled={busy || code.length !== 4} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'deliver', code, createdAt: new Date().toISOString() }), true)}>
+            <Pressable style={[styles.action, styles.success, !canConfirm && styles.disabled]} disabled={busy || !canConfirm} onPress={() => runAction(deliverItem, true)}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmDelivery}</Text>}
             </Pressable>
             <Pressable onPress={() => { setPanel('none'); setCode(''); }}><Text style={styles.cancel}>{tx.cancel}</Text></Pressable>
@@ -502,10 +606,7 @@ export default function DeliveryDetail() {
         <OrderRatingDialog
           visible={rateOpen}
           orderId={delivery.orderId}
-          targets={[
-            { role: 'customer', name: delivery.recipientName },
-            { role: 'merchant', name: delivery.pickupName },
-          ]}
+          targets={rateTargets}
           onClose={() => { setRateOpen(false); leave(); }}
         />
       ) : null}
@@ -531,6 +632,9 @@ const styles = StyleSheet.create({
   payLabel: { fontSize: 11, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5 },
   payValue: { fontSize: 24, fontWeight: '900', color: t.text },
   paySub: { fontSize: 13, fontWeight: '700', color: t.textMuted },
+  payRule: { height: 1, backgroundColor: t.border, marginVertical: 8 },
+  mandaoText: { fontSize: 16, fontWeight: '700', color: t.text, lineHeight: 22, marginTop: 4 },
+  mandaoCollect: { fontSize: 15, fontWeight: '800', color: t.success },
   stopCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, borderLeftWidth: 4, padding: 14, gap: 4 },
   stopKind: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   stopName: { fontSize: 17, fontWeight: '800', color: t.text, marginTop: 2 },

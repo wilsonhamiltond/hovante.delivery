@@ -45,6 +45,14 @@ const S: Record<
     notePrefix: string;
     take: string;
     takeHint: string;
+    mandaoLabel: string;
+    mandaoBudget: (amount: string) => string;
+    mandaoBudgetHint: string;
+    mandaoNothingToBuy: string;
+    mandaoYouEarn: string;
+    mandaoGoKind: string;
+    mandaoGoTitle: string;
+    mandaoTake: string;
   }
 > = {
   es: {
@@ -73,6 +81,14 @@ const S: Record<
     notePrefix: 'Nota: ',
     take: 'Tomar entrega',
     takeHint: 'Al tomarla, la entrega pasa a tu ruta y deja de estar disponible para otros repartidores.',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoBudget: (amount) => `Presupuesto: hasta ${amount}`,
+    mandaoBudgetHint: 'Si compras algo, lo pagas tú y el cliente te lo devuelve al entregar.',
+    mandaoNothingToBuy: 'No hay que comprar nada.',
+    mandaoYouEarn: 'SERVICIO A COBRAR',
+    mandaoGoKind: '1 · IR A',
+    mandaoGoTitle: 'Ir a',
+    mandaoTake: 'Tomar mandado',
   },
   en: {
     notAvailableTitle: 'Not available',
@@ -100,6 +116,14 @@ const S: Record<
     notePrefix: 'Note: ',
     take: 'Take delivery',
     takeHint: 'Once you take it, the delivery moves to your route and is no longer available to other drivers.',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoBudget: (amount) => `Budget: up to ${amount}`,
+    mandaoBudgetHint: 'If you buy something, you pay and the customer pays you back on delivery.',
+    mandaoNothingToBuy: 'Nothing needs buying.',
+    mandaoYouEarn: 'SERVICE TO COLLECT',
+    mandaoGoKind: '1 · GO TO',
+    mandaoGoTitle: 'Go to',
+    mandaoTake: 'Take errand',
   },
   fr: {
     notAvailableTitle: 'Non disponible',
@@ -127,6 +151,14 @@ const S: Record<
     notePrefix: 'Note : ',
     take: 'Prendre la livraison',
     takeHint: 'Une fois prise, la livraison passe dans votre itinéraire et n’est plus disponible pour les autres livreurs.',
+    mandaoLabel: '🛵 VOLAO MANDAO',
+    mandaoBudget: (amount) => `Budget : jusqu’à ${amount}`,
+    mandaoBudgetHint: 'Si vous achetez quelque chose, vous payez et le client vous rembourse à la livraison.',
+    mandaoNothingToBuy: 'Rien à acheter.',
+    mandaoYouEarn: 'SERVICE À ENCAISSER',
+    mandaoGoKind: '1 · ALLER À',
+    mandaoGoTitle: 'Aller à',
+    mandaoTake: 'Prendre la course',
   },
 };
 
@@ -251,7 +283,28 @@ export default function AvailableDeliveryScreen() {
         {/* The order itself: every line, then the delivery charge, then what it all comes to at the
             door. Itemised rather than a lone total so the driver knows the size of the load before
             taking it, and can check the handover against it at the counter. */}
-        {delivery.orderTotal != null ? (
+        {/* A Volao Mandao is judged by the errand itself: what to do, how much may have to be
+            fronted, and what the service pays. There are no product lines to list. */}
+        {delivery.isMandao ? (
+          <View style={styles.payCard}>
+            <Text style={styles.payLabel}>{tx.mandaoLabel}</Text>
+            <Text style={styles.mandaoText}>{delivery.notes}</Text>
+            <View style={styles.payRule} />
+            <Text style={styles.sumLabel}>
+              {delivery.mandaoBudget ? tx.mandaoBudget(money(delivery.mandaoBudget)) : tx.mandaoNothingToBuy}
+            </Text>
+            {delivery.mandaoBudget ? <Text style={styles.lineNone}>{tx.mandaoBudgetHint}</Text> : null}
+            {delivery.orderDeliveryFee != null ? (
+              <>
+                <View style={styles.payRule} />
+                <View style={styles.lineRow}>
+                  <Text style={[styles.payLabel, { flex: 1 }]}>{tx.mandaoYouEarn}</Text>
+                  <Text style={styles.payValue}>{money(delivery.orderDeliveryFee)}</Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+        ) : delivery.orderTotal != null ? (
           <View style={styles.payCard}>
             <Text style={styles.payLabel}>{tx.orderLabel}</Text>
 
@@ -300,12 +353,12 @@ export default function AvailableDeliveryScreen() {
 
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>{tx.pickupKind}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{delivery.isMandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
             <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
               {delivery.pickupAddress || delivery.pickupLatitude != null ? (
-                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.pickupName ?? tx.pickupTitle })}>
+                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.isMandao ? tx.mandaoGoTitle : (delivery.pickupName ?? tx.pickupTitle) })}>
                   <Text style={styles.smallBtnText}>{tx.mapBtn}</Text>
                 </Pressable>
               ) : null}
@@ -334,10 +387,11 @@ export default function AvailableDeliveryScreen() {
               moment the job is actually theirs. */}
         </View>
 
-        {delivery.notes ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
+        {/* On a Mandao the notes ARE the errand, already shown at the top. */}
+        {delivery.notes && !delivery.isMandao ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
 
         <Pressable style={[styles.action, styles.success]} disabled={taking} onPress={take}>
-          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.take}</Text>}
+          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{delivery.isMandao ? tx.mandaoTake : tx.take}</Text>}
         </Pressable>
         <Text style={styles.hint}>{tx.takeHint}</Text>
       </ScrollView>
@@ -366,6 +420,7 @@ const styles = StyleSheet.create({
   lineName: { flex: 1, fontSize: 14, fontWeight: '600', color: t.text },
   lineAmount: { fontSize: 14, fontWeight: '700', color: t.text },
   lineNone: { fontSize: 13, color: t.textFaint, fontStyle: 'italic' },
+  mandaoText: { fontSize: 16, fontWeight: '700', color: t.text, lineHeight: 22 },
   sumLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: t.textMuted },
   sumAmount: { fontSize: 14, fontWeight: '700', color: t.textMuted },
   etaBlock: { gap: 4 },

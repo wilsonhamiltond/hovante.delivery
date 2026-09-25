@@ -59,6 +59,9 @@ const S: Record<
     viewOrder: string;
     helloName: (name: string) => string;
     hello: string;
+    mandaoTitle: string;
+    mandaoSub: string;
+    mandaoCta: string;
     currentOrders: string;
     merchant: string;
     deliveryFee: (amount: string) => string;
@@ -94,6 +97,9 @@ const S: Record<
     viewOrder: 'Ver pedido',
     helloName: (name) => `¡Hola, ${name}! 👋`,
     hello: '¡Hola! 👋',
+    mandaoTitle: 'Volao Mandao',
+    mandaoSub: '¿Necesitas algo? Volao te lo busca.',
+    mandaoCta: 'Pedir',
     currentOrders: 'Tus pedidos en curso',
     merchant: 'Comercio',
     deliveryFee: (amount) => `Envío ${amount}`,
@@ -128,6 +134,9 @@ const S: Record<
     viewOrder: 'View order',
     helloName: (name) => `Hi, ${name}! 👋`,
     hello: 'Hi! 👋',
+    mandaoTitle: 'Volao Mandao',
+    mandaoSub: 'Need something? Volao gets it for you.',
+    mandaoCta: 'Request',
     currentOrders: 'Your orders in progress',
     merchant: 'Merchant',
     deliveryFee: (amount) => `Delivery ${amount}`,
@@ -162,6 +171,9 @@ const S: Record<
     viewOrder: 'Voir la commande',
     helloName: (name) => `Bonjour, ${name} ! 👋`,
     hello: 'Bonjour ! 👋',
+    mandaoTitle: 'Volao Mandao',
+    mandaoSub: 'Besoin de quelque chose ? Volao s’en charge.',
+    mandaoCta: 'Demander',
     currentOrders: 'Vos commandes en cours',
     merchant: 'Commerce',
     deliveryFee: (amount) => `Livraison ${amount}`,
@@ -501,6 +513,23 @@ export function ClientHome({ profile }: { profile: Me | null }) {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.hello}>{greeting ? tx.helloName(greeting) : tx.hello}</Text>
+
+        {/* Volao Mandao: a driver runs an errand for the customer. Open to guests too -- the
+            screen itself asks them to sign in before anything is requested. */}
+        <Pressable
+          style={({ pressed }) => [styles.mandaoCard, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push('/mandao')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.mandaoEmoji}>🛵</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mandaoTitle}>{tx.mandaoTitle}</Text>
+            <Text style={styles.mandaoSub}>{tx.mandaoSub}</Text>
+          </View>
+          <View style={styles.mandaoCta}>
+            <Text style={styles.mandaoCtaText}>{tx.mandaoCta}</Text>
+          </View>
+        </Pressable>
 
         {/* Current orders; tap one to track it. Skeleton chips while the first load is out, so
             the section holds its place instead of flashing "no tienes pedidos" at someone whose
@@ -971,6 +1000,16 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   scroll: { paddingBottom: 32 },
   hello: { fontSize: 22, fontWeight: '800', color: t.text, paddingHorizontal: 16, marginTop: 18 },
+  mandaoCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginTop: 14, padding: 14,
+    backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 16,
+  },
+  mandaoEmoji: { fontSize: 32 },
+  mandaoTitle: { fontSize: 16, fontWeight: '900', color: t.text },
+  mandaoSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },
+  mandaoCta: { backgroundColor: t.accent, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  mandaoCtaText: { color: t.onAccent, fontSize: 12, fontWeight: '900' },
 
 
   ordersSection: { marginTop: 20 },

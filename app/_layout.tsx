@@ -30,8 +30,9 @@ const AUTH_ROUTES = [
 // account-based feature, so it must not sit behind the login. Everything else (orders, addresses,
 // account, checkout's final step) still requires signing in: navigating there without a token
 // lands on /login below. The cart is browsable too -- it lives on the device; only PLACING the
-// order is account-based, and the cart screen gates that step itself.
-const GUEST_ROUTES = ['home', 'explore', 'cart'];
+// order is account-based, and the cart screen gates that step itself. Volao Mandao likewise: a
+// guest may read what it is, and the screen asks them to sign in before the first step is left.
+const GUEST_ROUTES = ['home', 'explore', 'cart', 'mandao'];
 
 function RootNavigator() {
   const { token, loading, profileComplete } = useAuth();

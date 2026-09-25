@@ -31,6 +31,9 @@ const S: Record<
     preparing: string;
     readyForPickup: string;
     findingDriver: string;
+    mandaoAssigned: string;
+    mandaoInTransit: string;
+    mandaoDelivered: string;
   }
 > = {
   es: {
@@ -46,6 +49,9 @@ const S: Record<
     preparing: 'En preparación',
     readyForPickup: 'Listo para recoger',
     findingDriver: 'Buscando repartidor',
+    mandaoAssigned: 'Conductor asignado',
+    mandaoInTransit: 'Haciendo tu mandado',
+    mandaoDelivered: 'Mandado completado',
   },
   en: {
     cancelled: 'Cancelled',
@@ -60,6 +66,9 @@ const S: Record<
     preparing: 'Being prepared',
     readyForPickup: 'Ready for pickup',
     findingDriver: 'Finding a driver',
+    mandaoAssigned: 'Driver assigned',
+    mandaoInTransit: 'Running your errand',
+    mandaoDelivered: 'Errand completed',
   },
   fr: {
     cancelled: 'Annulée',
@@ -74,12 +83,24 @@ const S: Record<
     preparing: 'En préparation',
     readyForPickup: 'Prête à retirer',
     findingDriver: 'Recherche d’un livreur',
+    mandaoAssigned: 'Chauffeur assigné',
+    mandaoInTransit: 'Course en cours',
+    mandaoDelivered: 'Course terminée',
   },
 };
 
 export function orderStatusChip(o: Order, now: number = Date.now()): OrderStatusChip {
   const tx = strings(S);
   if (o.status === 'CANCELLED') return { label: tx.cancelled, color: '#dc2626' };
+
+  // A Volao Mandao speaks of the errand; its pending state is the READY "finding a driver" below.
+  if (o.kind === 'MANDAO') {
+    switch (o.deliveryStatus) {
+      case 'DELIVERED': return { label: tx.mandaoDelivered, color: '#16a34a' };
+      case 'IN_TRANSIT': return { label: tx.mandaoInTransit, color: '#0ea5e9' };
+      case 'ASSIGNED': return { label: tx.mandaoAssigned, color: '#2563eb' };
+    }
+  }
 
   switch (o.deliveryStatus) {
     case 'DELIVERED': return { label: tx.delivered, color: '#16a34a' };

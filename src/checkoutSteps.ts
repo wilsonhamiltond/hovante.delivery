@@ -39,6 +39,22 @@ export function stepTitles(): Record<StepKey, string> {
   return strings(S);
 }
 
+// Volao Mandao's own wizard: what to do, where to go, where to bring it, review. Fixed length --
+// every errand has both ends, so nothing drops out the way pickup drops the location step.
+export type MandaoStepKey = 'need' | 'pickup' | 'dropoff' | 'summary';
+
+export const MANDAO_STEPS: MandaoStepKey[] = ['need', 'pickup', 'dropoff', 'summary'];
+
+const M: Record<Locale, Record<MandaoStepKey, string>> = {
+  es: { need: 'Qué necesitas', pickup: 'A dónde ir', dropoff: 'A dónde traerlo', summary: 'Resumen' },
+  en: { need: 'What you need', pickup: 'Where to go', dropoff: 'Where to bring it', summary: 'Summary' },
+  fr: { need: 'Votre besoin', pickup: 'Où aller', dropoff: 'Où l’apporter', summary: 'Récapitulatif' },
+};
+
+export function mandaoStepTitles(): Record<MandaoStepKey, string> {
+  return strings(M);
+}
+
 // Details come before the location so the mode is known before the map. Only a delivery has
 // somewhere to be delivered to, so pickup drops the location step and runs in four: making someone
 // collecting at the counter pin a delivery address asks for something the order never uses.

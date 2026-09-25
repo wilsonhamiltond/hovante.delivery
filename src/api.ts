@@ -207,6 +207,10 @@ export interface Delivery {
   // The order's lines -- what is actually in the bag. Empty on deliveries with no marketplace order
   // behind them, for the same reason the two amounts above are null there.
   orderItems?: DeliveryOrderItem[];
+  // Volao Mandao: an errand rather than a purchase. The errand itself rides `notes`; the budget
+  // is the most the customer said the driver may spend for them. Absent on an older API.
+  isMandao?: boolean;
+  mandaoBudget?: number | null;
 }
 
 export interface DeliveryOrderItem {
@@ -568,8 +572,20 @@ export interface OrderLineInput {
 export interface Order {
   id: string;
   orderNumber: string;
-  merchantCompanyId: string;
+  // "ORDER" (a marketplace purchase) or "MANDAO" (a Volao Mandao errand). Absent on an older API,
+  // which only ever had marketplace orders -- read it through isMandao().
+  kind?: 'ORDER' | 'MANDAO';
+  // Null on a Mandao, which is bought from no merchant.
+  merchantCompanyId: string | null;
   merchantName: string | null;
+  // Volao Mandao only: what the customer asked for, the spending ceiling they set, what the
+  // driver actually spent (once delivered), and where the driver was sent.
+  mandaoDescription?: string | null;
+  mandaoBudget?: number | null;
+  mandaoSpentAmount?: number | null;
+  pickupAddress?: string | null;
+  pickupLatitude?: number | null;
+  pickupLongitude?: number | null;
   // The merchant's logo (public URL), worn by the branch pin on the merchant's driver-approach
   // map. Null when the company never uploaded one.
   merchantImageUrl?: string | null;
@@ -867,6 +883,35 @@ export interface CreateOrderInput {
 // Place an order. The server rejects lines from more than one merchant; the app blocks it too.
 export function createOrder(input: CreateOrderInput) {
   return postAuth<Order>('/delivery/orders', input);
+}
+
+export function isMandao(o: Pick<Order, 'kind'> | null | undefined): boolean {
+  return o?.kind === 'MANDAO';
+}
+
+// "Volao Mandao": the customer asks a driver to go somewhere and find, buy or do something for
+// them. The server computes the fee from the two pins; only the router's distance travels.
+export interface CreateMandaoInput {
+  description: string;
+  // Where the driver goes first. The pin is required.
+  pickupAddress?: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  // A landmark for finding the place ("frente al colmado").
+  pickupReference?: string;
+  // Where the driver brings it.
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  // The most the driver may spend for the customer (omitted = nothing to buy).
+  budget?: number;
+  deliveryDistanceM?: number;
+  // Cash: the bill the customer will pay with; must cover fee + budget.
+  cashPayWith?: number;
+}
+
+export function createMandao(input: CreateMandaoInput) {
+  return postAuth<Order>('/delivery/mandaos', input);
 }
 
 // What the edit screen sends to change a still-PENDING order: the replacement lines, plus the
@@ -1360,9 +1405,10 @@ export function startDelivery(id: string, idempotencyKey?: string) {
 }
 
 // The customer's 4-digit confirmation code, entered by the driver at the door. The server verifies
-// it before completing the delivery.
-export function deliverDelivery(id: string, code: string, idempotencyKey?: string) {
-  return postAuth<Delivery>(`/delivery/${id}/deliver`, { code }, idempotencyKey);
+// it before completing the delivery. A Volao Mandao also carries what the driver spent for the
+// customer (0 when nothing was bought), which the server then bills as the order's total.
+export function deliverDelivery(id: string, code: string, idempotencyKey?: string, spentAmount?: number) {
+  return postAuth<Delivery>(`/delivery/${id}/deliver`, spentAmount == null ? { code } : { code, spentAmount }, idempotencyKey);
 }
 
 export function failDelivery(id: string, reason: string, notes: string, idempotencyKey?: string) {

@@ -1,4 +1,16 @@
-import { STEP_TITLES, stepsFor } from './checkoutSteps';
+import { MANDAO_STEPS, STEP_TITLES, mandaoStepTitles, stepsFor } from './checkoutSteps';
+
+describe('Volao Mandao steps', () => {
+  // What to do comes first: the errand decides where the driver goes, not the other way around.
+  it('asks what is needed, then where to go, then where to bring it', () => {
+    expect(MANDAO_STEPS).toEqual(['need', 'pickup', 'dropoff', 'summary']);
+  });
+
+  it('has a title for every step', () => {
+    const titles = mandaoStepTitles();
+    for (const key of MANDAO_STEPS) expect(titles[key]).toBeTruthy();
+  });
+});
 
 describe('checkout steps', () => {
   it('asks for the details before the map, so the mode is known first', () => {
