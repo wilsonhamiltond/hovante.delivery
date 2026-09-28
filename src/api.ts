@@ -106,10 +106,10 @@ async function fetchWithRefresh(make: (token: string | null) => Promise<Response
   return res;
 }
 
-// A 401 on an authenticated call means the held session is no longer good -- expired, or revoked
-// server-side. No screen can do anything about that, so rather than each one rendering its own
-// failure the client drops the token and tells the app the session is over; the gate in _layout
-// then sends the user back to the welcome screen, which is the only thing that can fix it.
+// A 401 marked x-session-revoked means the held session can never come back -- a deleted or
+// disabled account, or a token the server did not sign. No screen can do anything about that, so
+// rather than each one rendering its own failure the client drops the token and tells the app the
+// session is over; the gate in _layout then sends the user back to the welcome screen.
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
@@ -123,8 +123,13 @@ export const SESSION_EXPIRED = S.es.sessionExpired;
 // { success, message } envelope -- which is what used to surface as "Error del servidor (401)".
 // Only a 401 on a request that CARRIED a token ends the session: a guest (no token held) reaching
 // an account-only endpoint gets the same status, and there is no session to end for them.
+//
+// And only when the server says the session is dead (x-session-revoked). The session lasts until
+// the user signs out: a 401 without the mark -- the server could not check the account just then
+// -- is reported as an ordinary failure and the token is kept for the next request to try again.
 function sessionExpired(res: Response): boolean {
   if (res.status !== 401 || !currentToken) return false;
+  if (res.headers?.get('x-session-revoked') !== 'true') return false;
   currentToken = null;
   onUnauthorized?.();
   return true;

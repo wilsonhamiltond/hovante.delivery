@@ -196,9 +196,9 @@ describe('expired session', () => {
     expect(rotated).toHaveBeenCalledWith('fresh-jwt');
   });
 
-  it('retries only once: a refused retry ends the session instead of looping', async () => {
+  it('retries only once: a refused retry fails the request instead of looping', async () => {
     // Both refusals carry a rotation header, which is exactly the shape that could loop forever
-    // if the retry were not single-shot.
+    // if the retry were not single-shot. Neither is marked revoked, so the session survives.
     const refusal = (rotatedToken: string) => ({
       status: 401,
       headers: { get: (name: string) => (name === 'x-new-access-token' ? rotatedToken : null) },
@@ -215,17 +215,38 @@ describe('expired session', () => {
     const res = await api.me();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
     expect(res.success).toBe(false);
-    expect(res.message).toBe(api.SESSION_EXPIRED);
   });
 
-  it('drops the token and calls the handler when an authenticated read comes back 401', async () => {
-    // A bare 401: no { success, message } envelope to parse, which is exactly what the API returns
-    // for a rejected token.
-    globalThis.fetch = jest.fn().mockResolvedValue({
+  // The session lasts until the user signs out: a 401 the server did not mark as revoked (it
+  // could not check the account just then) must not throw the stored token away.
+  it('keeps the session on a 401 that is not marked revoked', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
       status: 401,
       headers: { get: () => null },
+      json: async () => { throw new Error('no body'); },
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    api.setAuthToken('good-jwt');
+    const onUnauthorized = jest.fn();
+    api.setUnauthorizedHandler(onUnauthorized);
+
+    const res = await api.me();
+
+    expect(res.success).toBe(false);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    // The next call still carries the token.
+    await api.me();
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.headers?.Authorization).toBe('Bearer good-jwt');
+  });
+
+  it('drops the token and calls the handler when a 401 is marked revoked', async () => {
+    // A bare 401: no { success, message } envelope to parse, which is exactly what the API returns
+    // for a rejected token -- marked revoked for a deleted/disabled account or a foreign token.
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      status: 401,
+      headers: { get: (name: string) => (name === 'x-session-revoked' ? 'true' : null) },
       json: async () => { throw new Error('no body'); },
     }) as unknown as typeof fetch;
     api.setAuthToken('stale-jwt');
