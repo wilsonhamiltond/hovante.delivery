@@ -894,6 +894,24 @@ export function isMandao(o: Pick<Order, 'kind'> | null | undefined): boolean {
   return o?.kind === 'MANDAO';
 }
 
+// Whether any driver can take a job picked up at a point: present (reported a position recently)
+// AND eligible (allowed to see this merchant's orders). Both creation endpoints REFUSE when this
+// says no, so the screens ask first -- finding out after filling a cart is the bad version.
+// Omit merchantCompanyId for a Mandao, which every driver may take.
+export interface DriverAvailability {
+  available: boolean;
+  count: number;
+  // 'OK' | 'NONE_NEARBY' | 'FLEET_OFFLINE' -- the last means drivers are around but this merchant
+  // only releases to its own fleet and none of them is on.
+  reason: string;
+  radiusKm: number;
+}
+
+export function driverAvailability(merchantCompanyId: string | null, lat: number, lng: number) {
+  const merchant = merchantCompanyId ? `merchantCompanyId=${encodeURIComponent(merchantCompanyId)}&` : '';
+  return get<DriverAvailability>(`/delivery/driver-availability?${merchant}lat=${lat}&lng=${lng}`);
+}
+
 // "Volao Mandao": the customer asks a driver to go somewhere and find, buy or do something for
 // them. The server computes the fee from the two pins; only the router's distance travels.
 export interface CreateMandaoInput {

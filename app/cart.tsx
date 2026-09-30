@@ -83,6 +83,11 @@ const S: Record<
     noteLabel: string;
     noNote: string;
     placeOrderLabel: string;
+    noDrivers: string;
+    noDriversFleet: string;
+    checkingDrivers: string;
+    switchToPickup: string;
+    deliveryUnavailable: string;
     total: string;
   }
 > = {
@@ -142,6 +147,11 @@ const S: Record<
     noteLabel: 'Nota',
     noNote: 'Sin nota',
     placeOrderLabel: 'Realizar pedido',
+    noDrivers: 'No hay repartidores disponibles en esta zona en este momento. Puedes retirar tu pedido en el comercio.',
+    noDriversFleet: 'Este comercio solo entrega con su propio equipo y ninguno está disponible ahora. Puedes retirar tu pedido en el comercio.',
+    switchToPickup: 'Cambiar a retiro en tienda',
+    deliveryUnavailable: 'No disponible ahora · sin repartidores',
+    checkingDrivers: 'Buscando repartidores disponibles…',
     total: 'Total',
   },
   en: {
@@ -200,6 +210,11 @@ const S: Record<
     noteLabel: 'Note',
     noNote: 'No note',
     placeOrderLabel: 'Place order',
+    noDrivers: 'No drivers are available in this area right now. You can pick your order up at the store.',
+    noDriversFleet: 'This merchant only delivers with its own team and none of them is available right now. You can pick your order up at the store.',
+    switchToPickup: 'Switch to store pickup',
+    deliveryUnavailable: 'Unavailable right now · no drivers',
+    checkingDrivers: 'Looking for available drivers…',
     total: 'Total',
   },
   fr: {
@@ -258,6 +273,11 @@ const S: Record<
     noteLabel: 'Note',
     noNote: 'Aucune note',
     placeOrderLabel: 'Passer la commande',
+    noDrivers: 'Aucun livreur n’est disponible dans cette zone pour le moment. Vous pouvez retirer votre commande au commerce.',
+    noDriversFleet: 'Ce commerce ne livre qu’avec sa propre équipe et aucun n’est disponible actuellement. Vous pouvez retirer votre commande au commerce.',
+    switchToPickup: 'Passer au retrait en magasin',
+    deliveryUnavailable: 'Indisponible · aucun livreur',
+    checkingDrivers: 'Recherche de livreurs disponibles…',
     total: 'Total',
   },
 };
@@ -298,6 +318,11 @@ export default function CartScreen() {
   const [addressLabel, setAddressLabel] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [submitting, setSubmitting] = useState(false);
+  // Whether any driver can collect from the chosen branch. The server refuses the order outright
+  // when nobody can, so the review step asks first rather than letting the customer hit a wall on
+  // the last tap. Only meaningful for a delivery order -- a pickup needs no courier at all.
+  const [drivers, setDrivers] = useState<api.DriverAvailability | null>(null);
+  const [checkingDrivers, setCheckingDrivers] = useState(false);
   const [mapKey, setMapKey] = useState(0); // bump to recenter the map on a new location
   const [locating, setLocating] = useState(false);
   // Whether the delivery-address box is being edited: it is multiline, so Enter cannot put the
@@ -372,6 +397,30 @@ export default function CartScreen() {
   // summary says so and the footer total stays products-only rather than showing a wrong number.
   // Pickup charges no envío at all: the customer collects the order themselves.
   const deliveryFee = deliveryMode === 'delivery' && eta ? deliveryFeeRd(eta.distanceM) : null;
+
+  // Ask whether anyone can collect from the chosen branch, re-asked when the branch changes. Asked
+  // whatever the delivery mode is: a customer standing on pickup still needs the DELIVERY option to
+  // say why it is unavailable, and clearing the answer when they switch would make that note blink
+  // out. Skipped only while no branch pin is known -- the server skips that case too.
+  useEffect(() => {
+    if (!routeOrigin || !cart.merchantId) { setDrivers(null); return; }
+    const { lat, lng } = routeOrigin;
+    const merchantId = cart.merchantId;
+    let alive = true;
+    setCheckingDrivers(true);
+    api.driverAvailability(merchantId, lat, lng)
+      .then((res) => { if (alive) setDrivers(res.success ? (res.data ?? null) : null); })
+      .finally(() => { if (alive) setCheckingDrivers(false); });
+    return () => { alive = false; };
+  }, [routeOrigin?.lat, routeOrigin?.lng, cart.merchantId]);
+
+  // Only a definite "nobody" counts: an unanswered or failed check leaves everything alone, since
+  // the server refuses it anyway if the area really is empty.
+  const noDrivers = drivers != null && !drivers.available;
+  // What it actually blocks is DELIVERY -- the order is still placeable for pickup, which is the
+  // way out the warning offers rather than leaving the customer stuck.
+  const deliveryBlocked = deliveryMode === 'delivery' && noDrivers;
+  const noDriversMessage = drivers?.reason === 'FLEET_OFFLINE' ? tx.noDriversFleet : tx.noDrivers;
 
   // The cash question's arithmetic. Valid when empty (exact payment) or covering the total; the
   // change previews live so the customer sees what the courier will owe them before ordering.
@@ -612,15 +661,22 @@ export default function CartScreen() {
         <>
           <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>{tx.deliveryMode}</Text>
+            {/* Delivery goes dim when no driver could take it: the choice stays visible (so the
+                customer understands what is missing rather than wondering where it went) but it
+                cannot be selected, and the reason sits where the subtitle would. */}
             <Pressable
-              style={[styles.optionCard, deliveryMode === 'delivery' && styles.optionActive]}
-              onPress={() => setDeliveryMode('delivery')}
+              style={[styles.optionCard, deliveryMode === 'delivery' && styles.optionActive, noDrivers && styles.disabled]}
+              onPress={() => { if (!noDrivers) setDeliveryMode('delivery'); }}
+              disabled={noDrivers}
               accessibilityRole="button"
+              accessibilityState={{ disabled: noDrivers, selected: deliveryMode === 'delivery' }}
             >
               <Text style={styles.optionIcon}>🛵</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.optionTitle}>{tx.deliveryTitle}</Text>
-                <Text style={styles.optionSub}>{tx.deliverySub}</Text>
+                <Text style={noDrivers ? styles.optionSubBlocked : styles.optionSub}>
+                  {noDrivers ? tx.deliveryUnavailable : tx.deliverySub}
+                </Text>
               </View>
               <View style={[styles.radio, deliveryMode === 'delivery' && styles.radioActive]}>
                 {deliveryMode === 'delivery' ? <View style={styles.radioDot} /> : null}
@@ -860,8 +916,28 @@ export default function CartScreen() {
             <Text style={styles.label}>{tx.noteLabel}</Text>
             <View style={styles.noteCard}><Text style={styles.noteText}>{notes.trim() || tx.noNote}</Text></View>
           </ScrollView>
+          {/* No courier means no DELIVERY -- the order still stands if they collect it, so the
+              warning carries the switch rather than just closing the door. */}
+          {checkingDrivers ? (
+            <Text style={styles.driversHint}>{tx.checkingDrivers}</Text>
+          ) : deliveryBlocked ? (
+            <View style={styles.warning}>
+              <Text style={styles.warningText}>{noDriversMessage}</Text>
+              <Pressable
+                style={styles.warningAction}
+                onPress={() => setDeliveryMode('pickup')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.warningActionText}>{tx.switchToPickup}</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <Footer total={cart.total + (deliveryFee ?? 0)}>
-            <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={placeOrder} disabled={submitting}>
+            <Pressable
+              style={[styles.primary, (submitting || deliveryBlocked) && styles.disabled]}
+              onPress={placeOrder}
+              disabled={submitting || deliveryBlocked}
+            >
               {submitting ? <ActivityIndicator color={t.onAccent} /> : <Text style={styles.primaryText}>{tx.placeOrderLabel}</Text>}
             </Pressable>
           </Footer>
@@ -1050,4 +1126,17 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
   primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
   disabled: { opacity: 0.5 },
+  // "Nobody can bring this" -- a stop sign above the footer, not a hint, since it blocks ordering.
+  driversHint: { color: t.textMuted, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, paddingBottom: 6 },
+  warning: {
+    backgroundColor: 'rgba(254,202,202,0.18)', borderWidth: 1, borderColor: t.danger,
+    borderRadius: 12, padding: 12, marginHorizontal: 16, marginBottom: 8,
+  },
+  warningText: { color: t.danger, fontSize: 13, fontWeight: '700' },
+  warningAction: {
+    marginTop: 10, alignSelf: 'flex-start', borderRadius: 999,
+    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  warningActionText: { color: t.onAccent, fontSize: 13, fontWeight: '800' },
+  optionSubBlocked: { fontSize: 13, color: t.danger, fontWeight: '700', marginTop: 2 },
 });

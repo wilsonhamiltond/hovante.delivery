@@ -26,7 +26,8 @@ const S: Record<
   {
     dayNames: Record<number, string>;
     invalidTime: (day: string) => string;
-    closeAfterOpen: (day: string) => string;
+    sameTime: (day: string) => string;
+    overnight: (nextDay: string) => string;
     saved: string;
     title: string;
     hint: string;
@@ -47,7 +48,8 @@ const S: Record<
       0: 'Domingo',
     },
     invalidTime: (day) => `${day}: elige una hora válida.`,
-    closeAfterOpen: (day) => `${day}: la hora de cierre debe ser después de la de apertura.`,
+    sameTime: (day) => `${day}: la hora de apertura y la de cierre no pueden ser iguales. Para abrir todo el día usa 12:00 a. m. a 11:59 p. m.`,
+    overnight: (nextDay) => `Cierra el ${nextDay}`,
     saved: 'Horario guardado.',
     title: 'Horario',
     hint: 'Marca los días que tu comercio abre y elige la hora de apertura y de cierre.',
@@ -67,7 +69,8 @@ const S: Record<
       0: 'Sunday',
     },
     invalidTime: (day) => `${day}: choose a valid time.`,
-    closeAfterOpen: (day) => `${day}: the closing time must be after the opening time.`,
+    sameTime: (day) => `${day}: the opening and closing times cannot be the same. To stay open all day use 12:00 AM to 11:59 PM.`,
+    overnight: (nextDay) => `Closes ${nextDay}`,
     saved: 'Hours saved.',
     title: 'Business hours',
     hint: 'Check the days your business is open and choose the opening and closing time.',
@@ -87,7 +90,8 @@ const S: Record<
       0: 'Dimanche',
     },
     invalidTime: (day) => `${day} : choisissez une heure valide.`,
-    closeAfterOpen: (day) => `${day} : l’heure de fermeture doit être après celle d’ouverture.`,
+    sameTime: (day) => `${day} : l’heure d’ouverture et celle de fermeture ne peuvent pas être identiques. Pour ouvrir toute la journée, utilisez 00:00 à 23:59.`,
+    overnight: (nextDay) => `Ferme ${nextDay}`,
     saved: 'Horaires enregistrés.',
     title: 'Horaires',
     hint: 'Cochez les jours d’ouverture de votre commerce et choisissez l’heure d’ouverture et de fermeture.',
@@ -114,6 +118,14 @@ const toMinutes = (v: string): number | null => {
   const min = Number(m[2]);
   if (h > 23 || min > 59) return null;
   return h * 60 + min;
+};
+
+// A window whose close lands before its open runs past midnight (20:00 -> 04:00), so it closes on
+// the FOLLOWING day. Unknown while either side is still being typed.
+const crossesMidnight = (from: string, to: string): boolean => {
+  const f = toMinutes(from);
+  const t = toMinutes(to);
+  return f != null && t != null && t < f;
 };
 
 // The merchant's weekly opening hours, reached from "Mi cuenta". One row per day: switch it on and
@@ -161,8 +173,11 @@ export default function BusinessHoursScreen() {
       if (from == null || to == null) {
         return setNotice({ tone: 'error', message: tx.invalidTime(tx.dayNames[w.day]) });
       }
-      if (to <= from) {
-        return setNotice({ tone: 'error', message: tx.closeAfterOpen(tx.dayNames[w.day]) });
+      // A close EARLIER than the open is a window running past midnight (20:00 -> 04:00), which
+      // the server stores on the day it opened. Only an equal pair is ambiguous -- shut all day or
+      // open all day -- so that is the one case still refused.
+      if (to === from) {
+        return setNotice({ tone: 'error', message: tx.sameTime(tx.dayNames[w.day]) });
       }
       hours.push({ dayOfWeek: w.day, openTime: d.from.trim(), closeTime: d.to.trim() });
     }
@@ -229,6 +244,11 @@ export default function BusinessHoursScreen() {
                             title={`${tx.dayNames[w.day]} · ${tx.closes}`}
                             onChange={(v) => setDay(w.day, { to: v })}
                           />
+                          {/* "8 p. m. a 4 a. m." is only unambiguous once it says WHICH 4 a.m.:
+                              the window runs into the next day. */}
+                          {crossesMidnight(d.from, d.to) ? (
+                            <Text style={styles.overnight}>{tx.overnight(tx.dayNames[(w.day + 1) % 7])}</Text>
+                          ) : null}
                         </View>
                       </View>
                     ) : null}
@@ -274,6 +294,8 @@ const styles = StyleSheet.create({
   dayState: { fontSize: 13, fontWeight: '700', color: t.textFaint },
   hoursRow: { flexDirection: 'row', gap: 10 },
   label: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginBottom: 4 },
+  // "Cierra el martes" under an overnight close time -- a clarification, not a warning.
+  overnight: { fontSize: 12, fontWeight: '700', color: t.textMuted, marginTop: 4 },
 
   footer: { paddingHorizontal: 16, paddingBottom: 8 },
   primary: {

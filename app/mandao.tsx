@@ -42,6 +42,9 @@ const S: Record<
     budgetTooHigh: (max: string) => string;
     continueLabel: string;
     pickupHint: string;
+    noDrivers: string;
+    noDriversFleet: string;
+    checkingDrivers: string;
     dropoffHint: string;
     myLocation: string;
     pickupAddress: string;
@@ -102,6 +105,9 @@ const S: Record<
     budgetTooHigh: (max) => `El presupuesto máximo es ${max}.`,
     continueLabel: 'Continuar',
     pickupHint: 'Toca el mapa donde debe ir el conductor',
+    noDrivers: 'No hay repartidores disponibles cerca de ese punto en este momento. Prueba otra ubicación o intenta más tarde.',
+    noDriversFleet: 'No hay repartidores disponibles para ese punto en este momento.',
+    checkingDrivers: 'Buscando repartidores disponibles…',
     dropoffHint: 'Toca el mapa donde debemos llevarlo',
     myLocation: '📍 Mi ubicación',
     pickupAddress: 'Dirección a donde ir',
@@ -161,6 +167,9 @@ const S: Record<
     budgetTooHigh: (max) => `The maximum budget is ${max}.`,
     continueLabel: 'Continue',
     pickupHint: 'Tap the map where the driver should go',
+    noDrivers: 'No drivers are available near that point right now. Try another location or check back later.',
+    noDriversFleet: 'No drivers are available for that point right now.',
+    checkingDrivers: 'Looking for available drivers…',
     dropoffHint: 'Tap the map where we should bring it',
     myLocation: '📍 My location',
     pickupAddress: 'Address to go to',
@@ -220,6 +229,9 @@ const S: Record<
     budgetTooHigh: (max) => `Le budget maximum est de ${max}.`,
     continueLabel: 'Continuer',
     pickupHint: 'Touchez la carte là où le chauffeur doit aller',
+    noDrivers: 'Aucun livreur n’est disponible près de ce point pour le moment. Essayez un autre lieu ou revenez plus tard.',
+    noDriversFleet: 'Aucun livreur n’est disponible pour ce point pour le moment.',
+    checkingDrivers: 'Recherche de livreurs disponibles…',
     dropoffHint: 'Touchez la carte là où nous devons l’apporter',
     myLocation: '📍 Ma position',
     pickupAddress: 'Adresse où aller',
@@ -283,6 +295,11 @@ export default function MandaoScreen() {
 
   const [payWith, setPayWith] = useState('');
   const [locating, setLocating] = useState(false);
+  // Whether anyone can actually take an errand starting at the chosen pickup pin. The server
+  // refuses the Mandao outright when nobody can, so the pickup step asks first -- being turned
+  // away after writing the errand and picking both pins is the version worth avoiding.
+  const [drivers, setDrivers] = useState<api.DriverAvailability | null>(null);
+  const [checkingDrivers, setCheckingDrivers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
 
@@ -305,6 +322,28 @@ export default function MandaoScreen() {
       if (res.data.latitude != null && res.data.longitude != null) setDropoffMapKey((k) => k + 1);
     });
   }, []);
+
+  // Ask whether anyone can take it whenever the pickup pin moves. Debounced: dragging across the
+  // map settles on a pin rather than firing a request per frame. The answer is advisory here --
+  // the server makes the real decision when the Mandao is placed -- so a failed check leaves the
+  // step usable rather than stranding the customer behind a network error.
+  useEffect(() => {
+    if (pickup.lat == null || pickup.lng == null) { setDrivers(null); return; }
+    const lat = pickup.lat;
+    const lng = pickup.lng;
+    let alive = true;
+    setCheckingDrivers(true);
+    const timer = setTimeout(() => {
+      api.driverAvailability(null, lat, lng)
+        .then((res) => { if (alive) setDrivers(res.success ? (res.data ?? null) : null); })
+        .finally(() => { if (alive) setCheckingDrivers(false); });
+    }, 500);
+    return () => { alive = false; clearTimeout(timer); setCheckingDrivers(false); };
+  }, [pickup.lat, pickup.lng]);
+
+  // Only a definite "nobody" blocks: a check that failed or has not answered yet leaves the
+  // button alone, because the server will refuse it anyway if it really is empty.
+  const noDrivers = drivers != null && !drivers.available;
 
   // The ride the fee is billed on: pickup -> door. Null while either pin is missing or the
   // router cannot answer, in which case the review says the fee is still to be calculated.
@@ -503,9 +542,20 @@ export default function MandaoScreen() {
               accessibilityLabel={tx.pickupReference}
               returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()}
               onFocus={() => setFocused('pickupReference')} onBlur={() => setFocused(null)} />
+            {/* Whether anyone can take an errand starting here. Shown before the customer
+                writes the rest, since the server refuses the Mandao outright without a driver. */}
+            {checkingDrivers ? (
+              <Text style={styles.hint}>{tx.checkingDrivers}</Text>
+            ) : noDrivers ? (
+              <View style={styles.warning}>
+                <Text style={styles.warningText}>
+                  {drivers?.reason === 'FLEET_OFFLINE' ? tx.noDriversFleet : tx.noDrivers}
+                </Text>
+              </View>
+            ) : null}
             <Pressable
-              style={[styles.primary, (pickup.lat == null || !pickupAddress.trim()) && styles.disabled]}
-              disabled={pickup.lat == null || !pickupAddress.trim()}
+              style={[styles.primary, (pickup.lat == null || !pickupAddress.trim() || noDrivers) && styles.disabled]}
+              disabled={pickup.lat == null || !pickupAddress.trim() || noDrivers}
               onPress={goNext}
             >
               <Text style={styles.primaryText}>{tx.continueLabel}</Text>
@@ -731,4 +781,10 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: t.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
   primaryText: { color: t.onAccent, fontSize: 16, fontWeight: '800' },
   disabled: { opacity: 0.5 },
+  // "Nobody can take this" -- a stop sign, not a hint, since it blocks the step.
+  warning: {
+    backgroundColor: 'rgba(254,202,202,0.18)', borderWidth: 1, borderColor: t.danger,
+    borderRadius: 12, padding: 12, marginTop: 4,
+  },
+  warningText: { color: t.danger, fontSize: 13, fontWeight: '700' },
 });
