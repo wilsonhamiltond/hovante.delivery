@@ -3,6 +3,7 @@ import * as api from './api';
 import type { RegisterPayload } from './api';
 import { clearToken, getToken, saveToken } from './storage';
 import { registerForPush, unregisterFromPush } from './pushNotifications';
+import { endDriverShift, stopBackgroundTracking } from './driverBackground';
 import { useStrings, type Locale } from './i18n';
 
 const S: Record<
@@ -99,6 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     api.setUnauthorizedHandler(() => {
       pushToken.current = null;
+      // Nobody left to report for. No server call -- the dead token could only 401 again; the
+      // server's heartbeat timeout ends the shift on its own.
+      void stopBackgroundTracking();
       api.setAuthToken(null);
       api.clearCachedMe();
       setToken(null);
@@ -173,8 +177,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // First, while the bearer token is still set -- unregistering is an authenticated call, and
-    // doing it after would silently no-op and leave this handset receiving the next driver's work.
+    // First, while the bearer token is still set -- both are authenticated calls, and doing them
+    // after would silently no-op: the driver would stay "available" and this handset would keep
+    // receiving the next driver's work.
+    await endDriverShift();
     await unregisterFromPush(pushToken.current);
     pushToken.current = null;
 

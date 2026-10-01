@@ -29,6 +29,9 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -45,7 +48,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Hovante Delivery usa tu ubicación para seleccionar dónde entregar tu pedido."
+          "locationWhenInUsePermission": "Hovante Delivery usa tu ubicación para seleccionar dónde entregar tu pedido.",
+          "locationAlwaysAndWhenInUsePermission": "Si eres repartidor, Volao usa tu ubicación mientras estás en línea, incluso con la app cerrada, para enviarte pedidos cercanos y mostrar al comercio dónde va su entrega. Deja de usarla cuando te desconectas.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-font",

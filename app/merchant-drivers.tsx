@@ -38,6 +38,10 @@ const S: Record<
     removeMessage: (name: string) => string;
     thisDriver: string;
     removeConfirm: string;
+    online: string;
+    offline: string;
+    lastSeen: (ago: string) => string;
+    ago: (minutes: number) => string;
   }
 > = {
   es: {
@@ -65,6 +69,11 @@ const S: Record<
     removeMessage: (name) => `¿Quitar a "${name}" de tu equipo?`,
     thisDriver: 'este repartidor',
     removeConfirm: 'Sí, quitar',
+    online: 'En línea',
+    offline: 'Desconectado',
+    lastSeen: (ago) => `Desconectado · visto ${ago}`,
+    ago: (m) => (m < 1 ? 'hace un momento' : m < 60 ? `hace ${m} min`
+      : m < 1440 ? `hace ${Math.floor(m / 60)} h` : `hace ${Math.floor(m / 1440)} d`),
   },
   en: {
     title: 'Drivers',
@@ -91,6 +100,11 @@ const S: Record<
     removeMessage: (name) => `Remove "${name}" from your team?`,
     thisDriver: 'this driver',
     removeConfirm: 'Yes, remove',
+    online: 'Online',
+    offline: 'Offline',
+    lastSeen: (ago) => `Offline · seen ${ago}`,
+    ago: (m) => (m < 1 ? 'just now' : m < 60 ? `${m} min ago`
+      : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} d ago`),
   },
   fr: {
     title: 'Livreurs',
@@ -117,6 +131,11 @@ const S: Record<
     removeMessage: (name) => `Retirer "${name}" de votre équipe ?`,
     thisDriver: 'ce livreur',
     removeConfirm: 'Oui, retirer',
+    online: 'En ligne',
+    offline: 'Hors ligne',
+    lastSeen: (ago) => `Hors ligne · vu ${ago}`,
+    ago: (m) => (m < 1 ? 'à l’instant' : m < 60 ? `il y a ${m} min`
+      : m < 1440 ? `il y a ${Math.floor(m / 60)} h` : `il y a ${Math.floor(m / 1440)} j`),
   },
 };
 
@@ -267,6 +286,21 @@ export default function MerchantDriversScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.driverName}>{d.name || tx.driverFallback}</Text>
                   <Text style={styles.hint}>{driverLine(d)}</Text>
+                  {/* Whether the driver is working right now -- with the switch off, the team is
+                      the only one who can take an order, so this is what tells the merchant
+                      whether anyone will. */}
+                  {d.status === 'ACCEPTED' ? (
+                    <View style={styles.presenceRow}>
+                      <View style={[styles.presenceDot, d.isOnline ? styles.presenceOn : styles.presenceOff]} />
+                      <Text style={d.isOnline ? styles.presenceOnText : styles.hint}>
+                        {d.isOnline
+                          ? tx.online
+                          : d.lastSeenAt
+                            ? tx.lastSeen(tx.ago(Math.floor((Date.now() - Date.parse(d.lastSeenAt)) / 60000)))
+                            : tx.offline}
+                      </Text>
+                    </View>
+                  ) : null}
                   {d.status === 'PENDING' && d.inviteCode ? (
                     <>
                       <Text style={styles.pendingCode}>{tx.pendingCode(d.inviteCode)}</Text>
@@ -388,6 +422,11 @@ const styles = StyleSheet.create({
   pillAccentText: { color: t.onAccent, fontSize: 13, fontWeight: '800' },
   linkedBadge: { color: t.success, fontSize: 12, fontWeight: '800' },
   pendingBadge: { color: t.textMuted, fontSize: 12, fontWeight: '800' },
+  presenceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  presenceDot: { width: 8, height: 8, borderRadius: 4 },
+  presenceOn: { backgroundColor: '#22c55e' },
+  presenceOff: { backgroundColor: '#94a3b8' },
+  presenceOnText: { color: t.success, fontSize: 12, fontWeight: '800' },
   pendingCode: { color: t.text, fontSize: 13, fontWeight: '800', marginTop: 4, letterSpacing: 1 },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {

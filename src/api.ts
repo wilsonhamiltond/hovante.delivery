@@ -65,6 +65,12 @@ export interface ApiResponse<T> {
 // every response without re-rendering the app -- setting React state on each request caused an
 // effect/refetch loop. React state only tracks logged-in-or-not; this holds *which* token to send.
 let currentToken: string | null = null;
+// Whether a session token is loaded -- the background location task runs in a JS context where the
+// app (and so the AuthProvider that loads it) may never have started, and checks before restoring.
+export function hasAuthToken(): boolean {
+  return currentToken != null;
+}
+
 export function setAuthToken(token: string | null) {
   currentToken = token;
   // An identity request in flight belongs to the previous credential; coalescing onto it would
@@ -1132,6 +1138,11 @@ export interface MerchantDriver {
   status: MerchantDriverStatus | null;
   // Only while PENDING: the code the merchant must pass to the driver.
   inviteCode: string | null;
+  // Online and heartbeating right now (see DriverPresence on the API). Optional so an older API
+  // simply reads as offline.
+  isOnline?: boolean;
+  // The driver's last heartbeat (ISO), so an offline card can say how long ago.
+  lastSeenAt?: string | null;
 }
 
 export interface MerchantDeliverySettings {
@@ -1371,6 +1382,44 @@ export function pickupDelivery(id: string) {
 // the merchant's order view can show the position on a map. Fire-and-forget.
 export function reportDriverPosition(latitude: number, longitude: number) {
   return postAuth<boolean>('/delivery/driver/position', { latitude, longitude });
+}
+
+// --- The driver's online toggle ----------------------------------------------------------------
+//
+// A driver is available for new work only while they are online AND their phone keeps proving it
+// with a heartbeat. The server stops counting them after heartbeatTimeoutMinutes of silence, and
+// its sweeper then turns them offline -- unless they are carrying a delivery.
+
+export type DriverOfflineReason = 'MANUAL' | 'TIMEOUT' | 'SIGNED_OUT' | 'ACCOUNT_DISABLED';
+
+export interface DriverPresence {
+  // The effective state: online and heartbeating within the timeout.
+  isOnline: boolean;
+  onlineSince: string | null;
+  lastHeartbeatAt: string | null;
+  // Why the last shift ended; null while online.
+  offlineReason: DriverOfflineReason | null;
+  heartbeatTimeoutMinutes: number;
+  // Deliveries in hand (ASSIGNED / IN_TRANSIT) -- going offline with any is warned about.
+  activeDeliveries: number;
+}
+
+export function driverPresence() {
+  return get<DriverPresence>('/delivery/driver/presence');
+}
+
+export function setDriverPresence(online: boolean, position?: { lat: number; lng: number } | null) {
+  return putAuth<DriverPresence>('/delivery/driver/presence', {
+    online,
+    latitude: position?.lat ?? null,
+    longitude: position?.lng ?? null,
+  });
+}
+
+// Everything reportDriverPosition does, answered with the presence -- so a background beat learns
+// when its shift was ended elsewhere (the server's timeout, another device) and can stop itself.
+export function driverHeartbeat(latitude: number, longitude: number) {
+  return postAuth<DriverPresence>('/delivery/driver/heartbeat', { latitude, longitude });
 }
 
 // Push notification targets. The account is taken from the bearer token, so a device can only ever

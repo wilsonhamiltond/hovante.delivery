@@ -8,6 +8,10 @@ import { LocaleProvider } from '../src/i18n';
 import { AuthPromptProvider } from '../src/AuthPrompt';
 import { CartProvider } from '../src/cart';
 import { SessionLocationProvider } from '../src/sessionLocation';
+import { DriverPresenceProvider } from '../src/driverPresence';
+// Registers the driver's background location task. It must be defined at module load: when the OS
+// wakes the app for a location update, the task has to exist before any screen mounts.
+import '../src/driverBackground';
 import * as api from '../src/api';
 import {
   configureNotificationHandler, routeForNotification, targetOfResponse, type PushTarget,
@@ -153,6 +157,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <LocaleProvider>
       <AuthProvider>
+        <DriverPresenceProvider>
         <SessionLocationProvider>
         <CartProvider>
         <AuthPromptProvider>
@@ -160,6 +165,7 @@ export default function RootLayout() {
         </AuthPromptProvider>
         </CartProvider>
         </SessionLocationProvider>
+        </DriverPresenceProvider>
       </AuthProvider>
       </LocaleProvider>
     </SafeAreaProvider>

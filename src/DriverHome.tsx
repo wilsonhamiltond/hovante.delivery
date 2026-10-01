@@ -13,6 +13,7 @@ import { NEARBY_RADIUS_KM, originOf, useNearbyAvailable } from './nearby';
 import { PointsMap } from './PointsMap';
 import { distanceKm, useDriverPosition } from './position';
 import { useDriverPositionReporter } from './positionReport';
+import { DriverPresenceBar } from './DriverPresenceBar';
 import { loadReached, saveReached } from './pickupProgress';
 import { useStrings, type Locale } from './i18n';
 
@@ -342,6 +343,9 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                   : tx.poolAvailable(nearby.count, nearby.filtered, NEARBY_RADIUS_KM)}
               </Text>
             ) : null}
+            <DriverPresenceBar
+              activeDeliveries={deliveries.filter((d) => d.status === 'ASSIGNED' || d.status === 'IN_TRANSIT').length}
+            />
           </View>
         </SafeAreaView>
 
