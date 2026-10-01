@@ -126,6 +126,17 @@ export async function startBackgroundTracking(prompt = false): Promise<TrackingM
   }
 }
 
+/** Whether the "always" location permission is already granted -- decides if the prominent
+ * disclosure has to be shown before going online (Google Play's background-location policy). */
+export async function hasBackgroundPermission(): Promise<boolean> {
+  if (Platform.OS === 'web') return true;
+  try {
+    return (await Location.getBackgroundPermissionsAsync()).status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
 export async function stopBackgroundTracking(): Promise<void> {
   if (Platform.OS === 'web') return;
   try {

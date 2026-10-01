@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { NO_LOCATION, useDriverPresence } from './driverPresence';
 import { ConfirmDialog } from './ConfirmDialog';
+import { hasBackgroundPermission } from './driverBackground';
 import { t } from './theme';
 import { useStrings, type Locale } from './i18n';
 
@@ -25,6 +26,9 @@ const S: Record<
     warnTitle: string;
     warnMessage: (n: number) => string;
     warnConfirm: string;
+    disclosureTitle: string;
+    disclosureMessage: string;
+    disclosureConfirm: string;
   }
 > = {
   es: {
@@ -42,6 +46,10 @@ const S: Record<
     warnMessage: (n) =>
       `Tienes ${n} entrega(s) en curso. Si te desconectas no recibirás pedidos nuevos, pero debes completar las que ya tienes.`,
     warnConfirm: 'Desconectarme',
+    disclosureTitle: 'Uso de tu ubicación',
+    disclosureMessage:
+      'Mientras estés en línea, Volao recopila tu ubicación incluso cuando la app está cerrada o no la estás usando, para enviarte pedidos cercanos y mostrar al comercio y al cliente dónde va su entrega. Dejamos de recopilarla cuando te desconectas.\n\nEn la siguiente pantalla elige "Permitir siempre".',
+    disclosureConfirm: 'Continuar',
   },
   en: {
     online: 'Online · receiving orders',
@@ -58,6 +66,10 @@ const S: Record<
     warnMessage: (n) =>
       `You have ${n} delivery(ies) in progress. Going offline stops new orders, but you still have to complete the ones you have.`,
     warnConfirm: 'Go offline',
+    disclosureTitle: 'Use of your location',
+    disclosureMessage:
+      'While you are online, Volao collects your location even when the app is closed or not in use, to send you nearby orders and show the merchant and customer where their delivery is. We stop collecting it when you go offline.\n\nOn the next screen choose "Allow all the time".',
+    disclosureConfirm: 'Continue',
   },
   fr: {
     online: 'En ligne · réception des commandes',
@@ -74,6 +86,10 @@ const S: Record<
     warnMessage: (n) =>
       `Vous avez ${n} livraison(s) en cours. Hors ligne, vous ne recevrez plus de commandes, mais vous devez terminer celles que vous avez.`,
     warnConfirm: 'Me déconnecter',
+    disclosureTitle: 'Utilisation de votre position',
+    disclosureMessage:
+      'Tant que vous êtes en ligne, Volao collecte votre position même lorsque l’application est fermée ou non utilisée, pour vous envoyer des commandes proches et montrer au commerce et au client où en est leur livraison. Nous arrêtons de la collecter quand vous vous déconnectez.\n\nSur l’écran suivant, choisissez « Toujours autoriser ».',
+    disclosureConfirm: 'Continuer',
   },
 };
 
@@ -83,13 +99,23 @@ export function DriverPresenceBar({ activeDeliveries }: { activeDeliveries: numb
   const { presence, online, stale, mode, busy, goOnline, goOffline } = useDriverPresence();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [disclosing, setDisclosing] = useState(false);
 
   // Not loaded yet: render nothing rather than flash "Desconectado" at a driver who is online.
   if (!presence) return null;
 
   const carrying = Math.max(activeDeliveries, presence.activeDeliveries);
 
+  // Google Play requires a prominent in-app disclosure right before the background-location
+  // permission prompt, accepted by an explicit tap. Shown only while that permission is missing.
+  const onOnPress = async () => {
+    setError(null);
+    if (await hasBackgroundPermission()) void turnOn();
+    else setDisclosing(true);
+  };
+
   const turnOn = async () => {
+    setDisclosing(false);
     setError(null);
     const err = await goOnline();
     if (err) setError(err === NO_LOCATION ? tx.noLocation : err);
@@ -132,7 +158,7 @@ export function DriverPresenceBar({ activeDeliveries }: { activeDeliveries: numb
           </Text>
           <Pressable
             style={[styles.onBtn, busy && styles.disabled]}
-            onPress={turnOn}
+            onPress={onOnPress}
             disabled={busy}
             accessibilityRole="button"
           >
@@ -159,6 +185,14 @@ export function DriverPresenceBar({ activeDeliveries }: { activeDeliveries: numb
         confirmLabel={tx.warnConfirm}
         onConfirm={turnOff}
         onCancel={() => setConfirming(false)}
+      />
+      <ConfirmDialog
+        visible={disclosing}
+        title={tx.disclosureTitle}
+        message={tx.disclosureMessage}
+        confirmLabel={tx.disclosureConfirm}
+        onConfirm={turnOn}
+        onCancel={() => setDisclosing(false)}
       />
     </View>
   );
