@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { TextInput } from './TextInput';
 import type { CountryCode } from 'libphonenumber-js';
 import { COUNTRIES, countryByIso, searchCountries, type Country } from './countries';
 import { maskPhone, parsePhone } from './profileForm';
