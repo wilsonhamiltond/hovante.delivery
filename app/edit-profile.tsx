@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FOOTER_OFFSET, KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -214,8 +215,8 @@ export default function EditProfileScreen() {
         {loading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
         ) : (
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView style={{ flex: 1 }}>
+            <KeyboardAwareScrollView contentContainerStyle={styles.body} bottomOffset={FOOTER_OFFSET}>
               <Text style={styles.label}>{tx.email}</Text>
               {/* Rendered as a locked row rather than a disabled input: a greyed-out field invites
                   tapping and looks like something is broken, while a lock reads as intentional. */}
@@ -275,7 +276,7 @@ export default function EditProfileScreen() {
                   ) : null}
                 </>
               ) : null}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <View style={styles.footer}>
               <Pressable style={[styles.primary, submitting && styles.disabled]} onPress={submit} disabled={submitting}>

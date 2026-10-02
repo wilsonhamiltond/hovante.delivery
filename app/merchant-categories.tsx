@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -409,7 +410,7 @@ export default function MerchantCategoriesScreen() {
 
         {/* Create/edit popover -- the same bottom-sheet shape the product form's translation editor uses. */}
         <Modal visible={sheetOpen} transparent animationType="slide" onRequestClose={() => setSheetOpen(false)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={{ flex: 1 }}>
             <Pressable style={styles.scrim} onPress={() => !saving && setSheetOpen(false)}>
               <Pressable style={styles.sheet} onPress={() => {}}>
                 <Text style={styles.sheetTitle}>{editing ? tx.editCategory : tx.newCategory}</Text>

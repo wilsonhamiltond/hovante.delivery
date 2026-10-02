@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -251,7 +252,7 @@ export default function MerchantDriversScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={styles.list}>
           {/* The public-pool switch. Off = only the team below sees this merchant's orders. */}
           <View style={styles.card}>
             <View style={styles.switchRow}>
@@ -384,7 +385,7 @@ export default function MerchantDriversScreen() {
               </View>
             </View>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <ConfirmDialog

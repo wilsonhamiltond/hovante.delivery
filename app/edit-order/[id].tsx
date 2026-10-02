@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { KeyboardAwareScrollView } from '../../src/keyboard';
 import { TextInput } from '../../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -263,7 +264,7 @@ export default function EditOrderScreen() {
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
           {!order ? (
             <Text style={styles.error}>{error ?? tx.notFound}</Text>
           ) : !editable ? (
@@ -403,7 +404,7 @@ export default function EditOrderScreen() {
               </Pressable>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </GradientBackground>
   );

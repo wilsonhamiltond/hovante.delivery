@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from '../../src/keyboard';
 import { TextInput } from '../../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -465,8 +466,8 @@ export default function MerchantProductFormScreen() {
           <View style={{ width: BACK_BUTTON_WIDTH }} />
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1 }}>
+          <KeyboardAwareScrollView contentContainerStyle={styles.body}>
             {/* The photo. The whole square is the control -- a small "change" link is a hard target
                 on a phone -- and it previews the pick before it is sent. */}
             <Pressable style={styles.photoRow} onPress={pickPhoto} accessibilityRole="button">
@@ -609,12 +610,13 @@ export default function MerchantProductFormScreen() {
             <Pressable onPress={back} disabled={saving}>
               <Text style={styles.cancel}>{tx.cancel}</Text>
             </Pressable>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
+        </View>
 
         {/* Add / edit translation popover -- the same bottom-sheet shape the list's delete
             confirmation uses. */}
         <Modal visible={trOpen} transparent animationType="slide" onRequestClose={() => setTrOpen(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }}>
           <Pressable style={styles.scrim} onPress={() => setTrOpen(false)}>
             <Pressable style={styles.sheet} onPress={() => {}}>
               <Text style={styles.sheetTitle}>
@@ -675,12 +677,13 @@ export default function MerchantProductFormScreen() {
               </Pressable>
             </Pressable>
           </Pressable>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Category dropdown -- the same bottom sheet, with a filter box on top. The filter is
             client-side: the whole option set is already in memory. */}
         <Modal visible={catOpen} transparent animationType="slide" onRequestClose={() => setCatOpen(false)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={{ flex: 1 }}>
             <Pressable style={styles.scrim} onPress={() => setCatOpen(false)}>
               <Pressable style={styles.sheet} onPress={() => {}}>
                 <Text style={styles.sheetTitle}>{tx.category}</Text>

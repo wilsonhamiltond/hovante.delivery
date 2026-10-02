@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -438,7 +439,7 @@ export default function MandaoScreen() {
             first time anyone opens it; the idea chips start a description rather than replace one. */}
         {stepKey === 'need' && (
           <>
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
               <View style={styles.hero}>
                 <Text style={styles.heroEmoji}>🛵</Text>
                 <View style={{ flex: 1 }}>
@@ -499,7 +500,7 @@ export default function MandaoScreen() {
               {budgetValid
                 ? <Text style={styles.hintSmall}>{tx.budgetHint(money(MANDAO_MAX_BUDGET_RD))}</Text>
                 : <Text style={styles.error}>{tx.budgetTooHigh(money(MANDAO_MAX_BUDGET_RD))}</Text>}
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <View style={styles.footer}>
               <Pressable
                 style={[styles.primary, (!description.trim() || !budgetValid) && styles.disabled]}
@@ -515,7 +516,7 @@ export default function MandaoScreen() {
         {/* Step 2 -- where the driver goes. Opens on the drop-off (usually the customer's own
             area) until a pin is placed, since an errand rarely starts across the country. */}
         {stepKey === 'pickup' && (
-          <View style={styles.mapStep}>
+          <KeyboardAvoidingView style={styles.mapStep}>
             <View style={styles.locRow}>
               <Text style={styles.hint}>{tx.pickupHint}</Text>
               <Pressable style={styles.locBtn} onPress={() => useMyLocation('pickup')} disabled={locating}>
@@ -561,12 +562,12 @@ export default function MandaoScreen() {
             >
               <Text style={styles.primaryText}>{tx.continueLabel}</Text>
             </Pressable>
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         {/* Step 3 -- where it is brought, with the ride from the pickup drawn on the map. */}
         {stepKey === 'dropoff' && (
-          <View style={styles.mapStep}>
+          <KeyboardAvoidingView style={styles.mapStep}>
             <View style={styles.locRow}>
               <Text style={styles.hint}>{tx.dropoffHint}</Text>
               <Pressable style={styles.locBtn} onPress={() => useMyLocation('dropoff')} disabled={locating}>
@@ -599,7 +600,7 @@ export default function MandaoScreen() {
             >
               <Text style={styles.primaryText}>{tx.continueLabel}</Text>
             </Pressable>
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         {/* Step 4 -- review: the errand, both ends, what it costs, and the cash question. */}
@@ -613,7 +614,7 @@ export default function MandaoScreen() {
                 onPick={(loc) => { setDropoff({ lat: loc.lat, lng: loc.lng }); if (loc.address) setDropoffAddress(loc.address); }}
               />
             </View>
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
               <Text style={styles.label}>{tx.whatLabel}</Text>
               <View style={styles.card}><Text style={styles.cardText}>{description.trim()}</Text></View>
 
@@ -669,7 +670,7 @@ export default function MandaoScreen() {
               ) : changeDue != null && changeDue > 0 ? (
                 <Text style={styles.change}>{tx.changeDue(money(changeDue))}</Text>
               ) : null}
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <Footer label={budgetAmount > 0 ? tx.totalUpTo : tx.total} total={maxTotal}>
               <Pressable
                 style={[styles.primary, (submitting || !payWithValid) && styles.disabled]}

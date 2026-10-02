@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from '../src/keyboard';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../src/auth';
 import { LocaleProvider } from '../src/i18n';
@@ -155,6 +156,7 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <KeyboardProvider>
       <LocaleProvider>
       <AuthProvider>
         <DriverPresenceProvider>
@@ -168,6 +170,7 @@ export default function RootLayout() {
         </DriverPresenceProvider>
       </AuthProvider>
       </LocaleProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../../src/keyboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as api from '../../src/api';
@@ -527,8 +528,8 @@ export default function OrderTrackingScreen() {
       <Header onBack={() => router.replace('/orders')} />
       {/* Lifts the scroll over the keyboard so the message composer (and anything else being
           typed into) stays visible above it instead of underneath it. */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.numberRow}>
           <Text style={styles.orderNumber}>{order.orderNumber}</Text>
           {/* The current state, said outright. The queue wins while it runs: "confirmado" alone
@@ -738,8 +739,8 @@ export default function OrderTrackingScreen() {
         <Pressable style={styles.secondary} onPress={() => router.replace('/orders')}>
           <Text style={styles.secondaryText}>{tx.viewMyOrders}</Text>
         </Pressable>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+      </View>
 
       <InvoiceModal
         orderId={order.id}

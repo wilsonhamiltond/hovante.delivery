@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from './keyboard';
 import { TextInput } from './TextInput';
 import type { CountryCode } from 'libphonenumber-js';
 import { COUNTRIES, countryByIso, searchCountries, type Country } from './countries';
@@ -108,6 +109,7 @@ export function PhoneInput({ country, national, onChange, placeholder, returnKey
       </View>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <View style={styles.handle} />
@@ -147,6 +149,7 @@ export function PhoneInput({ country, national, onChange, placeholder, returnKey
             />
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../../src/keyboard';
 import { TextInput } from '../../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -393,8 +394,8 @@ export default function MerchantOrderDetail() {
       <Header title={order.orderNumber} onBack={back} />
       {/* Lifts the scroll over the keyboard so the message composer (and the note editors) stay
           visible above it instead of underneath it. */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.rowBetween}>
           <Text style={styles.placedAt}>{fmtStamp(order.createdAt) ?? ''}</Text>
           <View style={[styles.chip, { backgroundColor: s.color }]}><Text style={styles.chipText}>{s.label}</Text></View>
@@ -714,8 +715,8 @@ export default function MerchantOrderDetail() {
             </Pressable>
           )
         ) : null}
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+      </View>
 
       <QueueTimeModal
         visible={confirming}

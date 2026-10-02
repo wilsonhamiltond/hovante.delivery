@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FOOTER_OFFSET, KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -203,8 +204,8 @@ export default function VehicleScreen() {
         {loading ? (
           <View style={styles.loading}><ActivityIndicator color={t.accent} /></View>
         ) : (
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView style={{ flex: 1 }}>
+            <KeyboardAwareScrollView contentContainerStyle={styles.body} bottomOffset={FOOTER_OFFSET}>
               <Text style={styles.lead}>
                 {tx.lead}
               </Text>
@@ -283,7 +284,7 @@ export default function VehicleScreen() {
                 onSubmitEditing={submit}
                 returnKeyType="done"
               />
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <View style={styles.footer}>
               <Pressable style={[styles.primary, saving && styles.disabled]} onPress={submit} disabled={saving}>

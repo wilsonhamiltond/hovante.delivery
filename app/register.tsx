@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FOOTER_OFFSET, KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -397,7 +398,7 @@ export default function RegisterScreen() {
         {/* Keeps the focused field above the keyboard -- on the map step the address box sits at
             the bottom, where the keyboard otherwise covers it (the map, being the flex element,
             is what shrinks). iOS pads; Android's window resize does the same on its own. */}
-        <KeyboardAvoidingView style={styles.avoid} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.avoid}>
         <View style={styles.header}>
           <BackButton onPress={back} />
           <Text style={styles.title}>{tx.steps[step - 1]}</Text>
@@ -421,7 +422,7 @@ export default function RegisterScreen() {
         </View>
 
         {step === 1 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll} bottomOffset={FOOTER_OFFSET}>
             <Text style={styles.lead}>{tx.step1Lead}</Text>
             <Text style={styles.label}>{tx.emailLabel}</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.emailPlaceholder}
@@ -430,11 +431,11 @@ export default function RegisterScreen() {
               // below: same handler, same validation. Guarded like the button, so a double
               // submit while the code is already being mailed does nothing.
               returnKeyType="send" onSubmitEditing={() => { if (!submitting) next(); }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
 
         {step === 2 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll} bottomOffset={FOOTER_OFFSET}>
             <Text style={styles.lead}>{tx.step2Lead(email.trim())}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
@@ -449,11 +450,11 @@ export default function RegisterScreen() {
             <Pressable onPress={resend} disabled={submitting} style={styles.resend}>
               <Text style={styles.resendText}>{tx.resendPrompt}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
 
         {step === 3 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll} bottomOffset={FOOTER_OFFSET}>
             <Text style={styles.lead}>{tx.step3Lead}</Text>
             <Text style={styles.label}>{tx.nameLabel}</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.namePlaceholder}
@@ -468,11 +469,11 @@ export default function RegisterScreen() {
               returnKeyType="done"
               onSubmitEditing={() => { if (!submitting) next(); }}
             />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
 
         {step === 4 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll} bottomOffset={FOOTER_OFFSET}>
             <Text style={styles.lead}>{tx.step4Lead}</Text>
             <Text style={styles.label}>{tx.passwordLabel}</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.passwordPlaceholder}
@@ -480,7 +481,7 @@ export default function RegisterScreen() {
             <Text style={styles.label}>{tx.confirmLabel}</Text>
             <TextInput style={styles.input} placeholderTextColor={t.textFaint} placeholder={tx.confirmPlaceholder}
               secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
 
         {step === 5 && (

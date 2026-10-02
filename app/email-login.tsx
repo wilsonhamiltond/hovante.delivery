@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -89,7 +90,7 @@ export default function EmailLoginScreen() {
         <View style={styles.header}>
           <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace("/login"))} />
         </View>
-        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.container}>
           <Text style={styles.title}>{tx.title}</Text>
           <Text style={styles.subtitle}>{tx.subtitle}</Text>
 

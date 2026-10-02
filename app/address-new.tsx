@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -214,7 +215,7 @@ export default function AddressNewScreen() {
             the address box at the bottom. "padding" raises the layout by the keyboard's height and
             the flex map absorbs the squeeze, keeping the field visible while typing. Android
             already resizes the window itself (softwareKeyboardLayoutMode defaults to resize). */}
-        <KeyboardAvoidingView style={styles.dismissArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.dismissArea}>
         <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.header}>
           <BackButton onPress={back} />

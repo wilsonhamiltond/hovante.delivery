@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../../src/keyboard';
 import { TextInput } from '../../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -114,7 +115,7 @@ export default function CancelOrderScreen() {
         <View style={{ width: BACK_BUTTON_WIDTH }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.lead}>
           {mandao === '1' ? tx.mandaoLead : tx.lead}
         </Text>
@@ -155,7 +156,7 @@ export default function CancelOrderScreen() {
         <Pressable onPress={back} disabled={submitting}>
           <Text style={styles.keep}>{tx.keep}</Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
     </GradientBackground>
   );

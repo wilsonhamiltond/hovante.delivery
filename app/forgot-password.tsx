@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -85,7 +86,7 @@ export default function ForgotPasswordScreen() {
   return (
     <GradientBackground>
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>{tx.title}</Text>
           <Text style={styles.subtitle}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -272,7 +273,7 @@ export default function CompleteProfileScreen() {
         </View>
 
         {step === 1 && (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
             {/* Never a name (or email) field here -- guideline 4: the provider already gave them.
                 Greet by name only when the stored one looks like a person's (it splits into name
                 and surname); the email-derived single-word stand-in reads as noise, not a name. */}
@@ -298,11 +299,11 @@ export default function CompleteProfileScreen() {
             <Pressable onPress={signOut} style={styles.signOut} accessibilityRole="button">
               <Text style={styles.signOutText}>{tx.otherAccount}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
 
         {step === 2 && (
-          <View style={styles.mapStep}>
+          <KeyboardAvoidingView style={styles.mapStep}>
             <Text style={[styles.label, styles.labelFirst]}>{tx.addressNameLabel}</Text>
             <View style={styles.choiceRow}>
               {LABEL_CHOICES.map((choice) => {
@@ -339,7 +340,7 @@ export default function CompleteProfileScreen() {
             <Text style={styles.label}>{tx.addressFieldLabel}</Text>
             <TextInput style={[styles.input, styles.addressArea]} placeholderTextColor={t.textFaint}
               placeholder={tx.addressFieldPlaceholder} value={address} onChangeText={setAddress} multiline />
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         <View style={styles.footer}>

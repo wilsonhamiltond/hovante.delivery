@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from './keyboard';
 import { TextInput } from './TextInput';
 import { t } from './theme';
 import { useStrings, type Locale } from './i18n';
@@ -96,6 +97,7 @@ export function QueueTimeModal({ visible, orderNumber, busy, error, onConfirm, o
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => { reset(); onClose(); }}>
+      <KeyboardAvoidingView>
       <Pressable style={styles.scrim} onPress={() => { if (!busy) { reset(); onClose(); } }}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <Text style={styles.title}>{tx.title(orderNumber ?? tx.orderFallback)}</Text>
@@ -150,6 +152,7 @@ export function QueueTimeModal({ visible, orderNumber, busy, error, onConfirm, o
           </Pressable>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

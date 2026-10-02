@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -200,7 +201,7 @@ export default function DriverMerchantsScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={t.text} /></View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={styles.list}>
           <Text style={styles.intro}>{tx.intro}</Text>
 
           {/* Fleets joined. */}
@@ -291,7 +292,7 @@ export default function DriverMerchantsScreen() {
               ))}
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* One dialog for both exits: declining an invitation and leaving a joined team are the

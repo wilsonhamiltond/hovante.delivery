@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from '../src/keyboard';
 import { TextInput } from '../src/TextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -725,7 +726,7 @@ export default function CartScreen() {
       {/* Step 3 -- where it goes. Delivery only: reached by goNext() from the details, which on
           pickup lands on the note instead. */}
       {!needsOfficeChoice && stepKey === 'location' && (
-        <View style={styles.mapStep}>
+        <KeyboardAvoidingView style={styles.mapStep}>
           <View style={styles.locRow}>
             <Text style={styles.hint}>
               {areas.length > 0
@@ -780,12 +781,12 @@ export default function CartScreen() {
           >
             <Text style={styles.primaryText}>{tx.continueLabel}</Text>
           </Pressable>
-        </View>
+        </KeyboardAvoidingView>
       )}
 
       {!needsOfficeChoice && stepKey === 'note' && (
         <>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.label}>{tx.notesLabel}</Text>
             {/* Enter closes the keyboard instead of inserting a newline: a delivery note wants
                 commas, and the multiline box otherwise trapped the keyboard open. */}
@@ -818,7 +819,7 @@ export default function CartScreen() {
                 ) : null}
               </>
             ) : null}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <Footer total={cart.total}>
             <Pressable
               style={[styles.primary, !payWithValid && styles.disabled]}
