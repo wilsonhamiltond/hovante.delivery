@@ -10,7 +10,11 @@ import { useStrings, type Locale } from '../src/i18n';
 // Real support channels: the same address and number the site's legal pages publish
 // (volao.web: contact, terms, privacy). WhatsApp wants the number with the +1 country code.
 const SUPPORT_EMAIL = 'support@volao.com.do';
+// Shown to the reader exactly as written. The links cannot use it as-is: tel: chokes on the
+// spaces and parentheses, and wa.me takes the country code as bare digits with no plus at all --
+// so both are built from the stripped number below.
 const SUPPORT_PHONE = '+1 (809) 693-8546';
+const SUPPORT_PHONE_DIGITS = SUPPORT_PHONE.replace(/\D/g, '');
 
 // The questions, grouped and gated by role. Everyone reaches this screen from the same Cuenta row,
 // so a driver is not made to scroll a customer's payment questions to find their own -- and a
@@ -368,8 +372,8 @@ export default function HelpScreen() {
   const groups = tx.groups.filter((g) => !g.when || g.when === role);
 
   const email = () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
-  const call = () => Linking.openURL(`tel:${SUPPORT_PHONE}`);
-  const whatsapp = () => Linking.openURL(`https://wa.me/1${SUPPORT_PHONE}`);
+  const call = () => Linking.openURL(`tel:+${SUPPORT_PHONE_DIGITS}`);
+  const whatsapp = () => Linking.openURL(`https://wa.me/${SUPPORT_PHONE_DIGITS}`);
 
   return (
     <GradientBackground>
@@ -399,6 +403,7 @@ export default function HelpScreen() {
               <Text style={styles.supportBtnText}>{tx.email}</Text>
             </Pressable>
           </View>
+          <Text style={styles.supportContact}>{SUPPORT_PHONE} · {SUPPORT_EMAIL}</Text>
         </View>
 
         {/* FAQ accordion, one card per visible group */}
@@ -477,6 +482,7 @@ const styles = StyleSheet.create({
   supportCard: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 16, padding: 18 },
   supportTitle: { fontSize: 18, fontWeight: '900', color: t.text },
   supportSub: { fontSize: 13, color: t.textMuted, marginTop: 4 },
+  supportContact: { marginTop: 10, textAlign: 'center', color: t.textMuted, fontSize: 12, fontWeight: '700' },
   supportRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   supportBtn: { flex: 1, backgroundColor: t.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center', gap: 4 },
   supportBtnIcon: { fontSize: 20 },
