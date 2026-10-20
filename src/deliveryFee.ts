@@ -21,6 +21,12 @@ export function mandaoFeeRd(distanceM: number): number {
   return deliveryFeeRd(distanceM) + MANDAO_SURCHARGE_RD;
 }
 
+// Volao Viaje: the customer rides pickup -> destination on the same tariff, with no surcharge --
+// the driver has nothing to find, buy or queue for. Mirrors the API's DeliveryTariff.RideFeeRd.
+export function rideFeeRd(distanceM: number): number {
+  return deliveryFeeRd(distanceM);
+}
+
 export function deliveryFeeRd(distanceM: number): number {
   // Started half-kilometres, the tariff's billing unit.
   const halves = Math.ceil(distanceM / 500);

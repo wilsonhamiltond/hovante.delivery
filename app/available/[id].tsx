@@ -53,6 +53,15 @@ const S: Record<
     mandaoGoKind: string;
     mandaoGoTitle: string;
     mandaoTake: string;
+    rideLabel: string;
+    rideFare: string;
+    rideNoNote: string;
+    ridePickupKind: string;
+    ridePickupTitle: string;
+    rideRouteBtn: string;
+    rideRouteTitle: string;
+    rideDestinationKind: string;
+    rideTake: string;
   }
 > = {
   es: {
@@ -89,6 +98,15 @@ const S: Record<
     mandaoGoKind: '1 · IR A',
     mandaoGoTitle: 'Ir a',
     mandaoTake: 'Tomar mandado',
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideFare: 'TARIFA A COBRAR',
+    rideNoNote: 'Recoge al cliente y llévalo a su destino.',
+    ridePickupKind: '1 · RECOGER PASAJERO',
+    ridePickupTitle: 'Recoger pasajero',
+    rideRouteBtn: '🗺️  Ver ruta completa',
+    rideRouteTitle: 'Ruta del viaje',
+    rideDestinationKind: '2 · LLEVAR A',
+    rideTake: 'Tomar viaje',
   },
   en: {
     notAvailableTitle: 'Not available',
@@ -124,6 +142,15 @@ const S: Record<
     mandaoGoKind: '1 · GO TO',
     mandaoGoTitle: 'Go to',
     mandaoTake: 'Take errand',
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideFare: 'FARE TO COLLECT',
+    rideNoNote: 'Pick the customer up and take them to their destination.',
+    ridePickupKind: '1 · PICK UP PASSENGER',
+    ridePickupTitle: 'Pick up passenger',
+    rideRouteBtn: '🗺️  See the whole route',
+    rideRouteTitle: 'Ride route',
+    rideDestinationKind: '2 · TAKE TO',
+    rideTake: 'Take ride',
   },
   fr: {
     notAvailableTitle: 'Non disponible',
@@ -159,6 +186,15 @@ const S: Record<
     mandaoGoKind: '1 · ALLER À',
     mandaoGoTitle: 'Aller à',
     mandaoTake: 'Prendre la course',
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideFare: 'TARIF À ENCAISSER',
+    rideNoNote: 'Prenez le client et emmenez-le à destination.',
+    ridePickupKind: '1 · PRENDRE LE PASSAGER',
+    ridePickupTitle: 'Prendre le passager',
+    rideRouteBtn: '🗺️  Voir tout l’itinéraire',
+    rideRouteTitle: 'Itinéraire du trajet',
+    rideDestinationKind: '2 · EMMENER À',
+    rideTake: 'Prendre le trajet',
   },
 };
 
@@ -208,6 +244,29 @@ export default function AvailableDeliveryScreen() {
         ...(params.lng != null ? { lng: String(params.lng) } : {}),
         ...(params.address ? { address: params.address } : {}),
         title: params.title,
+        me: '1',
+      },
+    });
+  };
+
+  // A ride is one journey in two legs, so judging it means seeing both at once: the map takes
+  // the passenger as the origin and the destination as the far end, and -- with me:'1' -- draws
+  // the driver's own position in front of them, so the route reads here → passenger → destination.
+  const openRideRoute = () => {
+    if (!delivery) return;
+    router.push({
+      pathname: '/map',
+      params: {
+        ...(delivery.pickupLatitude != null ? { olat: String(delivery.pickupLatitude) } : {}),
+        ...(delivery.pickupLongitude != null ? { olng: String(delivery.pickupLongitude) } : {}),
+        ...(delivery.pickupAddress ? { oaddress: delivery.pickupAddress } : {}),
+        otitle: tx.ridePickupTitle,
+        // The origin is a person waiting, not a shop front.
+        olabel: '🙋',
+        ...(delivery.latitude != null ? { lat: String(delivery.latitude) } : {}),
+        ...(delivery.longitude != null ? { lng: String(delivery.longitude) } : {}),
+        ...(delivery.addressLine ? { address: delivery.addressLine } : {}),
+        title: tx.rideRouteTitle,
         me: '1',
       },
     });
@@ -285,7 +344,23 @@ export default function AvailableDeliveryScreen() {
             taking it, and can check the handover against it at the counter. */}
         {/* A Volao Mandao is judged by the errand itself: what to do, how much may have to be
             fronted, and what the service pays. There are no product lines to list. */}
-        {delivery.isMandao ? (
+        {/* A Volao Viaje: the customer is the load. Their note (if any) and the fare are all
+            there is to judge. */}
+        {delivery.isRide ? (
+          <View style={styles.payCard}>
+            <Text style={styles.payLabel}>{tx.rideLabel}</Text>
+            <Text style={styles.mandaoText}>{delivery.notes || tx.rideNoNote}</Text>
+            {delivery.orderDeliveryFee != null ? (
+              <>
+                <View style={styles.payRule} />
+                <View style={styles.lineRow}>
+                  <Text style={[styles.payLabel, { flex: 1 }]}>{tx.rideFare}</Text>
+                  <Text style={styles.payValue}>{money(delivery.orderDeliveryFee)}</Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+        ) : delivery.isMandao ? (
           <View style={styles.payCard}>
             <Text style={styles.payLabel}>{tx.mandaoLabel}</Text>
             <Text style={styles.mandaoText}>{delivery.notes}</Text>
@@ -353,12 +428,12 @@ export default function AvailableDeliveryScreen() {
 
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>{delivery.isMandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{delivery.isRide ? tx.ridePickupKind : delivery.isMandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
             <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
-              {delivery.pickupAddress || delivery.pickupLatitude != null ? (
-                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.isMandao ? tx.mandaoGoTitle : (delivery.pickupName ?? tx.pickupTitle) })}>
+              {!delivery.isRide && (delivery.pickupAddress || delivery.pickupLatitude != null) ? (
+                <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.pickupLatitude, lng: delivery.pickupLongitude, address: delivery.pickupAddress, title: delivery.isRide ? tx.ridePickupTitle : delivery.isMandao ? tx.mandaoGoTitle : (delivery.pickupName ?? tx.pickupTitle) })}>
                   <Text style={styles.smallBtnText}>{tx.mapBtn}</Text>
                 </Pressable>
               ) : null}
@@ -372,11 +447,11 @@ export default function AvailableDeliveryScreen() {
         ) : null}
 
         <View style={[styles.stopCard, { borderLeftColor: '#16a34a' }]}>
-          <Text style={[styles.stopKind, { color: '#15803d' }]}>{tx.deliverKind}</Text>
+          <Text style={[styles.stopKind, { color: '#15803d' }]}>{delivery.isRide ? tx.rideDestinationKind : tx.deliverKind}</Text>
           <Text style={styles.stopName}>{delivery.recipientName ?? tx.client}</Text>
           <Text style={styles.stopAddress}>{delivery.addressLine ?? tx.noAddress}{delivery.city ? `, ${delivery.city}` : ''}</Text>
           <View style={styles.stopActions}>
-            {delivery.latitude != null || delivery.addressLine ? (
+            {!delivery.isRide && (delivery.latitude != null || delivery.addressLine) ? (
               <Pressable style={styles.smallBtn} onPress={() => openMap({ lat: delivery.latitude, lng: delivery.longitude, address: delivery.addressLine, title: delivery.recipientName ?? tx.deliverTitle })}>
                 <Text style={styles.smallBtnText}>{tx.mapBtn}</Text>
               </Pressable>
@@ -387,11 +462,19 @@ export default function AvailableDeliveryScreen() {
               moment the job is actually theirs. */}
         </View>
 
-        {/* On a Mandao the notes ARE the errand, already shown at the top. */}
-        {delivery.notes && !delivery.isMandao ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
+        {delivery.isRide && (delivery.pickupLatitude != null || delivery.pickupAddress)
+          && (delivery.latitude != null || delivery.addressLine) ? (
+          <Pressable style={styles.routeBtn} onPress={openRideRoute}>
+            <Text style={styles.routeBtnText}>{tx.rideRouteBtn}</Text>
+          </Pressable>
+        ) : null}
+
+        {/* On a Mandao the notes ARE the errand, and on a ride the rider's note -- both already
+            shown at the top. */}
+        {delivery.notes && !delivery.isMandao && !delivery.isRide ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
 
         <Pressable style={[styles.action, styles.success]} disabled={taking} onPress={take}>
-          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{delivery.isMandao ? tx.mandaoTake : tx.take}</Text>}
+          {taking ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{delivery.isRide ? tx.rideTake : delivery.isMandao ? tx.mandaoTake : tx.take}</Text>}
         </Pressable>
         <Text style={styles.hint}>{tx.takeHint}</Text>
       </ScrollView>
@@ -432,6 +515,8 @@ const styles = StyleSheet.create({
   stopActions: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   smallBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   smallBtnText: { color: t.text, fontWeight: '700', fontSize: 13 },
+  routeBtn: { backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  routeBtnText: { color: t.text, fontWeight: '800', fontSize: 15 },
   notes: { fontSize: 14, color: t.textMuted },
   action: { borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   primary: { backgroundColor: '#0b2a6b', borderWidth: 1, borderColor: t.border },

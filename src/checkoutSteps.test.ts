@@ -1,4 +1,15 @@
-import { MANDAO_STEPS, STEP_TITLES, mandaoStepTitles, stepsFor } from './checkoutSteps';
+import { MANDAO_STEPS, RIDE_STEPS, STEP_TITLES, mandaoStepTitles, rideStepTitles, stepsFor } from './checkoutSteps';
+
+describe('Volao Viaje steps', () => {
+  it('asks where you are, then where you are going, then reviews', () => {
+    expect(RIDE_STEPS).toEqual(['pickup', 'destination', 'details', 'summary']);
+  });
+
+  it('has a title for every step', () => {
+    const titles = rideStepTitles();
+    for (const key of RIDE_STEPS) expect(titles[key]).toBeTruthy();
+  });
+});
 
 describe('Volao Mandao steps', () => {
   // What to do comes first: the errand decides where the driver goes, not the other way around.

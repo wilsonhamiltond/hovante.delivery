@@ -55,6 +55,22 @@ export function mandaoStepTitles(): Record<MandaoStepKey, string> {
   return strings(M);
 }
 
+// Volao Viaje's wizard: where we collect you, where you are going, how you pay and what the
+// driver should know, review. No "what you need" step -- the customer is the cargo.
+export type RideStepKey = 'pickup' | 'destination' | 'details' | 'summary';
+
+export const RIDE_STEPS: RideStepKey[] = ['pickup', 'destination', 'details', 'summary'];
+
+const R: Record<Locale, Record<RideStepKey, string>> = {
+  es: { pickup: 'Dónde estás', destination: 'A dónde vas', details: 'Detalles', summary: 'Resumen' },
+  en: { pickup: 'Where you are', destination: 'Where to', details: 'Details', summary: 'Summary' },
+  fr: { pickup: 'Où vous êtes', destination: 'Où aller', details: 'Détails', summary: 'Récapitulatif' },
+};
+
+export function rideStepTitles(): Record<RideStepKey, string> {
+  return strings(R);
+}
+
 // Details come before the location so the mode is known before the map. Only a delivery has
 // somewhere to be delivered to, so pickup drops the location step and runs in four: making someone
 // collecting at the counter pin a delivery address asks for something the order never uses.

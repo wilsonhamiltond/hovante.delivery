@@ -63,6 +63,8 @@ const S: Record<
     mandaoTitle: string;
     mandaoSub: string;
     mandaoCta: string;
+    rideTitle: string;
+    rideSub: string;
     currentOrders: string;
     merchant: string;
     deliveryFee: (amount: string) => string;
@@ -101,6 +103,8 @@ const S: Record<
     mandaoTitle: 'Volao Mandao',
     mandaoSub: '¿Necesitas algo? Volao te lo busca.',
     mandaoCta: 'Pedir',
+    rideTitle: 'Volao Viaje',
+    rideSub: '¿Vas para algún lado? Te llevamos.',
     currentOrders: 'Tus pedidos en curso',
     merchant: 'Comercio',
     deliveryFee: (amount) => `Envío ${amount}`,
@@ -138,6 +142,8 @@ const S: Record<
     mandaoTitle: 'Volao Mandao',
     mandaoSub: 'Need something? Volao gets it for you.',
     mandaoCta: 'Request',
+    rideTitle: 'Volao Viaje',
+    rideSub: 'Going somewhere? We take you.',
     currentOrders: 'Your orders in progress',
     merchant: 'Merchant',
     deliveryFee: (amount) => `Delivery ${amount}`,
@@ -175,6 +181,8 @@ const S: Record<
     mandaoTitle: 'Volao Mandao',
     mandaoSub: 'Besoin de quelque chose ? Volao s’en charge.',
     mandaoCta: 'Demander',
+    rideTitle: 'Volao Viaje',
+    rideSub: 'Vous allez quelque part ? On vous emmène.',
     currentOrders: 'Vos commandes en cours',
     merchant: 'Commerce',
     deliveryFee: (amount) => `Livraison ${amount}`,
@@ -526,6 +534,23 @@ export function ClientHome({ profile }: { profile: Me | null }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.mandaoTitle}>{tx.mandaoTitle}</Text>
             <Text style={styles.mandaoSub}>{tx.mandaoSub}</Text>
+          </View>
+          <View style={styles.mandaoCta}>
+            <Text style={styles.mandaoCtaText}>{tx.mandaoCta}</Text>
+          </View>
+        </Pressable>
+
+        {/* Volao Viaje: a driver takes the customer themselves somewhere. Same card, same rules --
+            a guest sees the price and signs in to request. */}
+        <Pressable
+          style={({ pressed }) => [styles.mandaoCard, styles.rideCard, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push('/viaje')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.mandaoEmoji}>🏍️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mandaoTitle}>{tx.rideTitle}</Text>
+            <Text style={styles.mandaoSub}>{tx.rideSub}</Text>
           </View>
           <View style={styles.mandaoCta}>
             <Text style={styles.mandaoCtaText}>{tx.mandaoCta}</Text>
@@ -1006,6 +1031,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginTop: 14, padding: 14,
     backgroundColor: t.cardStrong, borderWidth: 1, borderColor: t.border, borderRadius: 16,
   },
+  rideCard: { marginTop: 10 },
   mandaoEmoji: { fontSize: 32 },
   mandaoTitle: { fontSize: 16, fontWeight: '900', color: t.text },
   mandaoSub: { fontSize: 12, fontWeight: '600', color: t.textMuted, marginTop: 2 },

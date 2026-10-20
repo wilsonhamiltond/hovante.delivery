@@ -37,7 +37,9 @@ const AUTH_ROUTES = [
 // lands on /login below. The cart is browsable too -- it lives on the device; only PLACING the
 // order is account-based, and the cart screen gates that step itself. Volao Mandao likewise: a
 // guest may read what it is, and the screen asks them to sign in before the first step is left.
-const GUEST_ROUTES = ['home', 'explore', 'cart', 'mandao'];
+// Volao Viaje too, one step further: a guest may pin both ends and see the price, and is asked
+// to sign in only when requesting the ride.
+const GUEST_ROUTES = ['home', 'explore', 'cart', 'mandao', 'viaje'];
 
 function RootNavigator() {
   const { token, loading, profileComplete } = useAuth();

@@ -1,4 +1,14 @@
-import { deliveryFeeRd, mandaoFeeRd } from './deliveryFee';
+import { deliveryFeeRd, mandaoFeeRd, rideFeeRd } from './deliveryFee';
+
+describe('rideFeeRd', () => {
+  // No surcharge: a ride bills the route alone, so it is always RD$50 under the same-distance Mandao.
+  it('is the plain delivery tariff, with no charge for the driver\'s time', () => {
+    expect(rideFeeRd(0)).toBe(50);
+    expect(rideFeeRd(2000)).toBe(90);
+    expect(rideFeeRd(6000)).toBe(160);
+    expect(mandaoFeeRd(6000) - rideFeeRd(6000)).toBe(50);
+  });
+});
 
 describe('mandaoFeeRd', () => {
   it('is the delivery tariff plus the RD$50 Mandao charge', () => {

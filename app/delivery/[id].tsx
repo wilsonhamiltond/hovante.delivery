@@ -85,6 +85,20 @@ const S: Record<
     mandaoSpentHint: (max: string) => string;
     mandaoSpentPlaceholder: string;
     mandaoToCollect: (amount: string) => string;
+    rideLabel: string;
+    rideNoNote: string;
+    rideAssigned: string;
+    rideInTransit: string;
+    rideFare: string;
+    ridePickupKind: string;
+    ridePickupTitle: string;
+    rideDestinationKind: string;
+    rideDestination: string;
+    rideCollected: string;
+    rideCollectedHint: string;
+    rideMarkDelivered: string;
+    rideCodeHint: string;
+    rideConfirm: string;
   }
 > = {
   es: {
@@ -147,6 +161,20 @@ const S: Record<
     mandaoSpentHint: (max) => `Lo que pagaste por el cliente (0 si no compraste nada). Máximo ${max}.`,
     mandaoSpentPlaceholder: 'Ej: 750',
     mandaoToCollect: (amount) => `A cobrar al cliente: ${amount}`,
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideNoNote: 'Recoge al cliente y llévalo a su destino.',
+    rideAssigned: 'Ir a recoger al pasajero',
+    rideInTransit: 'En viaje al destino',
+    rideFare: 'TARIFA A COBRAR',
+    ridePickupKind: '1 · RECOGER PASAJERO',
+    ridePickupTitle: 'Recoger pasajero',
+    rideDestinationKind: '2 · LLEVAR A',
+    rideDestination: 'Destino',
+    rideCollected: 'Pasajero a bordo',
+    rideCollectedHint: 'Confírmalo cuando el cliente esté contigo: la ruta pasa entonces a su destino.',
+    rideMarkDelivered: 'Llegamos al destino',
+    rideCodeHint: 'Pídele al pasajero su código de 4 dígitos para terminar el viaje.',
+    rideConfirm: 'Terminar viaje',
   },
   en: {
     status: {
@@ -208,6 +236,20 @@ const S: Record<
     mandaoSpentHint: (max) => `What you paid for the customer (0 if you bought nothing). Maximum ${max}.`,
     mandaoSpentPlaceholder: 'E.g.: 750',
     mandaoToCollect: (amount) => `To collect from the customer: ${amount}`,
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideNoNote: 'Pick the customer up and take them to their destination.',
+    rideAssigned: 'Go pick up the passenger',
+    rideInTransit: 'Riding to the destination',
+    rideFare: 'FARE TO COLLECT',
+    ridePickupKind: '1 · PICK UP PASSENGER',
+    ridePickupTitle: 'Pick up passenger',
+    rideDestinationKind: '2 · TAKE TO',
+    rideDestination: 'Destination',
+    rideCollected: 'Passenger on board',
+    rideCollectedHint: 'Confirm it once the customer is with you: the route then switches to their destination.',
+    rideMarkDelivered: 'We arrived',
+    rideCodeHint: 'Ask the passenger for their 4-digit code to end the trip.',
+    rideConfirm: 'End trip',
   },
   fr: {
     status: {
@@ -269,6 +311,20 @@ const S: Record<
     mandaoSpentHint: (max) => `Ce que vous avez payé pour le client (0 si rien acheté). Maximum ${max}.`,
     mandaoSpentPlaceholder: 'Ex. : 750',
     mandaoToCollect: (amount) => `À encaisser auprès du client : ${amount}`,
+    rideLabel: '🏍️ VOLAO VIAJE',
+    rideNoNote: 'Prenez le client et emmenez-le à destination.',
+    rideAssigned: 'Aller chercher le passager',
+    rideInTransit: 'En route vers la destination',
+    rideFare: 'TARIF À ENCAISSER',
+    ridePickupKind: '1 · PRENDRE LE PASSAGER',
+    ridePickupTitle: 'Prendre le passager',
+    rideDestinationKind: '2 · EMMENER À',
+    rideDestination: 'Destination',
+    rideCollected: 'Passager à bord',
+    rideCollectedHint: 'Confirmez-le quand le client est avec vous : l’itinéraire passe alors à sa destination.',
+    rideMarkDelivered: 'Nous sommes arrivés',
+    rideCodeHint: 'Demandez au passager son code à 4 chiffres pour terminer le trajet.',
+    rideConfirm: 'Terminer le trajet',
   },
 };
 
@@ -325,7 +381,7 @@ export default function DeliveryDetail() {
     lat: delivery?.latitude,
     lng: delivery?.longitude,
     address: delivery?.addressLine,
-    title: delivery?.recipientName ?? tx.deliverTitle,
+    title: delivery?.isRide ? tx.rideDestination : (delivery?.recipientName ?? tx.deliverTitle),
     img: delivery?.customerImageUrl,
   });
   // The pickup now opens on the merchant's own pin when its office has one, exactly like the
@@ -334,7 +390,7 @@ export default function DeliveryDetail() {
     lat: delivery?.pickupLatitude,
     lng: delivery?.pickupLongitude,
     address: delivery?.pickupAddress,
-    title: delivery?.isMandao ? tx.mandaoGoTitle : (delivery?.pickupName ?? tx.pickupTitle),
+    title: delivery?.isRide ? tx.ridePickupTitle : delivery?.isMandao ? tx.mandaoGoTitle : (delivery?.pickupName ?? tx.pickupTitle),
     img: delivery?.pickupImageUrl,
   });
   const call = (phone?: string | null) => { if (phone) Linking.openURL(`tel:${phone}`); };
@@ -383,8 +439,13 @@ export default function DeliveryDetail() {
   }
 
   const mandao = !!delivery.isMandao;
+  // A Volao Viaje: the passenger is collected at the pickup and set down at the destination.
+  const ride = !!delivery.isRide;
   const s = {
-    label: mandao && delivery.status === 'ASSIGNED' ? tx.mandaoAssigned : (tx.status[delivery.status] ?? delivery.status),
+    label: ride && delivery.status === 'ASSIGNED' ? tx.rideAssigned
+      : ride && delivery.status === 'IN_TRANSIT' ? tx.rideInTransit
+      : mandao && delivery.status === 'ASSIGNED' ? tx.mandaoAssigned
+      : (tx.status[delivery.status] ?? delivery.status),
     color: STATUS_COLORS[delivery.status] ?? '#64748b',
   };
   // The Mandao handover needs what was spent (0 is a valid answer) on top of the code.
@@ -399,7 +460,7 @@ export default function DeliveryDetail() {
   // Who the driver rates back: the customer, and the merchant when there is one.
   const rateTargets = [
     { role: 'customer' as const, name: delivery.recipientName },
-    ...(mandao ? [] : [{ role: 'merchant' as const, name: delivery.pickupName }]),
+    ...(mandao || ride ? [] : [{ role: 'merchant' as const, name: delivery.pickupName }]),
   ];
   // Still on the way to the office, so the outstanding action is collecting the order there. The
   // 'start' transition IS the collection: it is what moves the delivery onto the client leg.
@@ -433,7 +494,16 @@ export default function DeliveryDetail() {
             out so the number is explained. Hidden on deliveries with no order amounts. */}
         {/* A Volao Mandao: the errand first, then what it pays -- the service fee, plus whatever
             the driver fronts for the customer, declared at the handover. */}
-        {mandao ? (
+        {/* A Volao Viaje: the rider's note (if any), then the fare -- the whole price. */}
+        {ride ? (
+          <View style={styles.payCard}>
+            <Text style={styles.payLabel}>{tx.rideLabel}</Text>
+            <Text style={styles.mandaoText}>{delivery.notes || tx.rideNoNote}</Text>
+            <View style={styles.payRule} />
+            <Text style={styles.payLabel}>{tx.rideFare}</Text>
+            <Text style={styles.payValue}>{money(delivery.orderDeliveryFee ?? 0)}</Text>
+          </View>
+        ) : mandao ? (
           <View style={styles.payCard}>
             <Text style={styles.payLabel}>{tx.mandaoLabel}</Text>
             <Text style={styles.mandaoText}>{delivery.notes}</Text>
@@ -459,8 +529,9 @@ export default function DeliveryDetail() {
         {/* Pickup: where the driver collects the order (merchant). */}
         {delivery.pickupName || delivery.pickupAddress ? (
           <View style={[styles.stopCard, { borderLeftColor: '#f59e0b' }]}>
-            <Text style={[styles.stopKind, { color: '#b45309' }]}>{mandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
-            <Text style={styles.stopName}>{delivery.pickupName ?? tx.merchant}</Text>
+            <Text style={[styles.stopKind, { color: '#b45309' }]}>{ride ? tx.ridePickupKind : mandao ? tx.mandaoGoKind : tx.pickupKind}</Text>
+            {/* On a ride the pickup IS the customer, so it wears their name. */}
+            <Text style={styles.stopName}>{ride ? (delivery.recipientName ?? tx.client) : (delivery.pickupName ?? tx.merchant)}</Text>
             {delivery.pickupAddress ? <Text style={styles.stopAddress}>{delivery.pickupAddress}</Text> : null}
             <View style={styles.stopActions}>
               {/* A pin is enough on its own: an office that has been geocoded but never had its
@@ -469,14 +540,15 @@ export default function DeliveryDetail() {
                 <Pressable style={styles.smallBtn} onPress={openMapPickup}><Text style={styles.smallBtnText}>{tx.mapBtn}</Text></Pressable>
               ) : null}
               {delivery.pickupPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.pickupPhone)}><Text style={styles.smallBtnText}>📞 {delivery.pickupPhone}</Text></Pressable> : null}
+              {ride && delivery.clientPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.clientPhone)}><Text style={styles.smallBtnText}>📞 {delivery.clientPhone}</Text></Pressable> : null}
             </View>
           </View>
         ) : null}
 
         {/* Delivery: where the driver drops it off (client). */}
         <View style={[styles.stopCard, { borderLeftColor: '#16a34a' }]}>
-          <Text style={[styles.stopKind, { color: '#15803d' }]}>{tx.deliverKind}</Text>
-          <Text style={styles.stopName}>{delivery.recipientName ?? tx.client}</Text>
+          <Text style={[styles.stopKind, { color: '#15803d' }]}>{ride ? tx.rideDestinationKind : tx.deliverKind}</Text>
+          <Text style={styles.stopName}>{ride ? tx.rideDestination : (delivery.recipientName ?? tx.client)}</Text>
           <Text style={styles.stopAddress}>{delivery.addressLine ?? tx.noAddress}{delivery.city ? `, ${delivery.city}` : ''}</Text>
           <View style={styles.stopActions}>
             {/* One handler for both cases: openMapCoords already sends the address alongside the
@@ -485,7 +557,7 @@ export default function DeliveryDetail() {
             {delivery.latitude != null || delivery.addressLine ? (
               <Pressable style={styles.smallBtn} onPress={openMapCoords}><Text style={styles.smallBtnText}>{tx.mapBtn}</Text></Pressable>
             ) : null}
-            {delivery.clientPhone ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.clientPhone)}><Text style={styles.smallBtnText}>📞 {delivery.clientPhone}</Text></Pressable> : null}
+            {delivery.clientPhone && !ride ? <Pressable style={styles.smallBtn} onPress={() => call(delivery.clientPhone)}><Text style={styles.smallBtnText}>📞 {delivery.clientPhone}</Text></Pressable> : null}
           </View>
         </View>
 
@@ -494,8 +566,9 @@ export default function DeliveryDetail() {
           {eta ? <Text style={styles.routeEta}>{tx.etaLabel(formatEta(eta))}</Text> : null}
         </Pressable>
 
-        {/* On a Mandao the notes ARE the errand, already shown at the top. */}
-        {delivery.notes && !mandao ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
+        {/* On a Mandao the notes ARE the errand, and on a ride the rider's note -- both already
+            shown at the top. */}
+        {delivery.notes && !mandao && !ride ? <Text style={styles.notes}>{tx.notePrefix}{delivery.notes}</Text> : null}
         {finished && delivery.receiverName ? <Text style={styles.notes}>{tx.receivedByPrefix}{delivery.receiverName}</Text> : null}
         {finished && delivery.failureReason ? <Text style={styles.notes}>{tx.reasonPrefix}{delivery.failureReason}</Text> : null}
 
@@ -524,15 +597,15 @@ export default function DeliveryDetail() {
         {canCollect ? (
           <View style={{ gap: 6 }}>
             <Pressable style={[styles.action, styles.primary]} disabled={busy} onPress={() => runAction((key) => ({ key, deliveryId: delivery.id, type: 'start', createdAt: new Date().toISOString() }))}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{mandao ? tx.mandaoCollected : tx.collected}</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{ride ? tx.rideCollected : mandao ? tx.mandaoCollected : tx.collected}</Text>}
             </Pressable>
-            <Text style={styles.panelHint}>{mandao ? tx.mandaoCollectedHint : tx.collectedHint}</Text>
+            <Text style={styles.panelHint}>{ride ? tx.rideCollectedHint : mandao ? tx.mandaoCollectedHint : tx.collectedHint}</Text>
           </View>
         ) : null}
 
         {canFinish && panel === 'none' ? (
           <View style={{ gap: 10 }}>
-            <Pressable style={[styles.action, styles.success]} onPress={() => setPanel('deliver')}><Text style={styles.actionText}>{tx.markDelivered}</Text></Pressable>
+            <Pressable style={[styles.action, styles.success]} onPress={() => setPanel('deliver')}><Text style={styles.actionText}>{ride ? tx.rideMarkDelivered : tx.markDelivered}</Text></Pressable>
             <Pressable style={[styles.action, styles.danger]} onPress={() => setPanel('fail')}><Text style={styles.actionText}>{tx.markFailed}</Text></Pressable>
           </View>
         ) : null}
@@ -560,7 +633,7 @@ export default function DeliveryDetail() {
               </>
             ) : null}
             <Text style={styles.panelTitle}>{tx.codeTitle}</Text>
-            <Text style={styles.panelHint}>{tx.codeHint}</Text>
+            <Text style={styles.panelHint}>{ride ? tx.rideCodeHint : tx.codeHint}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholder="••••"
@@ -579,7 +652,7 @@ export default function DeliveryDetail() {
               }}
             />
             <Pressable style={[styles.action, styles.success, !canConfirm && styles.disabled]} disabled={busy || !canConfirm} onPress={() => runAction(deliverItem, true)}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{tx.confirmDelivery}</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionText}>{ride ? tx.rideConfirm : tx.confirmDelivery}</Text>}
             </Pressable>
             <Pressable onPress={() => { setPanel('none'); setCode(''); }}><Text style={styles.cancel}>{tx.cancel}</Text></Pressable>
           </View>

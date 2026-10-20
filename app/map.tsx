@@ -49,7 +49,7 @@ const S: Record<
 export default function MapScreen() {
   const router = useRouter();
   const tx = useStrings(S);
-  const { lat, lng, address, title, img, me, olat, olng, oaddress, otitle, oimg } = useLocalSearchParams<{
+  const { lat, lng, address, title, img, me, olat, olng, oaddress, otitle, oimg, olabel } = useLocalSearchParams<{
     lat?: string; lng?: string; address?: string; title?: string;
     /** The face for the destination pin (the customer's photo). Optional; a pin without one keeps
      *  its numbered teardrop. */
@@ -61,6 +61,9 @@ export default function MapScreen() {
     // The other end of the route, when there is one: the merchant's branch. Optional -- without it
     // this stays the single-pin map it has always been.
     olat?: string; olng?: string; oaddress?: string; otitle?: string; oimg?: string;
+    /** The emoji on the origin pin. Defaults to the shop front, since the origin is the merchant
+     *  on every delivery; a ride starts at a person instead and says so. */
+    olabel?: string;
   }>();
 
   const toNum = (v?: string) => {
@@ -105,7 +108,7 @@ export default function MapScreen() {
             <RouteMap
               pickup={hasOrigin
                 ? {
-                  ...origin, label: '🏪', title: otitle || tx.merchant, color: '#0b2a6b',
+                  ...origin, label: olabel || '🏪', title: otitle || tx.merchant, color: '#0b2a6b',
                   imageUrl: oimg ?? null,
                 }
                 : { lat: null, lng: null, address: null, label: '', title: '', color: '#16a34a' }}

@@ -34,6 +34,9 @@ const S: Record<
     mandaoAssigned: string;
     mandaoInTransit: string;
     mandaoDelivered: string;
+    rideAssigned: string;
+    rideInTransit: string;
+    rideDelivered: string;
   }
 > = {
   es: {
@@ -52,6 +55,9 @@ const S: Record<
     mandaoAssigned: 'Conductor asignado',
     mandaoInTransit: 'Haciendo tu mandado',
     mandaoDelivered: 'Mandado completado',
+    rideAssigned: 'Conductor en camino',
+    rideInTransit: 'En viaje',
+    rideDelivered: 'Viaje completado',
   },
   en: {
     cancelled: 'Cancelled',
@@ -69,6 +75,9 @@ const S: Record<
     mandaoAssigned: 'Driver assigned',
     mandaoInTransit: 'Running your errand',
     mandaoDelivered: 'Errand completed',
+    rideAssigned: 'Driver on the way',
+    rideInTransit: 'On your trip',
+    rideDelivered: 'Trip completed',
   },
   fr: {
     cancelled: 'Annulée',
@@ -86,6 +95,9 @@ const S: Record<
     mandaoAssigned: 'Chauffeur assigné',
     mandaoInTransit: 'Course en cours',
     mandaoDelivered: 'Course terminée',
+    rideAssigned: 'Chauffeur en route',
+    rideInTransit: 'En trajet',
+    rideDelivered: 'Trajet terminé',
   },
 };
 
@@ -99,6 +111,15 @@ export function orderStatusChip(o: Order, now: number = Date.now()): OrderStatus
       case 'DELIVERED': return { label: tx.mandaoDelivered, color: '#16a34a' };
       case 'IN_TRANSIT': return { label: tx.mandaoInTransit, color: '#0ea5e9' };
       case 'ASSIGNED': return { label: tx.mandaoAssigned, color: '#2563eb' };
+    }
+  }
+
+  // A Volao Viaje speaks of the trip: the customer is what is being carried.
+  if (o.kind === 'RIDE') {
+    switch (o.deliveryStatus) {
+      case 'DELIVERED': return { label: tx.rideDelivered, color: '#16a34a' };
+      case 'IN_TRANSIT': return { label: tx.rideInTransit, color: '#0ea5e9' };
+      case 'ASSIGNED': return { label: tx.rideAssigned, color: '#2563eb' };
     }
   }
 

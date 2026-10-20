@@ -29,6 +29,7 @@ const S: Record<
   {
     hello: (name: string) => string;
     pickupTitle: string;
+    noFixHint: string;
     deliverTitle: string;
     currentToOffice: (name: string) => string;
     currentToClient: (name: string) => string;
@@ -58,6 +59,7 @@ const S: Record<
   es: {
     hello: (name) => `¡Hola, ${name}! 🛵`,
     pickupTitle: 'Recoger',
+    noFixHint: '📍 Sin tu ubicación no podemos trazar la ruta hasta el punto de recogida. Toca para activarla.',
     deliverTitle: 'Entregar',
     currentToOffice: (name) => `Entrega en curso · recoge en ${name}`,
     currentToClient: (name) => `Entrega en curso · lleva el pedido a ${name}`,
@@ -87,6 +89,7 @@ const S: Record<
   en: {
     hello: (name) => `Hi, ${name}! 🛵`,
     pickupTitle: 'Pick up',
+    noFixHint: '📍 Without your location we cannot draw the route to the pickup. Tap to enable it.',
     deliverTitle: 'Deliver',
     currentToOffice: (name) => `Delivery in progress · pick up at ${name}`,
     currentToClient: (name) => `Delivery in progress · take the order to ${name}`,
@@ -116,6 +119,7 @@ const S: Record<
   fr: {
     hello: (name) => `Bonjour, ${name} ! 🛵`,
     pickupTitle: 'Récupérer',
+    noFixHint: '📍 Sans votre position, l’itinéraire vers le point de retrait ne peut pas s’afficher. Touchez pour l’activer.',
     deliverTitle: 'Livrer',
     currentToOffice: (name) => `Livraison en cours · récupérez chez ${name}`,
     currentToClient: (name) => `Livraison en cours · apportez la commande à ${name}`,
@@ -252,6 +256,13 @@ export function DriverHome({ profile }: { profile: Me | null }) {
       imageUrl: current.customerImageUrl,
     }) : null;
 
+  const [noFix, setNoFix] = useState(false);
+  useEffect(() => {
+    if (driver) { setNoFix(false); return; }
+    const timer = setTimeout(() => setNoFix(true), 6000);
+    return () => clearTimeout(timer);
+  }, [driver]);
+
   // "Entrega en camino": offered once the driver is AT the office (the 150 m arrival above).
   // Withheld only when we can actually tell they are elsewhere -- an office with no pin, or no
   // fix to compare against, cannot be fenced, and refusing the button there would strand the
@@ -371,6 +382,15 @@ export function DriverHome({ profile }: { profile: Me | null }) {
                 routeFromDriver
                 onPointPress={() => router.push(`/delivery/${current.id}`)}
               />
+              {noFix ? (
+                <Pressable
+                  style={styles.noFixBanner}
+                  onPress={() => { if (Platform.OS !== 'web') Linking.openSettings(); }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.noFixText}>{tx.noFixHint}</Text>
+                </Pressable>
+              ) : null}
               {/* At the counter, bag in hand: one tap says the ride to the client has begun. */}
               {canStartRide ? (
                 <Pressable
@@ -580,6 +600,11 @@ const styles = StyleSheet.create({
   // normal flow below it, so no clearance margin is needed.
   mapWrap: { flex: 1 },
   // Floats over the map's foot so the action is one thumb-reach away while the route stays visible.
+  noFixBanner: {
+    position: 'absolute', top: 12, left: 12, right: 12,
+    backgroundColor: 'rgba(220,38,38,0.92)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  noFixText: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 18 },
   startRideBtn: {
     position: 'absolute', left: 16, right: 16, bottom: 16,
     backgroundColor: '#16a34a', borderRadius: 12, paddingVertical: 15, alignItems: 'center',

@@ -222,6 +222,9 @@ export interface Delivery {
   // is the most the customer said the driver may spend for them. Absent on an older API.
   isMandao?: boolean;
   mandaoBudget?: number | null;
+  // Volao Viaje: a ride. The pickup is the customer themselves and the drop-off is where they are
+  // going; `notes` carries their optional note. Absent on an older API.
+  isRide?: boolean;
 }
 
 export interface DeliveryOrderItem {
@@ -583,14 +586,16 @@ export interface OrderLineInput {
 export interface Order {
   id: string;
   orderNumber: string;
-  // "ORDER" (a marketplace purchase) or "MANDAO" (a Volao Mandao errand). Absent on an older API,
-  // which only ever had marketplace orders -- read it through isMandao().
-  kind?: 'ORDER' | 'MANDAO';
-  // Null on a Mandao, which is bought from no merchant.
+  // "ORDER" (a marketplace purchase), "MANDAO" (a Volao Mandao errand) or "RIDE" (a Volao Viaje).
+  // Absent on an older API, which only ever had marketplace orders -- read it through isMandao() /
+  // isRide().
+  kind?: 'ORDER' | 'MANDAO' | 'RIDE';
+  // Null on a Mandao or a ride, which are bought from no merchant.
   merchantCompanyId: string | null;
   merchantName: string | null;
   // Volao Mandao only: what the customer asked for, the spending ceiling they set, what the
-  // driver actually spent (once delivered), and where the driver was sent.
+  // driver actually spent (once delivered), and where the driver was sent. On a ride the
+  // description is the rider's optional note and the pickup is where they are collected.
   mandaoDescription?: string | null;
   mandaoBudget?: number | null;
   mandaoSpentAmount?: number | null;
@@ -900,6 +905,10 @@ export function isMandao(o: Pick<Order, 'kind'> | null | undefined): boolean {
   return o?.kind === 'MANDAO';
 }
 
+export function isRide(o: Pick<Order, 'kind'> | null | undefined): boolean {
+  return o?.kind === 'RIDE';
+}
+
 // Whether any driver can take a job picked up at a point: present (reported a position recently)
 // AND eligible (allowed to see this merchant's orders). Both creation endpoints REFUSE when this
 // says no, so the screens ask first -- finding out after filling a cart is the bad version.
@@ -941,6 +950,29 @@ export interface CreateMandaoInput {
 
 export function createMandao(input: CreateMandaoInput) {
   return postAuth<Order>('/delivery/mandaos', input);
+}
+
+// "Volao Viaje": the customer asks a driver to pick them up and take them somewhere. Priced by
+// the server on distance alone (no errand surcharge); only the router's distance travels.
+export interface CreateRideInput {
+  // Where the driver collects the customer. The pin is required.
+  pickupAddress?: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  pickupReference?: string;
+  // Where they are going. The pin is required too.
+  address?: string;
+  latitude: number;
+  longitude: number;
+  // Anything the driver should know ("voy con una maleta").
+  note?: string;
+  deliveryDistanceM?: number;
+  // Cash: the bill the customer will pay with; must cover the fee.
+  cashPayWith?: number;
+}
+
+export function createRide(input: CreateRideInput) {
+  return postAuth<Order>('/delivery/rides', input);
 }
 
 // What the edit screen sends to change a still-PENDING order: the replacement lines, plus the

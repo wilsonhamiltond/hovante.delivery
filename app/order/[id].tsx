@@ -34,6 +34,14 @@ const S: Record<
     mandaoPending: string;
     mandaoCodeHint: string;
     cancelMandao: string;
+    rideStages: { title: string; sub: string }[];
+    rideHeadlines: string[];
+    rideFrom: string;
+    rideTo: string;
+    rideNote: string;
+    rideFare: string;
+    rideCodeHint: string;
+    cancelRide: string;
     notFound: string;
     ordersBack: string;
     trackingTitle: string;
@@ -122,6 +130,25 @@ const S: Record<
     mandaoPending: 'Se confirma al entregar',
     mandaoCodeHint: 'Dáselo al conductor cuando te entregue tu mandado',
     cancelMandao: 'Cancelar mandado',
+    // A Volao Viaje: requested, a driver comes for you, you ride, you arrive.
+    rideStages: [
+      { title: 'Viaje solicitado', sub: 'Buscamos un conductor cerca' },
+      { title: 'Conductor en camino', sub: 'Va a recogerte' },
+      { title: 'En viaje', sub: 'Vas camino a tu destino' },
+      { title: 'Llegaste', sub: 'Viaje completado' },
+    ],
+    rideHeadlines: [
+      'Buscando un conductor…',
+      'Tu conductor va a recogerte',
+      'Vas camino a tu destino 🏍️',
+      '¡Llegaste! 🎉',
+    ],
+    rideFrom: 'Te recogemos en',
+    rideTo: 'Destino',
+    rideNote: 'Nota para el conductor',
+    rideFare: 'Volao Viaje',
+    rideCodeHint: 'Dáselo al conductor al llegar a tu destino',
+    cancelRide: 'Cancelar viaje',
     notFound: 'Pedido no encontrado.',
     ordersBack: 'Pedidos',
     trackingTitle: 'Seguimiento',
@@ -203,6 +230,24 @@ const S: Record<
     mandaoPending: 'Confirmed on delivery',
     mandaoCodeHint: 'Give it to the driver when they deliver your errand',
     cancelMandao: 'Cancel errand',
+    rideStages: [
+      { title: 'Ride requested', sub: 'Finding a driver nearby' },
+      { title: 'Driver on the way', sub: 'Coming to pick you up' },
+      { title: 'On your trip', sub: 'Heading to your destination' },
+      { title: 'Arrived', sub: 'Trip completed' },
+    ],
+    rideHeadlines: [
+      'Finding a driver…',
+      'Your driver is coming to pick you up',
+      'On the way to your destination 🏍️',
+      'You arrived! 🎉',
+    ],
+    rideFrom: 'We pick you up at',
+    rideTo: 'Destination',
+    rideNote: 'Note for the driver',
+    rideFare: 'Volao Viaje',
+    rideCodeHint: 'Give it to the driver when you reach your destination',
+    cancelRide: 'Cancel ride',
     notFound: 'Order not found.',
     ordersBack: 'Orders',
     trackingTitle: 'Tracking',
@@ -284,6 +329,24 @@ const S: Record<
     mandaoPending: 'Confirmé à la livraison',
     mandaoCodeHint: 'Donnez-le au chauffeur quand il vous livre votre course',
     cancelMandao: 'Annuler la course',
+    rideStages: [
+      { title: 'Trajet demandé', sub: 'Nous cherchons un chauffeur proche' },
+      { title: 'Chauffeur en route', sub: 'Il vient vous chercher' },
+      { title: 'En trajet', sub: 'En route vers votre destination' },
+      { title: 'Arrivé', sub: 'Trajet terminé' },
+    ],
+    rideHeadlines: [
+      'Recherche d’un chauffeur…',
+      'Votre chauffeur vient vous chercher',
+      'En route vers votre destination 🏍️',
+      'Vous êtes arrivé ! 🎉',
+    ],
+    rideFrom: 'Nous vous prenons à',
+    rideTo: 'Destination',
+    rideNote: 'Note pour le chauffeur',
+    rideFare: 'Volao Viaje',
+    rideCodeHint: 'Donnez-le au chauffeur à l’arrivée',
+    cancelRide: 'Annuler le trajet',
     notFound: 'Commande introuvable.',
     ordersBack: 'Commandes',
     trackingTitle: 'Suivi',
@@ -341,8 +404,9 @@ function currentPickupPhase(orderStatus: string, deliveryStatus: string | null):
   return 0;
 }
 
-// A Volao Mandao's phase (indexes mandaoStages): the delivery alone drives it, since nobody
-// confirms or prepares an errand -- it sits in the pool until a driver takes it.
+// A Volao Mandao's phase (indexes mandaoStages, and rideStages for a Volao Viaje): the delivery
+// alone drives it, since nobody confirms or prepares either -- it sits in the pool until a driver
+// takes it.
 function currentMandaoPhase(deliveryStatus: string | null): number {
   if (deliveryStatus === 'DELIVERED') return 3;
   if (deliveryStatus === 'IN_TRANSIT') return 2;
@@ -433,10 +497,14 @@ export default function OrderTrackingScreen() {
   const pickup = !!order.pickupAtStore;
   // A Volao Mandao: no merchant, no products -- an errand from one pin to another.
   const mandao = api.isMandao(order);
-  const stages = mandao ? tx.mandaoStages : pickup ? tx.pickupStages : tx.stages;
+  // A Volao Viaje: the customer rides from the pickup pin to the destination.
+  const ride = api.isRide(order);
+  // Both have no merchant: the pool, not a counter, decides how far along they are.
+  const direct = mandao || ride;
+  const stages = ride ? tx.rideStages : mandao ? tx.mandaoStages : pickup ? tx.pickupStages : tx.stages;
   const failed = order.status === 'CANCELLED'
     || deliveryStatus === 'FAILED' || deliveryStatus === 'CANCELLED' || deliveryStatus === 'RETURNED';
-  const current = mandao
+  const current = direct
     ? currentMandaoPhase(deliveryStatus)
     : pickup
       ? currentPickupPhase(order.status, deliveryStatus)
@@ -446,14 +514,14 @@ export default function OrderTrackingScreen() {
   // so that stage fills and checks like every one before it.
   const journeyComplete = current >= stages.length - 1;
   // A timestamp per timeline step, in the journey's own order, so each stage shows when it happened.
-  const phaseStamps = mandao
+  const phaseStamps = direct
     ? [data.placedAt, data.assignedAt, data.inTransitAt, data.deliveredAt]
     : pickup
       ? [data.placedAt, data.confirmedAt, data.readyAt, data.deliveredAt]
       : [data.placedAt, data.confirmedAt, data.readyAt, data.assignedAt, data.inTransitAt, data.deliveredAt];
   const headline = failed
     ? (order.status === 'CANCELLED' ? tx.cancelledHeadline : deliveryStatus === 'FAILED' ? tx.failedHeadline : tx.returnedHeadline)
-    : (mandao ? tx.mandaoHeadlines : pickup ? tx.pickupHeadlines : tx.headlines)[current];
+    : (ride ? tx.rideHeadlines : mandao ? tx.mandaoHeadlines : pickup ? tx.pickupHeadlines : tx.headlines)[current];
   // Show the confirmation code until the order is delivered (or terminal): the customer reads it to
   // the driver at the door -- or shows it at the counter -- to confirm receipt.
   const showCode = !!deliveryCode && deliveryStatus !== 'DELIVERED' && order.status !== 'DELIVERED' && !failed;
@@ -476,7 +544,7 @@ export default function OrderTrackingScreen() {
   // the queue they declared still runs. The server re-checks both, so a window closing mid-tap is
   // refused there rather than half-applied here.
   // A Mandao is cancellable until a driver takes it (its delivery is still in the pool).
-  const canCancel = !failed && (mandao
+  const canCancel = !failed && (direct
     ? (deliveryStatus === 'PENDING' || deliveryStatus == null)
     : (order.status === 'PENDING' || inQueue));
 
@@ -495,7 +563,7 @@ export default function OrderTrackingScreen() {
   // other. Until the branches have loaded (or when none of them has ever been geocoded) this stays
   // the single-pin map it was, rather than opening with half a route.
   // A Mandao's other end is the place the customer sent the driver to, not a branch.
-  const mandaoOrigin = mandao && order.pickupLatitude != null && order.pickupLongitude != null;
+  const mandaoOrigin = direct && order.pickupLatitude != null && order.pickupLongitude != null;
   const openMap = () => router.push({
     pathname: '/map',
     params: {
@@ -508,7 +576,7 @@ export default function OrderTrackingScreen() {
       ...(mandaoOrigin ? {
         olat: String(order.pickupLatitude),
         olng: String(order.pickupLongitude),
-        otitle: order.pickupAddress || tx.mandaoGoTo,
+        otitle: order.pickupAddress || (ride ? tx.rideFrom : tx.mandaoGoTo),
         ...(order.pickupAddress ? { oaddress: order.pickupAddress } : {}),
       } : {}),
       ...(office ? {
@@ -518,7 +586,7 @@ export default function OrderTrackingScreen() {
         ...(office.address ? { oaddress: office.address } : {}),
         ...(order.merchantImageUrl ? { oimg: order.merchantImageUrl } : {}),
       } : {}),
-      title: office || mandaoOrigin ? tx.yourAddress : tx.deliverAt,
+      title: ride ? tx.rideTo : office || mandaoOrigin ? tx.yourAddress : tx.deliverAt,
     },
   });
 
@@ -552,7 +620,9 @@ export default function OrderTrackingScreen() {
             <Text style={styles.codeLabel}>{tx.codeLabel}</Text>
             <Text style={styles.codeValue}>{deliveryCode}</Text>
             <Text style={styles.codeHint}>
-              {mandao
+              {ride
+                ? tx.rideCodeHint
+                : mandao
                 ? tx.mandaoCodeHint
                 : pickup
                   ? tx.codeHintPickup
@@ -590,7 +660,19 @@ export default function OrderTrackingScreen() {
 
         {/* Order details */}
         <View style={styles.card}>
-          {mandao ? (
+          {ride ? (
+            <>
+              {/* Where they are collected, and anything they told the driver. */}
+              <Text style={styles.label}>{tx.rideFrom}</Text>
+              <Text style={styles.value}>🙋 {order.pickupAddress ?? tx.noAddress}</Text>
+              {order.mandaoDescription ? (
+                <>
+                  <Text style={styles.label}>{tx.rideNote}</Text>
+                  <Text style={styles.value}>{order.mandaoDescription}</Text>
+                </>
+              ) : null}
+            </>
+          ) : mandao ? (
             <>
               {/* The errand, in the customer's words, and where the driver was sent. */}
               <Text style={styles.label}>{tx.mandaoLabel}</Text>
@@ -604,7 +686,7 @@ export default function OrderTrackingScreen() {
               <Text style={styles.value}>{order.merchantName}</Text>
             </>
           )}
-          <Text style={styles.label}>{pickup ? tx.pickUpAt : tx.deliverAt}</Text>
+          <Text style={styles.label}>{ride ? tx.rideTo : pickup ? tx.pickUpAt : tx.deliverAt}</Text>
           <View style={styles.addressRow}>
             <Text style={[styles.value, { flex: 1 }]}>
               {pickup
@@ -618,8 +700,8 @@ export default function OrderTrackingScreen() {
             ) : null}
           </View>
           {deliveryCode ? (<><Text style={styles.label}>{tx.codeLabel}</Text><Text style={styles.value}>{deliveryCode}</Text></>) : null}
-          {/* On a Mandao the notes are the pickup landmark, already folded into the address. */}
-          {order.notes && !mandao ? (<><Text style={styles.label}>{tx.noteLabel}</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
+          {/* On a Mandao or ride the notes are the pickup landmark, already folded into the address. */}
+          {order.notes && !direct ? (<><Text style={styles.label}>{tx.noteLabel}</Text><Text style={styles.value}>{order.notes}</Text></>) : null}
         </View>
 
         {/* The conversation with the merchant and the driver: ask about the order, hear about
@@ -633,8 +715,8 @@ export default function OrderTrackingScreen() {
           <OrderRatingCard
             orderId={order.id}
             targets={[
-              // A Mandao has no shop to rate -- only the driver who ran it.
-              ...(mandao ? [] : [{ role: 'merchant' as const, name: order.merchantName }]),
+              // A Mandao or ride has no shop to rate -- only the driver.
+              ...(direct ? [] : [{ role: 'merchant' as const, name: order.merchantName }]),
               ...(driverName ? [{ role: 'driver' as const, name: driverName }] : []),
             ]}
             style={styles.messagesCard}
@@ -649,7 +731,15 @@ export default function OrderTrackingScreen() {
           </View>
         ) : null}
 
-        {mandao ? (
+        {ride ? (
+          // A ride's cost is its fare, and nothing else.
+          <View style={styles.card}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{tx.rideFare}</Text>
+              <Text style={styles.totalValue}>{order.deliveryFee != null ? money(order.deliveryFee) : '—'}</Text>
+            </View>
+          </View>
+        ) : mandao ? (
           // The Mandao's costs: the service fee, and what the driver spent -- a ceiling until the
           // handover, the real amount after it (which is then the order's total).
           <View style={styles.card}>
@@ -715,7 +805,7 @@ export default function OrderTrackingScreen() {
         {/* Modify: only while the merchant has not confirmed (PENDING) -- narrower than cancel,
             which also rides the declared queue. Opens the edit screen; a window closing mid-edit
             is refused by the server rather than half-applied here. */}
-        {order.status === 'PENDING' && !failed && !mandao ? (
+        {order.status === 'PENDING' && !failed && !direct ? (
           <Pressable style={styles.editBtn} onPress={() => router.push(`/edit-order/${order.id}`)}>
             <Text style={styles.editBtnText}>{tx.modifyOrder}</Text>
           </Pressable>
@@ -725,8 +815,8 @@ export default function OrderTrackingScreen() {
             which collects the reason before anything happens; the moment the merchant confirms,
             the button disappears on the next poll and the server refuses stragglers anyway. */}
         {canCancel ? (
-          <Pressable style={styles.cancelBtn} onPress={() => router.push(mandao ? `/cancel-order/${order.id}?mandao=1` : `/cancel-order/${order.id}`)}>
-            <Text style={styles.cancelBtnText}>{mandao ? tx.cancelMandao : tx.cancelOrder}</Text>
+          <Pressable style={styles.cancelBtn} onPress={() => router.push(ride ? `/cancel-order/${order.id}?ride=1` : mandao ? `/cancel-order/${order.id}?mandao=1` : `/cancel-order/${order.id}`)}>
+            <Text style={styles.cancelBtnText}>{ride ? tx.cancelRide : mandao ? tx.cancelMandao : tx.cancelOrder}</Text>
           </Pressable>
         ) : null}
 
